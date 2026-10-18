@@ -253,3 +253,129 @@ func TestBulkPatchThreats_ValidatesAllEntriesBeforeApplying(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
 	mockStore.AssertNotCalled(t, "Patch", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
+
+func TestPatchGuards_RejectMoveCopyFromGuardedPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{}
+	patches := map[string]string{
+		"move from guarded": `[{"op":"move","path":"/description","from":"%s"}]`,
+		"copy from guarded": `[{"op":"copy","path":"/description","from":"%s"}]`,
+	}
+
+	t.Run("admin survey", func(t *testing.T) {
+		for name, tmpl := range patches {
+			t.Run(name, func(t *testing.T) {
+				store := newMockSurveyStore()
+				saveSurveyStores(t, store, nil)
+				surveyID := seedSurvey(store, "Original", "v1", SurveyStatusActive)
+				c, w := CreateTestGinContextWithBody(http.MethodPatch, fmt.Sprintf("/admin/surveys/%s", surveyID),
+					"application/json-patch+json", []byte(fmt.Sprintf(tmpl, "/created_by")))
+				TestUsers.Owner.SetContext(c)
+				server.PatchAdminSurvey(c, surveyID)
+				assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+				assert.Contains(t, w.Body.String(), "not allowed")
+			})
+		}
+	})
+
+	t.Run("triage survey response", func(t *testing.T) {
+		for name, tmpl := range patches {
+			t.Run(name, func(t *testing.T) {
+				store := newMockSurveyResponseStore()
+				saveSurveyStores(t, nil, store)
+				id := seedSurveyResponse(store, uuid.New(), ResponseStatusSubmitted, TestUsers.Owner.InternalUUID)
+				c, w := CreateTestGinContextWithBody("PATCH", fmt.Sprintf("/triage/survey_responses/%s", id),
+					"application/json-patch+json", []byte(fmt.Sprintf(tmpl, "/owner")))
+				asTriageUser(t, c, GroupSecurityReviewers)
+				server.PatchTriageSurveyResponse(c, id)
+				assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+				assert.Contains(t, w.Body.String(), "not allowed")
+			})
+		}
+	})
+
+	t.Run("team note sharable", func(t *testing.T) {
+		for name, tmpl := range patches {
+			t.Run(name, func(t *testing.T) {
+				store := newMockTeamNoteStore()
+				seedTeamNoteInStore(store, testTeamNoteID, true)
+				saveTeamNoteStore(t, store)
+				db := setupTestTeamAuthDB(t)
+				seedTeamAuthData(t, db, testTeamID, testUserUUID)
+				teamUUID, _ := uuid.Parse(testTeamID)
+				noteUUID, _ := uuid.Parse(testTeamNoteID)
+				c, w := CreateTestGinContextWithBody("PATCH", "/teams/"+testTeamID+"/notes/"+testTeamNoteID,
+					"application/json", []byte(fmt.Sprintf(tmpl, "/sharable")))
+				TestUsers.Owner.SetContext(c)
+				server.PatchTeamNote(c, teamUUID, noteUUID)
+				assert.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+			})
+		}
+	})
+
+	t.Run("project note sharable", func(t *testing.T) {
+		for name, tmpl := range patches {
+			t.Run(name, func(t *testing.T) {
+				store := newMockProjectNoteStore()
+				seedProjectNoteInStore(store, testProjectNoteID, true)
+				saveProjectNoteStore(t, store)
+				db := setupTestTeamAuthDB(t)
+				seedTeamAuthData(t, db, testTeamID, testUserUUID)
+				seedProjectAuthData(t, db, testProjectID, testTeamID)
+				projectUUID, _ := uuid.Parse(testProjectID)
+				noteUUID, _ := uuid.Parse(testProjectNoteID)
+				c, w := CreateTestGinContextWithBody("PATCH", "/projects/"+testProjectID+"/notes/"+testProjectNoteID,
+					"application/json", []byte(fmt.Sprintf(tmpl, "/sharable")))
+				TestUsers.Owner.SetContext(c)
+				server.PatchProjectNote(c, projectUUID, noteUUID)
+				assert.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+			})
+		}
+	})
+}
+
+// A move whose source is /status removes it (counted as a status change), and a
+// copy/move into /status is a status change: neither may leave the stored
+// status altered or surface as a 500.
+func TestPatchIntakeSurveyResponse_StatusViaMoveCopy(t *testing.T) {
+	cases := map[string]struct {
+		patch string
+		want  int
+	}{
+		"move from status":         {`[{"op":"move","path":"/description","from":"/status"}]`, http.StatusOK},
+		"copy into status":         {`[{"op":"copy","path":"/status","from":"/survey_id"}]`, http.StatusBadRequest},
+		"move into status":         {`[{"op":"move","path":"/status","from":"/survey_id"}]`, http.StatusBadRequest},
+		"copy status to elsewhere": {`[{"op":"copy","path":"/description","from":"/status"}]`, http.StatusOK},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			store := newMockSurveyResponseStore()
+			saveSurveyStores(t, nil, store)
+			id := seedSurveyResponse(store, uuid.New(), ResponseStatusDraft, TestUsers.Owner.InternalUUID)
+			c, w := CreateTestGinContextWithBody("PATCH", fmt.Sprintf("/intake/survey_responses/%s", id), "application/json-patch+json", []byte(tc.patch))
+			TestUsers.Owner.SetContext(c)
+			(&Server{}).PatchIntakeSurveyResponse(c, id, PatchIntakeSurveyResponseParams{})
+			assert.Equal(t, tc.want, w.Code, w.Body.String())
+			assert.Equal(t, ResponseStatusDraft, *store.responses[id].Status, "status must be unchanged")
+		})
+	}
+}
+
+func TestCheckOwnershipChanges_MoveAndCopy(t *testing.T) {
+	owner, auth := CheckOwnershipChanges([]PatchOperation{{Op: "move", Path: "/owner", From: "/name"}})
+	assert.True(t, owner)
+	assert.False(t, auth)
+	owner, auth = CheckOwnershipChanges([]PatchOperation{{Op: "move", Path: "/name", From: "/owner"}})
+	assert.True(t, owner)
+	assert.False(t, auth)
+	owner, auth = CheckOwnershipChanges([]PatchOperation{{Op: "copy", Path: "/authorization/0", From: "/name"}})
+	assert.False(t, owner)
+	assert.True(t, auth)
+	owner, auth = CheckOwnershipChanges([]PatchOperation{{Op: "move", Path: "/name", From: "/authorization"}})
+	assert.False(t, owner)
+	assert.True(t, auth)
+	// copy only reads its source
+	owner, auth = CheckOwnershipChanges([]PatchOperation{{Op: "copy", Path: "/name", From: "/owner"}})
+	assert.False(t, owner)
+	assert.False(t, auth)
+}

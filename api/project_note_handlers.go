@@ -317,7 +317,7 @@ func (s *Server) UpdateProjectNote(c *gin.Context, projectId openapi_types.UUID,
 
 // PatchProjectNote partially updates a project note using JSON Patch.
 // PATCH /projects/{project_id}/notes/{project_note_id}
-// SEM@d276bf5e1126f3d0a1dcda0c73c3a265feffa704: apply a JSON Patch to a project note, sanitizing the patched fields and blocking sharable-field changes for unprivileged users (mutates DB)
+// SEM@0000000: apply a JSON Patch to a project note, sanitizing the patched fields and blocking sharable-field changes for unprivileged users (mutates DB)
 func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, projectNoteId ProjectNoteId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -358,14 +358,12 @@ func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, 
 
 	// Non-privileged users cannot patch the sharable field
 	if !privileged {
-		for _, op := range operations {
-			if op.Path == "/sharable" {
-				c.JSON(http.StatusForbidden, Error{
-					Error:            ErrorError(errcode.Forbidden),
-					ErrorDescription: "Only administrators and security reviewers can modify the sharable field",
-				})
-				return
-			}
+		if _, touches := FindProhibitedPatchPath(operations, []string{"/sharable"}); touches {
+			c.JSON(http.StatusForbidden, Error{
+				Error:            ErrorError(errcode.Forbidden),
+				ErrorDescription: "Only administrators and security reviewers can modify the sharable field",
+			})
+			return
 		}
 	}
 

@@ -192,20 +192,23 @@ func ValidatePatchProhibitedPaths(operations []PatchOperation) *RequestError {
 }
 
 // CheckOwnershipChanges analyzes patch operations to determine if owner or authorization fields are being modified
-// SEM@cdbe48c974fb76e1161972733b30bb0d1c02c3b1: detect whether patch operations modify the owner or authorization fields (pure)
+// SEM@0000000: detect whether patch operations modify the owner or authorization fields (pure)
 func CheckOwnershipChanges(operations []PatchOperation) (ownerChanging, authChanging bool) {
 	for _, op := range operations {
-		if op.Op == string(Replace) || op.Op == string(Add) || op.Op == string(Remove) {
-			switch op.Path {
-			case "/owner":
+		// move and copy write op.Path; move also removes op.From.
+		var written []string
+		switch JsonPatchDocumentOp(op.Op) {
+		case Replace, Add, Remove, Copy:
+			written = []string{op.Path}
+		case Move:
+			written = []string{op.Path, op.From}
+		}
+		for _, path := range written {
+			switch {
+			case path == "/owner":
 				ownerChanging = true
-			case "/authorization":
+			case path == "/authorization" || strings.HasPrefix(path, "/authorization/"):
 				authChanging = true
-			default:
-				// Check for authorization array operations like /authorization/0, /authorization/-
-				if len(op.Path) > 15 && op.Path[:15] == "/authorization/" {
-					authChanging = true
-				}
 			}
 		}
 	}

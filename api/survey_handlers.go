@@ -910,18 +910,13 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 	}
 
 	// Check for status change in operations
-	hasStatusChange := false
 	if p, found := FindProhibitedPatchPath(operations, prohibitedPaths); found {
 		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
 			"Field '%s' is not allowed in PATCH requests",
 			strings.TrimPrefix(p, "/"))))
 		return
 	}
-	for _, op := range operations {
-		if op.Path == PatchPathStatus {
-			hasStatusChange = true
-		}
-	}
+	hasStatusChange := patchChangesStatus(operations)
 
 	// Apply patch operations
 	patched, err := ApplyPatchOperations(*existing, operations)
@@ -1215,18 +1210,13 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 		"/survey_version", "/is_confidential", "/survey_json", "/ui_state",
 	}
 
-	hasStatusChange := false
 	if p, found := FindProhibitedPatchPath(operations, prohibitedPaths); found {
 		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
 			"Field '%s' is not allowed in PATCH requests",
 			strings.TrimPrefix(p, "/"))))
 		return
 	}
-	for _, op := range operations {
-		if op.Path == PatchPathStatus {
-			hasStatusChange = true
-		}
-	}
+	hasStatusChange := patchChangesStatus(operations)
 
 	// Apply patch operations
 	patched, err := ApplyPatchOperations(*existing, operations)
@@ -1744,4 +1734,16 @@ func validateSurveyJSON(surveyJSON map[string]any) error {
 	}
 
 	return nil
+}
+
+// patchChangesStatus reports whether any operation writes /status; a move
+// also removes its source, so moving /status away counts.
+// SEM@0000000: detect whether JSON Patch operations write or remove the status field (pure)
+func patchChangesStatus(operations []PatchOperation) bool {
+	for _, op := range operations {
+		if op.Path == PatchPathStatus || (op.Op == string(Move) && op.From == PatchPathStatus) {
+			return true
+		}
+	}
+	return false
 }
