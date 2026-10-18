@@ -458,7 +458,6 @@ all:
 	)
 }
 
-// SEM@0: resolved seeded ids the fixture manifest is built from (pure)
 // SEM@ab7ea33a868b16fca968f4640659ee8149524a1e: hold resolved seeded resource IDs used to build the fixture manifest (pure)
 type fixtureIDs struct {
 	threatModelID, threatID, diagramID, documentID, assetID, noteID string
@@ -469,7 +468,6 @@ type fixtureIDs struct {
 	webhookID, deliveryID                                           string
 }
 
-// SEM@0: one seeded fixture the campaign depends on, plus how to check it is still alive (pure)
 // SEM@ab7ea33a868b16fca968f4640659ee8149524a1e: describe one seeded fixture and how to verify it still exists (pure)
 type referenceFixture struct {
 	// Key is the refData key CATS substitutes this id into.
@@ -488,7 +486,6 @@ type referenceFixture struct {
 	Decoyed bool `json:"decoyed"`
 }
 
-// SEM@0: fixture manifest file structure listing verifiable and unverifiable seeded fixtures (pure)
 // SEM@ab7ea33a868b16fca968f4640659ee8149524a1e: hold the fixture integrity manifest of verifiable and unverifiable seeded fixtures (pure)
 type fixtureManifest struct {
 	Version   string             `json:"version"`
