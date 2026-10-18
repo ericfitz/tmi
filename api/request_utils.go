@@ -141,7 +141,28 @@ func ParsePatchRequest(c *gin.Context) ([]PatchOperation, error) {
 		}
 	}
 
+	if reqErr := ValidatePatchOperationPaths(operations); reqErr != nil {
+		return nil, reqErr
+	}
+
 	return operations, nil
+}
+
+// ValidatePatchOperationPaths rejects whole-document JSON Patch operations: a
+// root path ("") or any path or move/copy "from" that is not a JSON Pointer
+// starting with "/". Exact-path checks on prohibited fields cannot see a
+// root-path operation, so every PATCH handler must reject them up front.
+// SEM@0000000: reject JSON Patch operations targeting the document root or non-pointer paths (pure)
+func ValidatePatchOperationPaths(operations []PatchOperation) *RequestError {
+	for i, op := range operations {
+		if !strings.HasPrefix(op.Path, "/") {
+			return InvalidInputError(fmt.Sprintf("operation %d: path must be a JSON Pointer starting with '/'; root-path operations are not allowed", i))
+		}
+		if (op.Op == "move" || op.Op == "copy") && !strings.HasPrefix(op.From, "/") {
+			return InvalidInputError(fmt.Sprintf("operation %d: from must be a JSON Pointer starting with '/'", i))
+		}
+	}
+	return nil
 }
 
 // ParseRequestBody parses JSON request body into the specified type

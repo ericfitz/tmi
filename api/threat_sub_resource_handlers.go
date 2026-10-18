@@ -933,6 +933,11 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 			return
 		}
 
+		if reqErr := ValidatePatchOperationPaths(patch.Operations); reqErr != nil {
+			HandleRequestError(c, reqErr)
+			return
+		}
+
 		// Validate patch authorization
 		if err := ValidatePatchAuthorization(patch.Operations, userRole); err != nil {
 			HandleRequestError(c, ForbiddenError("Insufficient permissions for requested patch operations"))
