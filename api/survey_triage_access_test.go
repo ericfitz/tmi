@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -357,4 +358,85 @@ func TestValidateIntakeStatusTarget(t *testing.T) {
 	assert.Error(t, validateIntakeStatusTarget(ResponseStatusReadyForReview))
 	assert.Error(t, validateIntakeStatusTarget(ResponseStatusReviewCreated))
 	assert.Error(t, validateIntakeStatusTarget("bogus"))
+}
+
+// Tests for #1106: the documented is_confidential query parameter narrows the
+// triage list but never widens the reviewer-group scope from #1100.
+func TestTriageList_IsConfidentialParamIntersectsScope(t *testing.T) {
+	f := newTriageFixture(t)
+	yes, no := true, false
+
+	tests := []struct {
+		name   string
+		user   TestUserIdentity
+		param  *bool
+		expect []uuid.UUID
+	}{
+		{"sr absent", f.sr, nil, []uuid.UUID{f.normalID}},
+		{"sr true", f.sr, &yes, []uuid.UUID{}},
+		{"sr false", f.sr, &no, []uuid.UUID{f.normalID}},
+		{"cpr absent", f.cpr, nil, []uuid.UUID{f.confID}},
+		{"cpr true", f.cpr, &yes, []uuid.UUID{f.confID}},
+		{"cpr false", f.cpr, &no, []uuid.UUID{}},
+		{"both absent", f.both, nil, []uuid.UUID{f.normalID, f.confID}},
+		{"both true", f.both, &yes, []uuid.UUID{f.confID}},
+		{"both false", f.both, &no, []uuid.UUID{f.normalID}},
+		{"non-reviewer true", f.alice, &yes, []uuid.UUID{}},
+		{"non-reviewer false", f.alice, &no, []uuid.UUID{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, w := CreateTestGinContext("GET", "/triage/survey_responses")
+			tt.user.SetContext(c)
+			f.server.ListTriageSurveyResponses(c, ListTriageSurveyResponsesParams{IsConfidential: tt.param})
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			var resp ListSurveyResponsesResponse
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+			ids := []uuid.UUID{}
+			for _, it := range resp.SurveyResponses {
+				ids = append(ids, *it.Id)
+			}
+			assert.ElementsMatch(t, tt.expect, ids)
+			assert.Equal(t, len(tt.expect), resp.Total)
+		})
+	}
+}
+
+func TestIntersectConfidentialScope(t *testing.T) {
+	yes, no := true, false
+	eff, empty := intersectConfidentialScope(nil, nil)
+	assert.Nil(t, eff)
+	assert.False(t, empty)
+	eff, empty = intersectConfidentialScope(nil, &yes)
+	assert.Equal(t, &yes, eff)
+	assert.False(t, empty)
+	eff, empty = intersectConfidentialScope(&no, nil)
+	assert.Equal(t, &no, eff)
+	assert.False(t, empty)
+	eff, empty = intersectConfidentialScope(&no, &no)
+	assert.Equal(t, &no, eff)
+	assert.False(t, empty)
+	_, empty = intersectConfidentialScope(&no, &yes)
+	assert.True(t, empty)
+	_, empty = intersectConfidentialScope(&yes, &no)
+	assert.True(t, empty)
+}
+
+// A non-boolean is_confidential is rejected by the generated binder before the
+// handler runs.
+func TestTriageList_InvalidIsConfidentialIs400(t *testing.T) {
+	f := newTriageFixture(t)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		f.sr.SetContext(c)
+		c.Next()
+	})
+	RegisterHandlers(router, f.server)
+
+	for _, v := range []string{"maybe", "2", ""} {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/triage/survey_responses?is_confidential="+v, nil)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code, "value %q: %s", v, w.Body.String())
+	}
 }

@@ -1071,7 +1071,7 @@ func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 
 // ListTriageSurveyResponses returns survey responses for triage.
 // GET /triage/survey_responses
-// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: list survey responses scoped to the caller's reviewer groups by confidentiality (reads DB)
+// SEM@0000000: list survey responses scoped to caller reviewer groups and is_confidential filter (reads DB)
 func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurveyResponsesParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1119,11 +1119,23 @@ func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurv
 		})
 		return
 	}
-	if confidential != nil {
+	// The is_confidential parameter only narrows the reviewer scope (#1106);
+	// a value the scope excludes yields an empty page, never a wider one.
+	effective, empty := intersectConfidentialScope(confidential, params.IsConfidential)
+	if empty {
+		c.JSON(http.StatusOK, ListSurveyResponsesResponse{
+			SurveyResponses: []SurveyResponseListItem{},
+			Total:           0,
+			Limit:           limit,
+			Offset:          offset,
+		})
+		return
+	}
+	if effective != nil {
 		if filters == nil {
 			filters = &SurveyResponseFilters{}
 		}
-		filters.IsConfidential = confidential
+		filters.IsConfidential = effective
 	}
 
 	items, total, err := GlobalSurveyResponseStore.List(ctx, limit, offset, filters)
@@ -1142,6 +1154,21 @@ func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurv
 		Limit:           limit,
 		Offset:          offset,
 	})
+}
+
+// intersectConfidentialScope combines the caller's reviewer scope with the
+// is_confidential query parameter. A nil input means "no restriction"; empty is
+// true when the two disagree, so the result set is necessarily empty.
+// SEM@0000000: intersect reviewer confidentiality scope with a query filter (pure)
+func intersectConfidentialScope(scope, param *bool) (effective *bool, empty bool) {
+	switch {
+	case scope == nil:
+		return param, false
+	case param == nil || *param == *scope:
+		return scope, false
+	default:
+		return nil, true
+	}
 }
 
 // GetTriageSurveyResponse returns a specific survey response for triage.
