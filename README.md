@@ -83,7 +83,7 @@ make lint               # Run code linting
 
 ## Configuration
 
-The server reads a YAML configuration file passed with `--config`, and every setting can be overridden with a `TMI_`-prefixed environment variable (for example `TMI_SERVER_PORT`, `TMI_JWT_EXPIRATION_SECONDS`, `TMI_REDIS_URL`). The YAML file holds the bootstrap keys needed to start the server; operational settings are stored in the database settings service and can be pinned with the environment or the YAML file.
+The server reads a YAML configuration file passed with `--config`, and every setting can be overridden with a `TMI_`-prefixed environment variable (for example `TMI_SERVER_PORT`, `TMI_JWT_EXPIRATION_SECONDS`, `TMI_REDIS_URL`). The YAML file holds the bootstrap keys needed to start the server; operational settings are stored in the database settings service and can be overridden with the environment or the YAML file.
 
 ```bash
 ./bin/tmiserver --config=/path/to/config.yml

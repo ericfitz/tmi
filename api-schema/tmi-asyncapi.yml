@@ -124,6 +124,7 @@ channels:
       - threat_model_created, threat_model_updated, threat_model_deleted
       - user_joined, user_left (fired when a user connects to or disconnects from this notification hub, not a diagram collaboration session)
       - heartbeat
+      - subscription_updated (sent only to the requesting client, with user_id "system", to confirm an update_subscription message)
 
       ## Reserved message types (defined but never emitted)
       threat_model_shared, collaboration_started, collaboration_ended, collaboration_invite,
@@ -660,7 +661,7 @@ components:
       description: |
         Envelope for every message sent on /ws/notifications. The data field depends on message_type:
         threat model events carry threat_model_id, threat_model_name and action; user_joined and user_left
-        carry user_email and user_name; heartbeat carries no data.
+        carry user_email and user_name; heartbeat carries no data; subscription_updated carries a message string.
       payload:
         $ref: "#/components/schemas/NotificationPayload"
       examples:
@@ -1380,7 +1381,7 @@ components:
           type: string
           description: |
             Notification type. Emitted today: threat_model_created, threat_model_updated, threat_model_deleted,
-            user_joined, user_left, heartbeat. The remaining values are reserved and never emitted.
+            user_joined, user_left, heartbeat, subscription_updated. The remaining values are reserved and never emitted.
           enum:
             - threat_model_created
             - threat_model_updated
@@ -1395,6 +1396,7 @@ components:
             - user_joined
             - user_left
             - heartbeat
+            - subscription_updated
           example: threat_model_created
         user_id:
           type: string
