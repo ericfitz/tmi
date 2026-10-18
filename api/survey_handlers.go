@@ -110,7 +110,7 @@ func (s *Server) ListAdminSurveys(c *gin.Context, params ListAdminSurveysParams)
 
 // CreateAdminSurvey creates a new survey.
 // POST /admin/surveys
-// SEM@ed719f753d3a02b551f5a7a01daff2f01a221118: store a new survey template and emit a webhook event (mutates shared state)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: store a new survey template and emit a webhook event (mutates shared state)
 func (s *Server) CreateAdminSurvey(c *gin.Context) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -227,7 +227,7 @@ func (s *Server) GetAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 // UpdateAdminSurvey fully updates a survey.
 // PUT /admin/surveys/{survey_id}
-// SEM@ed719f753d3a02b551f5a7a01daff2f01a221118: fully replace a non-archived survey and emit a webhook event (mutates shared state)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: fully replace a non-archived survey and emit a webhook event (mutates shared state)
 func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()

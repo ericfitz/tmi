@@ -32,7 +32,7 @@ func triageReviewerGroup(isConfidential bool) BuiltInGroup {
 // response's confidentiality. A missing response and a denied caller both
 // surface as 404 (non-disclosure, T5 #357). On failure it writes the error
 // and returns (nil, false).
-// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: authorize a caller as a triage reviewer for a survey response and return it, emitting 404 on denial (reads DB)
+// SEM@c200ebeeb27cdc988a6ca70a79561a67add75afb: authorize a caller by reviewer-group membership for a survey response's confidentiality, 404 on denial (reads DB)
 func RequireTriageAccess(c *gin.Context, responseID SurveyResponseId) (*SurveyResponse, bool) {
 	logger := slogging.Get().WithContext(c)
 
