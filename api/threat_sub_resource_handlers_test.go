@@ -660,7 +660,9 @@ func TestPatchThreat(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		mockStore.AssertExpectations(t)
+		assert.Contains(t, w.Body.String(), "invalid_input")
+		mockStore.AssertNotCalled(t, "Get", mock.Anything, mock.Anything)
+		mockStore.AssertNotCalled(t, "Patch", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
 }
 
