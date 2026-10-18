@@ -103,7 +103,7 @@ func writeJSONReference(path string, refs RefMap, serverURL, user, provider stri
 	return os.WriteFile(path, data, 0o600)
 }
 
-// SEM@0000000: serialize seeded resource IDs to a CATS-compatible YAML parameter reference file (writes file)
+// SEM@3f6bbfeb4674fdaa5885dfc24c251bc03bfecef0: serialize seeded resource IDs to a CATS-compatible YAML parameter reference file (writes file)
 func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
@@ -459,6 +459,7 @@ all:
 }
 
 // SEM@0: resolved seeded ids the fixture manifest is built from (pure)
+// SEM@ab7ea33a868b16fca968f4640659ee8149524a1e: hold resolved seeded resource IDs used to build the fixture manifest (pure)
 type fixtureIDs struct {
 	threatModelID, threatID, diagramID, documentID, assetID, noteID string
 	feedbackID, repositoryID                                        string
@@ -469,6 +470,7 @@ type fixtureIDs struct {
 }
 
 // SEM@0: one seeded fixture the campaign depends on, plus how to check it is still alive (pure)
+// SEM@ab7ea33a868b16fca968f4640659ee8149524a1e: describe one seeded fixture and how to verify it still exists (pure)
 type referenceFixture struct {
 	// Key is the refData key CATS substitutes this id into.
 	Key string `json:"key"`
@@ -487,6 +489,7 @@ type referenceFixture struct {
 }
 
 // SEM@0: fixture manifest file structure listing verifiable and unverifiable seeded fixtures (pure)
+// SEM@ab7ea33a868b16fca968f4640659ee8149524a1e: hold the fixture integrity manifest of verifiable and unverifiable seeded fixtures (pure)
 type fixtureManifest struct {
 	Version   string             `json:"version"`
 	CreatedAt string             `json:"created_at"`
@@ -498,7 +501,7 @@ type fixtureManifest struct {
 	Unverifiable map[string]string `json:"unverifiable"`
 }
 
-// SEM@0000000: serialize the seeded-fixture integrity manifest consumed by the CATS runner gates (mutates shared state)
+// SEM@3f6bbfeb4674fdaa5885dfc24c251bc03bfecef0: serialize the seeded-fixture integrity manifest consumed by the CATS runner gates (writes file)
 func writeFixtureManifest(path string, ids fixtureIDs) error {
 	tm := ids.threatModelID
 	// Anchors that writeYAMLReference emits a decoy override for. Keep in step
