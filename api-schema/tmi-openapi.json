@@ -14397,7 +14397,7 @@
       "IsConfidentialQueryParam": {
         "name": "is_confidential",
         "in": "query",
-        "description": "Filter by secret_project flag",
+        "description": "Filter survey responses by their is_confidential flag, intersected with the caller's reviewer scope",
         "schema": {
           "type": "boolean"
         }
@@ -14418,7 +14418,13 @@
         "schema": {
           "type": "string",
           "maxLength": 128,
-          "pattern": "^[^\\x00-\\x1F]*$"
+          "pattern": "^[^\\x00-\\x1F]*$",
+          "enum": [
+            "active",
+            "inactive",
+            "archived"
+          ],
+          "x-go-type": "string"
         }
       },
       "SurveyId": {

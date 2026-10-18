@@ -1644,7 +1644,7 @@ func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyRespo
 // templates table at the handler boundary so that fuzzer-induced inputs
 // produce a clean 400 instead of bouncing off the database as 500.
 // Mirrors gorm tags on api/models/survey_models.go: SurveyTemplate.
-// SEM@d79355f5eb3a2b2254ea6aa04da1cd81a55a4297: validate a patched survey against column-level constraints; return 400-class error (pure)
+// SEM@0000000: validate a patched survey against column-level constraints; return 400-class error (pure)
 func validatePatchedSurvey(s *Survey) *RequestError {
 	if s == nil {
 		return InvalidInputError("survey is required")

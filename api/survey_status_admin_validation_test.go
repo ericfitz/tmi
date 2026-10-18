@@ -110,3 +110,28 @@ func TestSurveyBaseStatusSpecEnum(t *testing.T) {
 		})
 	}
 }
+
+// TestSurveyStatusQueryParamSpecEnum confirms GET /admin/surveys?status= is
+// enum-checked by the OpenAPI request validator.
+func TestSurveyStatusQueryParamSpecEnum(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	validator, err := SetupOpenAPIValidation()
+	require.NoError(t, err)
+	router := gin.New()
+	router.Use(validator)
+	router.GET("/admin/surveys", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	cases := map[string]int{
+		"active":                 http.StatusOK,
+		"inactive":               http.StatusOK,
+		"archived":               http.StatusOK,
+		"bogus":                  http.StatusBadRequest,
+		strings.Repeat("x", 100): http.StatusBadRequest,
+	}
+	for status, want := range cases {
+		req := httptest.NewRequest(http.MethodGet, "/admin/surveys?status="+status, nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, want, w.Code, "status=%q body=%s", status, w.Body.String())
+	}
+}
