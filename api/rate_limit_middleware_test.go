@@ -682,6 +682,42 @@ func TestAuthFlowRateLimitMiddleware(t *testing.T) {
 	})
 }
 
+func TestAuthFlowRateLimitMiddleware_StepUp(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	client, mr := setupTestRedis(t)
+	defer mr.Close()
+	defer func() { _ = client.Close() }()
+
+	server := &Server{
+		authFlowRateLimiter: NewAuthFlowRateLimiter(client),
+	}
+
+	router := gin.New()
+	router.Use(AuthFlowRateLimitMiddleware(server))
+	router.GET("/oauth2/step_up", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	// Exhaust the per-IP limit from one non-loopback address (no state, so
+	// only the IP scope applies).
+	for i := range authFlowDefaultIPLimit {
+		req := httptest.NewRequest("GET", "/oauth2/step_up", nil)
+		req.RemoteAddr = "203.0.113.7:12345"
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code, "Request %d should be allowed", i+1)
+	}
+
+	req := httptest.NewRequest("GET", "/oauth2/step_up", nil)
+	req.RemoteAddr = "203.0.113.7:12345"
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusTooManyRequests, w.Code)
+	assert.Contains(t, w.Body.String(), "rate_limit_exceeded")
+}
+
 func TestIsPublicEndpoint(t *testing.T) {
 	tests := []struct {
 		path     string
@@ -713,6 +749,7 @@ func TestIsAuthFlowEndpoint(t *testing.T) {
 		{"/oauth2/token", true},
 		{"/oauth2/refresh", true},
 		{"/oauth2/introspect", true},
+		{"/oauth2/step_up", true},
 		{"/saml/login", true},
 		{"/saml/acs", true},
 		{"/saml/slo", true},
