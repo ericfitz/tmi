@@ -927,6 +927,11 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 
 	patched.Id = &surveyResponseId
 
+	if hasStatusChange && patched.Status == nil {
+		HandleRequestError(c, InvalidInputError("Field 'status' cannot be removed"))
+		return
+	}
+
 	// Validate a status transition BEFORE the CAS-guarded write below, even
 	// though the actual status write happens after it. Both failure modes
 	// here (unknown status value, missing revision_notes) are pure checks
@@ -1222,6 +1227,11 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 	patched, err := ApplyPatchOperations(*existing, operations)
 	if err != nil {
 		HandleRequestError(c, err)
+		return
+	}
+
+	if hasStatusChange && patched.Status == nil {
+		HandleRequestError(c, InvalidInputError("Field 'status' cannot be removed"))
 		return
 	}
 

@@ -334,30 +334,55 @@ func TestPatchGuards_RejectMoveCopyFromGuardedPath(t *testing.T) {
 	})
 }
 
-// A move whose source is /status removes it (counted as a status change), and a
-// copy/move into /status is a status change: neither may leave the stored
-// status altered or surface as a 500.
-func TestPatchIntakeSurveyResponse_StatusViaMoveCopy(t *testing.T) {
+// Removing /status (via remove or move-from) is a 400; copy/move into /status
+// is validated as a status target. In every case the stored status stays put.
+func TestPatchSurveyResponse_StatusViaMoveCopyRemove(t *testing.T) {
 	cases := map[string]struct {
 		patch string
 		want  int
+		// writes is true when the case legitimately rewrites revision_notes or
+		// reaches the store's own status validation.
+		writes bool
 	}{
-		"move from status":         {`[{"op":"move","path":"/description","from":"/status"}]`, http.StatusOK},
-		"copy into status":         {`[{"op":"copy","path":"/status","from":"/survey_id"}]`, http.StatusBadRequest},
-		"move into status":         {`[{"op":"move","path":"/status","from":"/survey_id"}]`, http.StatusBadRequest},
-		"copy status to elsewhere": {`[{"op":"copy","path":"/description","from":"/status"}]`, http.StatusOK},
+		"move from status":             {`[{"op":"move","path":"/revision_notes","from":"/status"}]`, http.StatusBadRequest, false},
+		"remove status":                {`[{"op":"remove","path":"/status"}]`, http.StatusBadRequest, false},
+		"copy status elsewhere":        {`[{"op":"copy","path":"/revision_notes","from":"/status"}]`, http.StatusOK, true},
+		"copy bogus value into status": {`[{"op":"copy","path":"/status","from":"/revision_notes"}]`, http.StatusBadRequest, true},
+		"move bogus value into status": {`[{"op":"move","path":"/status","from":"/revision_notes"}]`, http.StatusBadRequest, true},
 	}
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			store := newMockSurveyResponseStore()
-			saveSurveyStores(t, nil, store)
-			id := seedSurveyResponse(store, uuid.New(), ResponseStatusDraft, TestUsers.Owner.InternalUUID)
-			c, w := CreateTestGinContextWithBody("PATCH", fmt.Sprintf("/intake/survey_responses/%s", id), "application/json-patch+json", []byte(tc.patch))
-			TestUsers.Owner.SetContext(c)
-			(&Server{}).PatchIntakeSurveyResponse(c, id, PatchIntakeSurveyResponseParams{})
-			assert.Equal(t, tc.want, w.Code, w.Body.String())
-			assert.Equal(t, ResponseStatusDraft, *store.responses[id].Status, "status must be unchanged")
-		})
+	for _, handler := range []string{"intake", "triage"} {
+		for name, tc := range cases {
+			t.Run(handler+" "+name, func(t *testing.T) {
+				store := newMockSurveyResponseStore()
+				saveSurveyStores(t, nil, store)
+				initial := ResponseStatusDraft
+				if handler == "triage" {
+					initial = ResponseStatusSubmitted
+				}
+				id := seedSurveyResponse(store, uuid.New(), initial, TestUsers.Owner.InternalUUID)
+				notes := "not-a-status"
+				store.responses[id].RevisionNotes = &notes
+				// The real store rejects unknown status values; the mock needs telling.
+				store.updateStatusErr = errors.New("invalid status value")
+
+				var c *gin.Context
+				var w *httptest.ResponseRecorder
+				if handler == "intake" {
+					c, w = CreateTestGinContextWithBody("PATCH", fmt.Sprintf("/intake/survey_responses/%s", id), "application/json-patch+json", []byte(tc.patch))
+					TestUsers.Owner.SetContext(c)
+					(&Server{}).PatchIntakeSurveyResponse(c, id, PatchIntakeSurveyResponseParams{})
+				} else {
+					c, w = CreateTestGinContextWithBody("PATCH", fmt.Sprintf("/triage/survey_responses/%s", id), "application/json-patch+json", []byte(tc.patch))
+					asTriageUser(t, c, GroupSecurityReviewers)
+					(&Server{}).PatchTriageSurveyResponse(c, id)
+				}
+				assert.Equal(t, tc.want, w.Code, w.Body.String())
+				if !tc.writes {
+					assert.Equal(t, initial, *store.responses[id].Status, "status must be unchanged")
+					assert.Equal(t, "not-a-status", *store.responses[id].RevisionNotes, "revision_notes must be unchanged")
+				}
+			})
+		}
 	}
 }
 
@@ -374,6 +399,10 @@ func TestCheckOwnershipChanges_MoveAndCopy(t *testing.T) {
 	owner, auth = CheckOwnershipChanges([]PatchOperation{{Op: "move", Path: "/name", From: "/authorization"}})
 	assert.False(t, owner)
 	assert.True(t, auth)
+	owner, _ = CheckOwnershipChanges([]PatchOperation{{Op: "replace", Path: "/owner/provider_id", Value: "x"}})
+	assert.True(t, owner)
+	owner, _ = CheckOwnershipChanges([]PatchOperation{{Op: "replace", Path: "/owners", Value: "x"}})
+	assert.False(t, owner)
 	// copy only reads its source
 	owner, auth = CheckOwnershipChanges([]PatchOperation{{Op: "copy", Path: "/name", From: "/owner"}})
 	assert.False(t, owner)

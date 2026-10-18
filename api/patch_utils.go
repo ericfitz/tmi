@@ -205,7 +205,7 @@ func CheckOwnershipChanges(operations []PatchOperation) (ownerChanging, authChan
 		}
 		for _, path := range written {
 			switch {
-			case path == "/owner":
+			case path == "/owner" || strings.HasPrefix(path, "/owner/"):
 				ownerChanging = true
 			case path == "/authorization" || strings.HasPrefix(path, "/authorization/"):
 				authChanging = true
