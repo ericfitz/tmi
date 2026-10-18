@@ -528,7 +528,7 @@ var settingSemanticValidators = map[string]func(value string, productionMode boo
 // ValidateSettingSemantics applies the per-key semantic validator for key, if
 // any; keys without a validator pass. Exported so writers that bypass
 // SettingsService.Set (cmd/dbtool) enforce the same rules (#1108).
-// SEM@0000000: validate a setting value against its key-specific semantic rules (pure)
+// SEM@05d35fa239ce471ca0d0d0c324c69e93e1c8c21c: validate a setting value against its key-specific semantic rules (pure)
 func ValidateSettingSemantics(key, value string, productionMode bool) error {
 	validate, ok := settingSemanticValidators[key]
 	if !ok {
@@ -538,7 +538,7 @@ func ValidateSettingSemantics(key, value string, productionMode bool) error {
 }
 
 // validateSettingSemantics applies the per-key validator for the setting, if any.
-// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: validate a setting value against its key-specific semantic rules (pure)
+// SEM@05d35fa239ce471ca0d0d0c324c69e93e1c8c21c: validate a system setting's value using the service's production-mode semantic rules (pure)
 func (s *SettingsService) validateSettingSemantics(setting *models.SystemSetting) error {
 	return ValidateSettingSemantics(string(setting.SettingKey), string(setting.Value), s.isProductionMode())
 }

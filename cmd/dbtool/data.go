@@ -15,7 +15,7 @@ import (
 
 // validateSeedSettings applies the server's semantic setting validators to
 // every setting entry in the seed list, naming each rejected key.
-// SEM@0000000: validate seed setting entries against server semantic rules before seeding (pure)
+// SEM@c116c8d3a54fc80f8636bc97da64a579f17a94ca: validate seed setting entries against server semantic rules before seeding (pure)
 func validateSeedSettings(entries []SeedEntry) error {
 	var problems []string
 	for _, entry := range entries {
@@ -37,7 +37,7 @@ func validateSeedSettings(entries []SeedEntry) error {
 	return fmt.Errorf("refusing to seed invalid settings (validation failed before any write; fix the seed file and re-run): %s", strings.Join(problems, "; "))
 }
 
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: load a seed file and apply entries via DB or API, acting as per-entry users (reads DB)
+// SEM@05d35fa239ce471ca0d0d0c324c69e93e1c8c21c: load a seed file, validate settings, and apply entries via DB or API as per-entry users (reads DB)
 func runDataSeed(db *testdb.TestDB, inputFile, serverURL, user, provider string, dryRun bool) error {
 	log := slogging.Get()
 
