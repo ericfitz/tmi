@@ -126,9 +126,10 @@ func TestCreateThreatModelFromSurveyResponse_WrongStatus(t *testing.T) {
 	mockResponseStore := &mockSurveyResponseStore{
 		responses: map[uuid.UUID]*SurveyResponse{
 			responseID: {
-				Id:     &responseID,
-				Status: &draftStatus,
-				Owner:  owner,
+				Id:             &responseID,
+				Status:         &draftStatus,
+				Owner:          owner,
+				IsConfidential: new(bool),
 			},
 		},
 		accessMap: map[string]AuthorizationRole{
@@ -160,7 +161,7 @@ func TestCreateThreatModelFromSurveyResponse_DuplicateTM(t *testing.T) {
 
 	mockResponseStore := &mockSurveyResponseStore{
 		responses: map[uuid.UUID]*SurveyResponse{
-			responseID: {Id: &responseID, Status: &readyStatus, Owner: owner, CreatedThreatModelId: &existingTMID},
+			responseID: {Id: &responseID, Status: &readyStatus, Owner: owner, IsConfidential: new(bool), CreatedThreatModelId: &existingTMID},
 		},
 		accessMap: map[string]AuthorizationRole{responseID.String() + ":user-123": AuthorizationRoleOwner},
 	}
@@ -186,7 +187,7 @@ func TestCreateThreatModelFromSurveyResponse_NilOwner(t *testing.T) {
 
 	mockResponseStore := &mockSurveyResponseStore{
 		responses: map[uuid.UUID]*SurveyResponse{
-			responseID: {Id: &responseID, Status: &readyStatus, Owner: nil},
+			responseID: {Id: &responseID, Status: &readyStatus, Owner: nil, IsConfidential: new(bool)},
 		},
 		accessMap: map[string]AuthorizationRole{responseID.String() + ":user-123": AuthorizationRoleOwner},
 	}

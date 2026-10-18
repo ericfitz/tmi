@@ -361,6 +361,9 @@ func seedSurveyResponse(store *mockSurveyResponseStore, surveyID uuid.UUID, stat
 		Id:       &id,
 		SurveyId: surveyID,
 		Status:   strPtr(status),
+		// Mirrors the column default; a nil value is unknown and fails closed
+		// as confidential in triage access.
+		IsConfidential: new(bool),
 	}
 	now := time.Now().UTC()
 	r.CreatedAt = &now

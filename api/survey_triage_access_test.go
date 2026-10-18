@@ -259,6 +259,22 @@ func TestTriageAccess_IntakeUnchangedForSubmitter(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w3.Code, w3.Body.String())
 }
 
+func TestTriagePerID_NilConfidentialityFailsClosed(t *testing.T) {
+	f := newTriageFixture(t)
+	f.respStore.responses[f.normalID].IsConfidential = nil
+
+	get := func(u TestUserIdentity) int {
+		c, w := CreateTestGinContext("GET", "/x")
+		u.SetContext(c)
+		f.server.GetTriageSurveyResponse(c, f.normalID)
+		return w.Code
+	}
+	// Unknown confidentiality is treated as confidential: only the
+	// Confidential Project Reviewers group may triage it.
+	assert.Equal(t, http.StatusNotFound, get(f.sr), "sr/nil")
+	assert.Equal(t, http.StatusOK, get(f.cpr), "cpr/nil")
+}
+
 func TestTriageReviewerGroup(t *testing.T) {
 	assert.Equal(t, GroupConfidentialProjectReviewers, triageReviewerGroup(true))
 	assert.Equal(t, GroupSecurityReviewers, triageReviewerGroup(false))

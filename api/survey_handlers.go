@@ -860,7 +860,7 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 // The submitter may only move a response to draft or submitted; approval and
 // review states belong to triage reviewers (#1100). PUT and create carry no
 // status field, so PATCH is the only intake path that reaches this check.
-// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: validate that an intake caller may set a survey response status only to draft or submitted (pure)
+// SEM@fea6b3be63afa09c0668f3eaa2f51f933c5e05f1: validate that an intake caller may set a survey response status only to draft or submitted (pure)
 func validateIntakeStatusTarget(status string) error {
 	if status != ResponseStatusDraft && status != ResponseStatusSubmitted {
 		return fmt.Errorf("status %q cannot be set through intake endpoints; only %q or %q is allowed",
@@ -872,7 +872,7 @@ func validateIntakeStatusTarget(status string) error {
 // PatchIntakeSurveyResponse partially updates a survey response.
 // PATCH /intake/survey_responses/{response_id}
 // Supports status transitions: draft->submitted, needs_revision->submitted
-// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: apply a JSON Patch to a draft or needs-revision survey response, allowing only draft or submitted status targets (mutates DB)
+// SEM@fea6b3be63afa09c0668f3eaa2f51f933c5e05f1: apply a JSON Patch to a draft or needs-revision survey response, allowing only draft or submitted status targets (mutates DB)
 func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId, _ PatchIntakeSurveyResponseParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1071,7 +1071,7 @@ func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 
 // ListTriageSurveyResponses returns survey responses for triage.
 // GET /triage/survey_responses
-// SEM@0e2dc694: list survey responses scoped to the caller's reviewer groups by confidentiality (reads DB)
+// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: list survey responses scoped to the caller's reviewer groups by confidentiality (reads DB)
 func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurveyResponsesParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1146,7 +1146,7 @@ func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurv
 
 // GetTriageSurveyResponse returns a specific survey response for triage.
 // GET /triage/survey_responses/{response_id}
-// SEM@0e2dc694: fetch a survey response for a caller in the matching triage reviewer group (reads DB)
+// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: fetch a survey response for a caller in the matching triage reviewer group (reads DB)
 func (s *Server) GetTriageSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	response, ok := RequireTriageAccess(c, surveyResponseId)
 	if !ok {
@@ -1158,7 +1158,7 @@ func (s *Server) GetTriageSurveyResponse(c *gin.Context, surveyResponseId Survey
 // PatchTriageSurveyResponse partially updates a survey response for triage.
 // PATCH /triage/survey_responses/{response_id}
 // Supports status transitions: submitted->ready_for_review, submitted->needs_revision, ready_for_review->needs_revision
-// SEM@0e2dc694: apply a JSON Patch to a survey response's triage status for a matching triage reviewer (mutates DB)
+// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: apply a JSON Patch to a survey response's triage status for a matching triage reviewer (mutates DB)
 func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1505,7 +1505,7 @@ func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse
 
 // CreateThreatModelFromSurveyResponse creates a threat model from an approved survey response.
 // POST /triage/survey_responses/{response_id}/create_threat_model
-// SEM@0e2dc694: build a threat model from a ready-for-review response for a matching triage reviewer and notify webhooks (mutates DB)
+// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: build a threat model from a ready-for-review response for a matching triage reviewer and notify webhooks (mutates DB)
 func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
