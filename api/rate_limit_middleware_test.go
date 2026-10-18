@@ -114,7 +114,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
 		})
 
-		// No user_id in context
+		// No authenticated user in context
 		req := httptest.NewRequest("GET", "/api/test", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -143,7 +143,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
-			c.Set("user_id", userID)
+			c.Set("userInternalUUID", userID)
 			c.Next()
 		})
 		router.Use(RateLimitMiddleware(server))
@@ -183,7 +183,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
-			c.Set("user_id", userID)
+			c.Set("userInternalUUID", userID)
 			c.Next()
 		})
 		router.Use(RateLimitMiddleware(server))
@@ -230,7 +230,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
-			c.Set("user_id", userID)
+			c.Set("userInternalUUID", userID)
 			c.Next()
 		})
 		router.Use(RateLimitMiddleware(server))
@@ -254,6 +254,83 @@ func TestRateLimitMiddleware(t *testing.T) {
 		assert.Equal(t, "0", w.Header().Get("X-RateLimit-Remaining"))
 		assert.NotEmpty(t, w.Header().Get("X-RateLimit-Reset"))
 		assert.NotEmpty(t, w.Header().Get("Retry-After"))
+	})
+}
+
+// TestRateLimitMiddleware_JWTContextKeys drives the middleware with the context keys the
+// JWT middleware actually sets (userInternalUUID, userID) rather than a test-only key.
+func TestRateLimitMiddleware_JWTContextKeys(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	run := func(t *testing.T, keys map[string]string, quotaKey string) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		quotaUUID, _ := uuid.Parse(quotaKey)
+		server := &Server{
+			apiRateLimiter: NewAPIRateLimiter(client, &mockAPIQuotaStore{
+				quotas: map[string]UserAPIQuota{
+					quotaKey: {UserId: quotaUUID, MaxRequestsPerMinute: 2},
+				},
+			}),
+		}
+
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			for k, v := range keys {
+				c.Set(k, v)
+			}
+			c.Next()
+		})
+		router.Use(RateLimitMiddleware(server))
+		router.GET("/api/test", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		var codes []int
+		var last *httptest.ResponseRecorder
+		for i := 0; i < 3; i++ {
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest("GET", "/api/test", nil))
+			codes = append(codes, w.Code)
+			last = w
+		}
+		assert.Equal(t, []int{http.StatusOK, http.StatusOK, http.StatusTooManyRequests}, codes)
+		assert.Equal(t, "2", last.Header().Get("X-RateLimit-Limit"))
+		assert.NotEmpty(t, last.Header().Get("Retry-After"))
+	}
+
+	t.Run("keys on userInternalUUID", func(t *testing.T) {
+		id := uuid.New().String()
+		run(t, map[string]string{"userInternalUUID": id, "userID": "provider-user-1"}, id)
+	})
+
+	t.Run("falls back to userID when internal UUID absent", func(t *testing.T) {
+		run(t, map[string]string{"userID": "provider-user-2"}, "provider-user-2")
+	})
+
+	t.Run("ignores legacy user_id key", func(t *testing.T) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		server := &Server{
+			apiRateLimiter: NewAPIRateLimiter(client, &mockAPIQuotaStore{quotas: map[string]UserAPIQuota{}}),
+		}
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set("user_id", "legacy")
+			c.Next()
+		})
+		router.Use(RateLimitMiddleware(server))
+		router.GET("/api/test", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest("GET", "/api/test", nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Empty(t, w.Header().Get("X-RateLimit-Limit"))
 	})
 }
 
@@ -548,7 +625,7 @@ func TestRateLimitingDisabledBypass(t *testing.T) {
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
-			c.Set("user_id", "test-user-id")
+			c.Set("userInternalUUID", "test-user-id")
 			c.Next()
 		})
 		router.Use(RateLimitMiddleware(server))

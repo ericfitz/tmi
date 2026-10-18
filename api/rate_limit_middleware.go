@@ -37,18 +37,11 @@ func RateLimitMiddleware(server *Server) gin.HandlerFunc {
 			return
 		}
 
-		// Extract user ID from context (set by JWT middleware)
-		userIDValue, exists := c.Get("user_id")
-		if !exists {
-			// No user ID means not authenticated - skip rate limiting for this request
+		// Key on the authenticated user set by the JWT middleware
+		userID, authenticated := rateLimitUserKey(c)
+		if !authenticated {
+			// No user means not authenticated - skip rate limiting for this request
 			// (JWT middleware will handle authentication failures)
-			c.Next()
-			return
-		}
-
-		userID, ok := userIDValue.(string)
-		if !ok || userID == "" {
-			logger.Warn("Invalid user_id in context for rate limiting")
 			c.Next()
 			return
 		}
@@ -93,6 +86,20 @@ func RateLimitMiddleware(server *Server) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+// rateLimitUserKey returns the per-user rate limit key from the JWT middleware's context
+// values: the internal UUID (the quota store key), else the provider user ID.
+// SEM@0000000: resolve the authenticated user's rate limit key from request context (pure)
+func rateLimitUserKey(c *gin.Context) (string, bool) {
+	for _, key := range []string{"userInternalUUID", "userID"} {
+		if v, ok := c.Get(key); ok {
+			if id, ok := v.(string); ok && id != "" {
+				return id, true
+			}
+		}
+	}
+	return "", false
 }
 
 // isPublicEndpoint checks if the path is a public discovery endpoint.
