@@ -12,6 +12,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -83,19 +84,12 @@ func TestUsabilityFeedbackHandler_CreateConstraintViolationReturns400(t *testing
 }
 
 func TestContentFeedbackHandler_CreateConstraintViolationReturns400(t *testing.T) {
-	handler, r, db, _, tm := setupContentFeedbackHandler(t)
-	threat := &models.Threat{
-		ID:            models.DBVarchar("11111111-1111-4111-8111-111111111111"),
-		ThreatModelID: tm.ID,
-		Name:          "Test Threat",
-		ThreatType:    models.StringArray{"X"},
-	}
-	require.NoError(t, db.Create(threat).Error)
+	handler, r, _, _, tm := setupContentFeedbackHandler(t)
 	handler.repo = failingContentRepo{err: fmt.Errorf("insert: %w", dberrors.ErrDuplicate)}
 	r.POST("/threat_models/:threat_model_id/feedback", handler.Create)
 
 	buf, _ := json.Marshal(map[string]any{
-		"sentiment": "down", "target_type": "threat", "target_id": string(threat.ID), "client_id": "tmi-ux",
+		"sentiment": "down", "target_type": "threat", "target_id": "11111111-1111-4111-8111-111111111111", "client_id": "tmi-ux",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+string(tm.ID)+"/feedback", bytes.NewReader(buf))
 	req.Header.Set("Content-Type", "application/json")
@@ -104,4 +98,39 @@ func TestContentFeedbackHandler_CreateConstraintViolationReturns400(t *testing.T
 
 	require.Equal(t, http.StatusBadRequest, rec.Code, "body=%s", rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "invalid_input")
+}
+
+func TestCreateAdminSurvey_ConstraintViolationReturns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	store := newMockSurveyStore()
+	store.createErr = fmt.Errorf("insert: %w", dberrors.ErrConstraint)
+	saveSurveyStores(t, store, nil)
+
+	body, _ := json.Marshal(SurveyBase{Name: "S", Version: "v1", SurveyJson: validSurveyJSON()})
+	c, w := CreateTestGinContextWithBody("POST", "/admin/surveys", "application/json", body)
+	TestUsers.Owner.SetContext(c)
+
+	(&Server{}).CreateAdminSurvey(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "invalid_input")
+	assert.NotContains(t, w.Body.String(), "insert:")
+}
+
+func TestUpdateAdminSurvey_ConstraintViolationReturns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	store := newMockSurveyStore()
+	saveSurveyStores(t, store, nil)
+	surveyID := seedSurvey(store, "Original", "v1", SurveyStatusActive)
+	store.updateErr = fmt.Errorf("update: %w", dberrors.ErrConstraint)
+
+	body, _ := json.Marshal(SurveyBase{Name: "S", Version: "v2", Status: strPtr(SurveyStatusActive), SurveyJson: validSurveyJSON()})
+	c, w := CreateTestGinContextWithBody("PUT", "/admin/surveys/"+surveyID.String(), "application/json", body)
+	TestUsers.Owner.SetContext(c)
+
+	(&Server{}).UpdateAdminSurvey(c, surveyID)
+
+	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "invalid_input")
+	assert.NotContains(t, w.Body.String(), "update:")
 }

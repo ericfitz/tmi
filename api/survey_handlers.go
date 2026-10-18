@@ -110,7 +110,7 @@ func (s *Server) ListAdminSurveys(c *gin.Context, params ListAdminSurveysParams)
 
 // CreateAdminSurvey creates a new survey.
 // POST /admin/surveys
-// SEM@00add3d4f7dc1c0a9cc072d7e6ca32ace4d03641: store a new survey template and emit a webhook event (mutates shared state)
+// SEM@0e2dc69485d441800c3787a4ed43a930e6bb3312: store a new survey template and emit a webhook event (mutates shared state)
 func (s *Server) CreateAdminSurvey(c *gin.Context) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -162,6 +162,13 @@ func (s *Server) CreateAdminSurvey(c *gin.Context) {
 				Error:            ErrorError(errcode.Conflict),
 				ErrorDescription: "A survey with this name and version already exists",
 			})
+			return
+		}
+		if errors.Is(err, dberrors.ErrConstraint) {
+			// Non-duplicate constraint (e.g. status longer than its column): the
+			// input is bad, not the server. Fixed message; raw error only logged.
+			logger.Warn("Survey create rejected by a data constraint: %v", err)
+			HandleRequestError(c, InvalidInputError("request violates a data constraint"))
 			return
 		}
 		logger.Error("Failed to create survey: %v", err)
@@ -220,7 +227,7 @@ func (s *Server) GetAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 // UpdateAdminSurvey fully updates a survey.
 // PUT /admin/surveys/{survey_id}
-// SEM@00add3d4f7dc1c0a9cc072d7e6ca32ace4d03641: fully replace a non-archived survey and emit a webhook event (mutates shared state)
+// SEM@0e2dc69485d441800c3787a4ed43a930e6bb3312: fully replace a non-archived survey and emit a webhook event (mutates shared state)
 func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -287,6 +294,13 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 				Error:            ErrorError(errcode.Conflict),
 				ErrorDescription: "A survey with this name and version already exists",
 			})
+			return
+		}
+		if errors.Is(err, dberrors.ErrConstraint) {
+			// Non-duplicate constraint (e.g. status longer than its column): the
+			// input is bad, not the server. Fixed message; raw error only logged.
+			logger.Warn("Survey update rejected by a data constraint: %v", err)
+			HandleRequestError(c, InvalidInputError("request violates a data constraint"))
 			return
 		}
 		logger.Error("Failed to update survey: %v", err)

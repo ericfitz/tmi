@@ -270,7 +270,7 @@ func modelToUsabilityFeedback(row *models.UsabilityFeedback) UsabilityFeedback {
 }
 
 // mapDBError converts a typed DB error to a RequestError.
-// SEM@0e2dc694: convert a typed DB error, including constraint violations, to the appropriate HTTP request error (pure)
+// SEM@0e2dc69485d441800c3787a4ed43a930e6bb3312: convert a typed DB error, including constraint violations, to the appropriate HTTP request error
 func mapDBError(err error) error {
 	if err == nil {
 		return nil
