@@ -1,6 +1,7 @@
 # `/oauth2/step_up` — Guaranteed-fresh re-authentication for admin step-up (#397)
 
 **Status:** Approved
+**As-built status (2026-10-17):** Implemented. Error codes in this document are superseded by `2026-10-08-adr-error-code-vocabulary.md`: a rate-limited request returns 429 `rate_limit_exceeded` (not `rate_limited`), and `identity_mismatch` is returned by `POST /oauth2/token` during the step-up code exchange, not by `GET /oauth2/step_up`. `GET /oauth2/step_up` is covered by the auth-flow rate limiter (the same limiter as `/oauth2/authorize`) as of #1101; before that fix the path was missing from the limiter's endpoint list, so the promised 429 was unreachable. The per-user API limiter keys on a `user_id` context value that REST routes never set; that defect is tracked in #1103.
 **Date:** 2026-05-10
 **Issue:** [#397](https://github.com/ericfitz/tmi/issues/397)
 **Parent:** [#355](https://github.com/ericfitz/tmi/issues/355) (T7 step-up + in-band admin audit, Part 1 — closed)
@@ -121,7 +122,7 @@ Public endpoint (no JWT middleware on the route; the handler reads the cookie it
 | 401 | `invalid_token` | Missing/invalid/expired JWT cookie/header |
 | 403 | `unauthorized_client` | (Defensive; reserved for future per-grant restrictions.) |
 | 404 | (HTML error page) | Path not matched / parser fallthrough — matches `/oauth2/authorize` behavior |
-| 429 | `rate_limited` | Per-IP rate limit exceeded |
+| 429 | `rate_limited` | Per-IP rate limit exceeded (as built: code is `rate_limit_exceeded`) |
 | 500 | `server_error` | Internal failure (Redis marshal, audit DB unreachable on rejection path, etc.) |
 | 503 | `temporarily_unavailable` | Redis store fails; `Retry-After: 30` header (existing pattern) |
 

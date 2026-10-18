@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-16
 **Issue:** [#347](https://github.com/ericfitz/tmi/issues/347) — feat(infra): isolate document/content extractors in a sandboxed worker container (T12/T3)
-**Status:** Design — approved in brainstorming, pending written-spec review
+**Status:** Implemented (#347 closed); custom controller chosen (`cmd/component-controller`, extractor and chunk-embed declared as `TMIComponent` manifests under `deployments/k8s/platform/components`); Helm fallback not used. See the as-built notes in "Monolith-side request path" and "Migration / cutover".
 **Milestone:** 1.4.0
 
 ---
@@ -271,6 +271,8 @@ Extraction no longer completes inline. The two existing callers of `ContentPipel
 
 **OpenAPI** — `api-schema/tmi-openapi.json` is the source of truth. The triggering endpoint's response becomes `202` with a job reference, and a job-status surface is added. This pulls in `make validate-openapi` and `make generate-api`.
 
+> **As built (2026-10-17):** `POST /threat_models/{id}/documents` returns `202` with `{document, job_id}` only when `extraction.async_enabled` is on and the publish succeeds; otherwise it returns `201`. There is no status location and no job-status endpoint (the OpenAPI `202` schema says so): clients poll the document's `access_status` or subscribe to the `document.extraction_completed` / `document.extraction_failed` webhook events.
+
 ---
 
 ## Configuration
@@ -344,6 +346,8 @@ The `ContentPipeline` Go interface is the seam. Strategy:
 3. Cut over per environment.
 4. Delete the in-process extractor dispatch from the monolith.
 
+> **As built (2026-10-17):** Steps 1 and 2 are implemented (the flag is `extraction.async_enabled`, env `TMI_EXTRACTION_ASYNC_ENABLED`). Step 4 was deliberately not done: the in-process path is retained as a flag-gated fallback. The document handler falls back to the `201` path, and `AccessPoller` falls back to inline `ExtractForDocument`, when async extraction is disabled or publishing fails.
+
 The extractor *logic* moves into the worker binary — same code, new home. This is relocation, not rewrite, which bounds the risk.
 
 ---
@@ -351,7 +355,7 @@ The extractor *logic* moves into the worker binary — same code, new home. This
 ## Open questions and deferred decisions
 
 - **Synchronous component interaction pattern** — deferred until the first latency-sensitive tenant (OAuth provider, webhook dispatch). Stated direction: reuse TMI's existing REST/HTTP API style, not a second protocol. The `TMIComponent` CRD is designed to accept an `interactionType` field later without a breaking change.
-- **Controller build vs. Helm templating** — #347 commits to a custom controller. If controller delivery proves too large for the 1.4.0 milestone, a Helm-templated interim (rendering Deployment / ScaledObject / NetworkPolicy from manifest values) is the documented fallback; the CRD-as-contract model and KEDA autoscaling are unchanged either way.
+- **Controller build vs. Helm templating** — #347 commits to a custom controller. If controller delivery proves too large for the 1.4.0 milestone, a Helm-templated interim (rendering Deployment / ScaledObject / NetworkPolicy from manifest values) is the documented fallback; the CRD-as-contract model and KEDA autoscaling are unchanged either way. *Resolved (2026-10-17): the custom controller shipped (`cmd/component-controller`); the Helm-templated fallback was not built.*
 
 ---
 

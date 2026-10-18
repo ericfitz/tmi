@@ -3,6 +3,7 @@
 **Issues:** [#362](https://github.com/ericfitz/tmi/issues/362), [#361](https://github.com/ericfitz/tmi/issues/361)
 **Date:** 2026-05-03
 **Branch target:** `dev/1.4.0`
+**As-built status (2026-10-17):** Implemented. Oversized fields return 413 `payload_too_large` on both POST endpoints (oversized `verbatim`, `user_agent_data` and `screenshot` on `POST /usability_feedback`; oversized `verbatim` on `POST /threat_models/{id}/feedback`); the server never downgrades to 400. A database constraint violation (including a duplicate or a vanished foreign-key target) returns 400 `invalid_input` rather than 500 (#1099); the response carries a fixed message and never the driver text. Transient database errors still return 503.
 
 ## Summary
 
@@ -243,11 +244,11 @@ The OpenAPI schema for each entity gets a new `auto_generated: boolean` (read-on
 | Missing/invalid JWT | 401 with `WWW-Authenticate` |
 | Authz role/ownership reject | 403 (or 404 if existence-leak risk per current TMI convention) |
 | Body validation error (regex, enum, conditional rule) | 400 with field-specific message |
-| `verbatim`, `user_agent_data`, etc. exceeds size cap | 413 (Payload Too Large) — alternative: 400; pick 400 for simplicity if the framework's 413 path is awkward |
+| `verbatim`, `user_agent_data`, etc. exceeds size cap | 413 (Payload Too Large). As built: 413 `payload_too_large` on both POST endpoints |
 | `target_id` doesn't exist in the parent TM | 400 with `target_id not found` |
 | GET by id, not found | 404 |
 | GORM/DB transient error | 503 with retry-after; logged as Warn |
-| GORM/DB permanent error (constraint violation) | 500; logged as Error |
+| GORM/DB permanent error (constraint violation) | 500; logged as Error. As built: constraint violations return 400 `invalid_input` (#1099); other permanent errors return 500 `server_error` |
 
 ## Testing
 

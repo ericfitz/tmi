@@ -108,7 +108,55 @@ channels:
       operationRejectedMessage:
         $ref: "#/components/messages/OperationRejectedMessage"
 
+  "/ws/notifications":
+    address: "/ws/notifications"
+    description: |
+      WebSocket endpoint for server-wide notifications. Unlike the diagram channel it is not tied to a
+      threat model or collaboration session. Authentication uses the same ticket mechanism as the diagram channel.
+
+      ## Delivery
+      - A new connection receives every notification until it sends an update_subscription message
+      - The server broadcasts each event to all connected notification clients (subject to the client's subscription filters)
+      - A heartbeat is sent every 30 seconds to every client, regardless of subscription
+      - Read timeout: 60 seconds with ping/pong keepalive
+
+      ## Events emitted today
+      - threat_model_created, threat_model_updated, threat_model_deleted
+      - user_joined, user_left (fired when a user connects to or disconnects from this notification hub, not a diagram collaboration session)
+      - heartbeat
+      - subscription_updated (sent only to the requesting client, with user_id "system", to confirm an update_subscription message)
+
+      ## Reserved message types (defined but never emitted)
+      threat_model_shared, collaboration_started, collaboration_ended, collaboration_invite,
+      system_announcement, system_maintenance, system_update
+    messages:
+      notificationMessage:
+        $ref: "#/components/messages/NotificationMessage"
+      updateSubscriptionMessage:
+        $ref: "#/components/messages/UpdateSubscriptionMessage"
+
 operations:
+  receiveNotifications:
+    action: receive
+    channel:
+      $ref: "#/channels/~1ws~1notifications"
+    summary: Receive server notifications (server to client)
+    description: |
+      Receive threat model lifecycle events, notification-hub presence events and heartbeats.
+    messages:
+      - $ref: "#/components/messages/NotificationMessage"
+
+  updateNotificationSubscription:
+    action: send
+    channel:
+      $ref: "#/channels/~1ws~1notifications"
+    summary: Restrict which notifications are delivered (client to server)
+    description: |
+      Replace the connection's subscription. After this message only the listed message types are
+      delivered (heartbeats are always delivered), optionally narrowed to specific threat models or diagrams.
+    messages:
+      - $ref: "#/components/messages/UpdateSubscriptionMessage"
+
   sendDiagramOperation:
     action: send
     channel:
@@ -605,6 +653,51 @@ components:
               provider_id: "disruptive-user-id"
               email: disruptive-user@example.com
               display_name: Disruptive User
+
+    NotificationMessage:
+      name: NotificationMessage
+      title: Notification (Server → Client)
+      summary: Server-wide notification delivered on the notification channel
+      description: |
+        Envelope for every message sent on /ws/notifications. The data field depends on message_type:
+        threat model events carry threat_model_id, threat_model_name and action; user_joined and user_left
+        carry user_email and user_name; heartbeat carries no data; subscription_updated carries a message string.
+      payload:
+        $ref: "#/components/schemas/NotificationPayload"
+      examples:
+        - name: ThreatModelCreated
+          summary: A threat model was created
+          payload:
+            message_type: threat_model_created
+            user_id: alice@tmi.local
+            timestamp: "2024-01-15T14:30:00Z"
+            data:
+              threat_model_id: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+              threat_model_name: Payment Service
+              action: created
+        - name: Heartbeat
+          summary: Periodic keep-alive
+          payload:
+            message_type: heartbeat
+            user_id: system
+            timestamp: "2024-01-15T14:30:30Z"
+
+    UpdateSubscriptionMessage:
+      name: UpdateSubscriptionMessage
+      title: Update Subscription (Client → Server)
+      summary: Replace the connection's notification subscription
+      payload:
+        $ref: "#/components/schemas/UpdateSubscriptionPayload"
+      examples:
+        - name: ThreatModelEventsOnly
+          summary: Receive only threat model updates for one threat model
+          payload:
+            message_type: update_subscription
+            data:
+              subscribed_types:
+                - threat_model_updated
+              threat_model_filters:
+                - 6ba7b810-9dad-11d1-80b4-00c04fd430c8
 
     ErrorMessage:
       name: ErrorMessage
@@ -1280,9 +1373,97 @@ components:
         - removed_user
       additionalProperties: false
 
+    NotificationPayload:
+      type: object
+      description: Notification envelope sent on /ws/notifications
+      properties:
+        message_type:
+          type: string
+          description: |
+            Notification type. Emitted today: threat_model_created, threat_model_updated, threat_model_deleted,
+            user_joined, user_left, heartbeat, subscription_updated. The remaining values are reserved and never emitted.
+          enum:
+            - threat_model_created
+            - threat_model_updated
+            - threat_model_deleted
+            - threat_model_shared
+            - collaboration_started
+            - collaboration_ended
+            - collaboration_invite
+            - system_announcement
+            - system_maintenance
+            - system_update
+            - user_joined
+            - user_left
+            - heartbeat
+            - subscription_updated
+          example: threat_model_created
+        user_id:
+          type: string
+          description: Identifier of the user who triggered the event (the user's email address), or "system" for heartbeats and subscription_updated
+          example: alice@tmi.local
+        timestamp:
+          type: string
+          format: date-time
+          description: UTC timestamp when the notification was generated
+          example: "2024-01-15T14:30:00Z"
+        data:
+          type: object
+          description: Type-specific data; omitted for heartbeat
+          additionalProperties: true
+          example:
+            threat_model_id: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+            threat_model_name: Payment Service
+            action: created
+      required:
+        - message_type
+        - user_id
+        - timestamp
+      additionalProperties: false
+
+    UpdateSubscriptionPayload:
+      type: object
+      description: Client request to replace its notification subscription
+      properties:
+        message_type:
+          type: string
+          const: update_subscription
+        data:
+          type: object
+          properties:
+            subscribed_types:
+              type: array
+              description: Notification message types to receive
+              items:
+                type: string
+            threat_model_filters:
+              type: array
+              description: Only deliver threat model events for these threat model IDs; empty or omitted means all
+              items:
+                type: string
+                format: uuid
+            diagram_filters:
+              type: array
+              description: Only deliver collaboration events for these diagram IDs; empty or omitted means all
+              items:
+                type: string
+                format: uuid
+          additionalProperties: false
+      required:
+        - message_type
+        - data
+      additionalProperties: false
+
     ErrorPayload:
       type: object
-      description: General error message payload
+      description: |
+        General error message payload.
+
+        Interim note: the error field is a free string and no canonical vocabulary has been chosen
+        (tracked in issue 1076). The values the server sends today are unauthorized, invalid_message,
+        invalid_message_type, unsupported_message_type, invalid_participant, invalid_request and
+        removed_from_session. insufficient_permissions is not an error value; it is a reason on
+        authorization_denied messages.
       properties:
         message_type:
           type: string
