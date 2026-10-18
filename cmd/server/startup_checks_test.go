@@ -696,3 +696,37 @@ func TestWarnIfConfigDatabaseDiverges_RedactsProviderClientSecret(t *testing.T) 
 			"the database-side client secret must never reach a log line")
 	}
 }
+
+// SEM@0e2dc694: verify startup Timmy validation rejects the production dump flag and unknown providers
+func TestValidateTimmyAtStartup(t *testing.T) {
+	dump := config.TimmyConfig{DumpExtractedTextToNote: true}
+	badProvider := config.TimmyConfig{LLMProvider: "bogus"}
+
+	tests := []struct {
+		name      string
+		source    string
+		cfg       config.TimmyConfig
+		buildMode string
+		wantErr   string
+	}{
+		{"production dump flag from env/YAML", "env/YAML", dump, "production", "timmy.dump_extracted_text_to_note"},
+		{"production dump flag from DB-resolved", "settings", dump, "production", "timmy.dump_extracted_text_to_note"},
+		{"development dump flag accepted", "env/YAML", dump, "dev", ""},
+		{"unknown provider rejected", "env/YAML", badProvider, "dev", "timmy.llm_provider"},
+		{"unknown provider rejected in production", "settings", badProvider, "production", "timmy.llm_provider"},
+		{"empty provider accepted", "env/YAML", config.TimmyConfig{}, "production", ""},
+		{"known provider accepted", "env/YAML", config.TimmyConfig{LLMProvider: "anthropic"}, "production", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateTimmyAtStartup(tt.source, tt.cfg, tt.buildMode)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+			assert.Contains(t, err.Error(), tt.source)
+		})
+	}
+}

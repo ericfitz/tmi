@@ -494,8 +494,39 @@ func (s *SettingsService) ListByPrefix(ctx context.Context, prefix string) ([]mo
 	return settings, nil
 }
 
+// settingSemanticValidators is the single key -> validator map applied by Set,
+// so semantic checks on specific settings are enforced for every writer (admin
+// API, dbtool, ...) rather than per handler. The validators mirror the
+// startup checks in config.ValidateTimmyConfig (#1102).
+var settingSemanticValidators = map[string]func(value string, productionMode bool) error{
+	"timmy.dump_extracted_text_to_note": func(value string, productionMode bool) error {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return nil // type validation reports unparseable bools
+		}
+		buildMode := ""
+		if productionMode {
+			buildMode = "production"
+		}
+		return config.ValidateTimmyDumpFlag(enabled, buildMode)
+	},
+	"timmy.llm_provider": func(value string, _ bool) error {
+		return config.TimmyConfig{LLMProvider: value}.ValidateLLMProvider()
+	},
+}
+
+// validateSettingSemantics applies the per-key validator for the setting, if any.
+// SEM@0e2dc694: validate a setting value against its key-specific semantic rules (pure)
+func (s *SettingsService) validateSettingSemantics(setting *models.SystemSetting) error {
+	validate, ok := settingSemanticValidators[string(setting.SettingKey)]
+	if !ok {
+		return nil
+	}
+	return validate(string(setting.Value), s.isProductionMode())
+}
+
 // Set creates or updates a setting
-// SEM@3b682947: store or update a system setting, stamping explicit origin, with type validation, encryption, and cache invalidation (reads DB)
+// SEM@0e2dc694: store or update a system setting, stamping explicit origin, with type validation, encryption, and cache invalidation (reads DB)
 func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting) error {
 	logger := slogging.Get()
 
@@ -511,6 +542,12 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 
 	// Validate value matches type (validate plaintext before encryption)
 	if err := s.validateValue(setting); err != nil {
+		return err
+	}
+
+	// Per-key semantic validation (#1102): reject values the server would
+	// refuse to boot with.
+	if err := s.validateSettingSemantics(setting); err != nil {
 		return err
 	}
 

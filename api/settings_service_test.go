@@ -1161,3 +1161,53 @@ func TestReEncryptAll_UnreadableCap(t *testing.T) {
 	assert.Contains(t, err.Error(), "900")
 	assert.Len(t, errs, maxUnreadableSettings)
 }
+
+// SEM@0e2dc694: verify settings writes reject invalid Timmy values (production dump flag, unknown provider)
+func TestSettingsService_SetValidatesTimmyKeys(t *testing.T) {
+	mk := func(key, value string, typ models.DBVarchar) *models.SystemSetting {
+		return &models.SystemSetting{SettingKey: models.DBVarchar(key), Value: models.DBText(value), SettingType: typ}
+	}
+
+	t.Run("production rejects dump flag true", func(t *testing.T) {
+		t.Setenv("TMI_BUILD_MODE", "production")
+		// nil gormDB: a returned error proves validation ran before any write.
+		svc := NewSettingsService(nil, nil)
+		err := svc.Set(context.Background(), mk("timmy.dump_extracted_text_to_note", "true", models.SystemSettingTypeBool))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "timmy.dump_extracted_text_to_note")
+	})
+
+	t.Run("production accepts dump flag false", func(t *testing.T) {
+		t.Setenv("TMI_BUILD_MODE", "production")
+		svc := NewSettingsService(setupSettingsTestDB(t), nil)
+		require.NoError(t, svc.Set(context.Background(), mk("timmy.dump_extracted_text_to_note", "false", models.SystemSettingTypeBool)))
+	})
+
+	t.Run("development accepts dump flag true", func(t *testing.T) {
+		t.Setenv("TMI_BUILD_MODE", "dev")
+		svc := NewSettingsService(setupSettingsTestDB(t), nil)
+		require.NoError(t, svc.Set(context.Background(), mk("timmy.dump_extracted_text_to_note", "true", models.SystemSettingTypeBool)))
+	})
+
+	t.Run("unknown llm_provider rejected", func(t *testing.T) {
+		t.Setenv("TMI_BUILD_MODE", "dev")
+		svc := NewSettingsService(nil, nil)
+		err := svc.Set(context.Background(), mk("timmy.llm_provider", "bogus", models.SystemSettingTypeString))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "timmy.llm_provider")
+	})
+
+	for _, v := range []string{"openai", "anthropic"} {
+		t.Run("llm_provider accepts "+v, func(t *testing.T) {
+			t.Setenv("TMI_BUILD_MODE", "dev")
+			svc := NewSettingsService(setupSettingsTestDB(t), nil)
+			require.NoError(t, svc.Set(context.Background(), mk("timmy.llm_provider", v, models.SystemSettingTypeString)))
+		})
+	}
+
+	t.Run("llm_provider validator accepts empty", func(t *testing.T) {
+		// Set itself rejects empty strings for all string settings (use DELETE);
+		// the provider validator must not be what rejects them.
+		require.NoError(t, settingSemanticValidators["timmy.llm_provider"]("", true))
+	})
+}

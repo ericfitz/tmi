@@ -952,6 +952,9 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	settingsService.SetConfigProvider(configProvider)
 	logger.Info("Config provider set for settings migration and priority lookups")
 
+	// Refuse to start on invalid effective (DB-resolved) Timmy config (#1102).
+	exitOnInvalidEffectiveTimmy(context.Background(), settingsService, config.Auth.BuildMode)
+
 	// Wire optimistic-locking enforcement flag (T14 / #385). When false, missing
 	// If-Match emits Deprecation/Warning headers; when true, returns 428.
 	api.SetRequireIfMatch(config.Server.RequireIfMatch)
@@ -1771,8 +1774,9 @@ func buildContentPipeline(cfg *config.Config, contentSources *api.ContentSourceR
 	)
 
 	// Dev/test-only: dump each successful extraction's markdown as a Note on
-	// the parent threat model, for inspection in the existing UI. Refused at
-	// startup in production builds by Config.validateTimmy.
+	// the parent threat model, for inspection in the existing UI. Only the
+	// env/YAML value is consulted here (the DB value does not install the
+	// dumper). Production builds are refused at startup by validateTimmyAtStartup.
 	if cfg.Timmy.DumpExtractedTextToNote {
 		if api.GlobalNoteRepository == nil || api.GlobalDocumentRepository == nil {
 			logger.Error("dump_extracted_text_to_note enabled but Note/Document repositories are not initialized")
@@ -1944,6 +1948,13 @@ func main() {
 	cfg, err := config.Load(configFile)
 	if err != nil {
 		slogging.Get().Error("Error loading configuration: %v", err)
+		os.Exit(1)
+	}
+
+	// Refuse to start on invalid Timmy config from env/YAML (#1102). The
+	// DB-resolved config is checked again once the settings service is up.
+	if err := validateTimmyAtStartup("env/YAML", cfg.Timmy, cfg.Auth.BuildMode); err != nil {
+		slogging.Get().Error("%v", err)
 		os.Exit(1)
 	}
 
