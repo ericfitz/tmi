@@ -1400,7 +1400,7 @@ components:
           example: threat_model_created
         user_id:
           type: string
-          description: Identifier of the user who triggered the event (the user's email address), or "system" for heartbeats
+          description: Identifier of the user who triggered the event (the user's email address), or "system" for heartbeats and subscription_updated
           example: alice@tmi.local
         timestamp:
           type: string

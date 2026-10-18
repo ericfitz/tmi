@@ -277,7 +277,7 @@ class EndpointAnalyzer:
             "LogoutUser": [("/oauth2/revoke", "POST")],
             # Core endpoints
             "GetApiInfo": [("/", "GET")],
-            "HandleServerInfo": [("/api/server-info", "GET")],
+            "GetServerInfo": [("/api/server-info", "GET")],
             # Threat Models
             "GetThreatModels": [("/threat_models", "GET")],
             "CreateThreatModel": [("/threat_models", "POST")],
