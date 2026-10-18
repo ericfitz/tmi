@@ -110,7 +110,7 @@ func (s *Server) ListAdminSurveys(c *gin.Context, params ListAdminSurveysParams)
 
 // CreateAdminSurvey creates a new survey.
 // POST /admin/surveys
-// SEM@7f98676d5cf378435fc7478542365dfd50fba318: store a new survey template and emit a webhook event (mutates shared state)
+// SEM@8d2dcafcad63defc5e493d1177c845268338ee2b: store a new survey template and emit a webhook event, rejecting invalid status (mutates shared state)
 func (s *Server) CreateAdminSurvey(c *gin.Context) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -232,7 +232,7 @@ func (s *Server) GetAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 // UpdateAdminSurvey fully updates a survey.
 // PUT /admin/surveys/{survey_id}
-// SEM@7f98676d5cf378435fc7478542365dfd50fba318: replace a non-archived survey template and emit a webhook event (mutates shared state)
+// SEM@8d2dcafcad63defc5e493d1177c845268338ee2b: replace a non-archived survey template and emit a webhook event (mutates shared state)
 func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1644,7 +1644,7 @@ func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyRespo
 // templates table at the handler boundary so that fuzzer-induced inputs
 // produce a clean 400 instead of bouncing off the database as 500.
 // Mirrors gorm tags on api/models/survey_models.go: SurveyTemplate.
-// SEM@0000000: validate a patched survey against column-level constraints; return 400-class error (pure)
+// SEM@8d2dcafcad63defc5e493d1177c845268338ee2b: validate a patched survey against column-level constraints (pure)
 func validatePatchedSurvey(s *Survey) *RequestError {
 	if s == nil {
 		return InvalidInputError("survey is required")
@@ -1676,7 +1676,7 @@ func validatePatchedSurvey(s *Survey) *RequestError {
 
 // validateSurveyStatus rejects a survey status outside the closed set (nil is allowed).
 // Shared by POST, PUT and PATCH /admin/surveys; the column is size:20.
-// SEM@0000000: validate a survey status against the allowed set (pure)
+// SEM@8d2dcafcad63defc5e493d1177c845268338ee2b: validate a survey status against the allowed set (pure)
 func validateSurveyStatus(status *string) *RequestError {
 	if status == nil {
 		return nil
