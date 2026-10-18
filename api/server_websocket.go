@@ -144,7 +144,7 @@ func (s *Server) buildWebSocketURL(c *gin.Context) string {
 }
 
 // GetServerInfo provides server configuration information to clients (GET /api/server-info)
-// SEM@d4a2d3197ebd241b65d123dd18284679a7891e71: return server TLS and WebSocket configuration to clients
+// SEM@86b3dfa8efb65bccdfdc9bfbb6012ccdba13c59e: return server TLS and WebSocket configuration to clients
 func (s *Server) GetServerInfo(c *gin.Context) {
 	// Get config information from the context
 	tlsEnabled := false
