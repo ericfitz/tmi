@@ -429,7 +429,7 @@ func NewTicketValidator(ticketStore api.TicketStore, authHandlers *auth.Handlers
 }
 
 // ValidateTicket validates a WebSocket ticket and populates user context.
-// SEM@0000000: authenticate a WebSocket ticket and populate request identity from it (reads DB)
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: authenticate a WebSocket ticket and populate request identity and groups from it (reads DB)
 func (v *TicketValidator) ValidateTicket(c *gin.Context, ticketStr string) error {
 	logger := slogging.GetContextLogger(c)
 
@@ -582,7 +582,7 @@ func NewJWTAuthenticator(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist
 // unreachable. The latter fails closed (the request is refused rather than
 // admitted unchecked), but it is a dependency outage, not a bug in handling
 // this request, so it gets a Retry-After rather than 500. See issue #660.
-// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: convert a revocation-check error into a 401 or retryable 503 auth error (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: convert a revocation-check error into a 401 or retryable 503 auth error (pure)
 func revocationAuthError(logger slogging.SimpleLogger, err error) *AuthError {
 	if strings.Contains(err.Error(), "revoked") {
 		// Use generic error message to avoid leaking implementation details
@@ -602,7 +602,7 @@ func revocationAuthError(logger slogging.SimpleLogger, err error) *AuthError {
 }
 
 // AuthenticateRequest performs the complete JWT authentication process
-// SEM@a7d1b052bb879606eca59fea8d7f7bac57531eeb: authenticate a request via bearer JWT or WebSocket ticket and enforce revocation
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: authenticate a request via bearer JWT or WebSocket ticket and enforce token revocation
 func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 	logger := slogging.GetContextLogger(c)
 
@@ -837,7 +837,7 @@ func extractAuthTime(claims jwt.MapClaims) *time.Time {
 }
 
 // AuthError represents an authentication error
-// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: structured auth error carrying an OAuth error code and HTTP status code (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: structured auth error carrying an OAuth error code and HTTP status code (pure)
 type AuthError struct {
 	Code        errcode.Code
 	Description string

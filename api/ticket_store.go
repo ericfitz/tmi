@@ -14,7 +14,7 @@ import (
 // TicketClaims is the identity bound to a WebSocket ticket. TokenHash and
 // CredentialID identify the token that minted the ticket so the upgrade can be
 // refused after that token or its client credential is revoked (#869).
-// SEM@c161adfd8ba839441ccd825e818d342a09c63849: hold identity and revocation handle bound to a WebSocket upgrade ticket (pure)
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: hold identity, group memberships and revocation handle bound to a WebSocket upgrade ticket (pure)
 type TicketClaims struct {
 	UserID       string `json:"user_id"`
 	Provider     string `json:"provider"`

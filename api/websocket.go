@@ -132,7 +132,7 @@ type HistoryEntry struct {
 }
 
 // WebSocketClient represents a connected client
-// SEM@a9626140ff4ccb3bf8ae4b474024684bd7063b72: connected WebSocket participant holding user identity, connection, and outbound message channel
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: connected WebSocket participant holding user identity, group memberships, connection, and outbound message channel
 type WebSocketClient struct {
 	// Hub reference
 	Hub *WebSocketHub
@@ -691,7 +691,7 @@ func (h *OperationHistory) cleanupOldEntries() {
 }
 
 // GetActiveSessions returns all active collaboration sessions
-// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: list all active collaboration sessions with participants and metadata (reads DB)
+// SEM@9cae882d37d446fa1e16af883a2f1ef7d166fbb9: list active collaboration sessions the caller may access, with participants and metadata (reads DB)
 func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -761,7 +761,7 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 }
 
 // convertClientToParticipant converts a WebSocket client to a Participant
-// SEM@1ee903740fbfd71dacb8286ffc539a07887a60ad: convert a WebSocket client to a Participant, matching identity by provider ID or internal UUID (reads DB)
+// SEM@9cae882d37d446fa1e16af883a2f1ef7d166fbb9: convert a WebSocket client to a Participant with its resolved session permission (reads DB)
 func convertClientToParticipant(client *WebSocketClient, _ *DiagramSession, tm *ThreatModel) *Participant {
 	// Get user's session permissions using existing auth system
 	var permissions ParticipantPermissions
@@ -800,7 +800,7 @@ func convertClientToParticipant(client *WebSocketClient, _ *DiagramSession, tm *
 // getSessionPermissionsForUser determines session permissions using the existing auth system.
 // The caller supplies the user's own groups (a connected client's frozen groups, or the
 // requester's request-context groups) so group-based grants are honored.
-// SEM@0000000: resolve a user's session permissions against a threat model's ACL, honoring groups (pure)
+// SEM@9cae882d37d446fa1e16af883a2f1ef7d166fbb9: resolve a user's session permissions against a threat model's ACL, honoring group grants (pure)
 func getSessionPermissionsForUser(user ResolvedUser, groups []string, tm *ThreatModel) *ParticipantPermissions {
 	// Check for writer/resource owner access first (highest permission)
 	hasWriterAccess, err := CheckResourceAccessWithGroups(user, groups, tm, RoleWriter)
@@ -828,7 +828,7 @@ var participantEmailPattern = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.
 // Group authorization entries have no user representation and are skipped. Permissions for
 // users who are not connected come from the static authorization role map (owner/writer ->
 // writer, reader -> reader), so roles elevated through group membership are not reflected.
-// SEM@1ee903740fbfd71dacb8286ffc539a07887a60ad: build session participants from authorized users and connected clients (reads DB)
+// SEM@9cae882d37d446fa1e16af883a2f1ef7d166fbb9: build session participants from ACL-authorized users, groups and connected clients (reads DB)
 func buildSessionParticipants(c *gin.Context, session *DiagramSession, tm *ThreatModel, requester ResolvedUser) []Participant {
 	logger := slogging.Get()
 	participants := make([]Participant, 0, len(session.Clients)+1)
@@ -1116,7 +1116,7 @@ func (h *WebSocketHub) getThreatModelIdForDiagram(diagramID string) openapi_type
 // validateWebSocketDiagramAccessWithFlexibleMatching validates that a user has at least reader access to a diagram
 // using flexible user identifier matching (email, provider_user_id, or internal_uuid)
 // This is critical for WebSocket security to prevent unauthorized access to collaboration sessions
-// SEM@0000000: authorize WebSocket access to a diagram using flexible identity matching; deny without reader role (reads DB)
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: authorize WebSocket access to a diagram by user or group identity matching; deny without reader role (reads DB)
 func (h *WebSocketHub) validateWebSocketDiagramAccessWithFlexibleMatching(userInfo *UserInfo, threatModelID string, diagramID string) bool {
 	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), deny access
 	if ThreatModelStore == nil {
@@ -1542,7 +1542,7 @@ func (s *DiagramSession) Run() {
 }
 
 // validateWebSocketRequest validates the basic request parameters and returns user info
-// SEM@7fa07f774e8f6d45ba5fd95cc267d32f11f2e2a4: validate WebSocket path parameters and extract the authenticated user ID from context (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: validate WebSocket path parameters and extract the authenticated user identity and groups from context (pure)
 func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, diagramID, userIDStr string, err error) {
 	// Get threat model ID and diagram ID from path
 	threatModelID = c.Param("threat_model_id")
@@ -1596,7 +1596,7 @@ func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, 
 }
 
 // HandleWS handles WebSocket connections
-// SEM@a7d1b052bb879606eca59fea8d7f7bac57531eeb: handle a WebSocket connection request: authorize, upgrade, and register the client (mutates shared state)
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: handle a WebSocket connection request: authorize, upgrade, and register the client (mutates shared state)
 func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	// Validate request and get parameters
 	threatModelID, diagramID, _, err := h.validateWebSocketRequest(c)
@@ -2307,7 +2307,7 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 // Helper methods
 
 // handlePresenterDisconnection handles when the current presenter leaves the session
-// SEM@0000000: reassign the presenter role when the current presenter disconnects (mutates shared state)
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: reassign the presenter role when the current presenter disconnects (mutates shared state)
 func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -2616,7 +2616,7 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 
 // checkMutationPermission checks if user can perform mutations
 // Uses flexible user identifier matching (email, provider_user_id, or internal_uuid)
-// SEM@0000000: validate that the client holds writer access to the session's threat model (reads DB)
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: validate that the client holds writer access, directly or via group, to the session's threat model (reads DB)
 func (s *DiagramSession) checkMutationPermission(client *WebSocketClient) bool {
 	// Anonymous users cannot perform mutations
 	if client == nil || client.UserID == "" {
@@ -2661,7 +2661,7 @@ func (s *DiagramSession) checkMutationPermission(client *WebSocketClient) bool {
 // called from the WritePump heartbeat so that a user whose role is revoked
 // mid-session stops receiving broadcast diagram content instead of keeping
 // read access until disconnect or JWT expiry.
-// SEM@0000000: validate that the client still holds reader access to the session's threat model (reads DB)
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: validate that the client still holds reader access, directly or via group, to the session's threat model (reads DB)
 func (s *DiagramSession) checkReadPermission(client *WebSocketClient) bool {
 	// Anonymous users cannot hold read access
 	if client == nil || client.UserID == "" {
