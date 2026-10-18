@@ -135,6 +135,11 @@ func (s *Server) CreateAdminSurvey(c *gin.Context) {
 		return
 	}
 
+	if err := validateSurveyStatus(req.Status); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
 	// Validate survey_json has a pages array
 	if err := validateSurveyJSON(req.SurveyJson); err != nil {
 		HandleRequestError(c, InvalidInputError(err.Error()))
@@ -264,6 +269,11 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 			Error:            ErrorError(errcode.Conflict),
 			ErrorDescription: "Cannot update an archived survey",
 		})
+		return
+	}
+
+	if err := validateSurveyStatus(req.Status); err != nil {
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -1661,15 +1671,23 @@ func validatePatchedSurvey(s *Survey) *RequestError {
 	if len(s.Version) > maxVersionLen {
 		return InvalidInputError(fmt.Sprintf("version exceeds maximum length of %d characters", maxVersionLen))
 	}
-	if s.Status != nil {
-		switch *s.Status {
-		case SurveyStatusActive, SurveyStatusInactive, SurveyStatusArchived:
-		default:
-			return InvalidInputError(fmt.Sprintf("status must be one of %s, %s, %s",
-				SurveyStatusActive, SurveyStatusInactive, SurveyStatusArchived))
-		}
+	return validateSurveyStatus(s.Status)
+}
+
+// validateSurveyStatus rejects a survey status outside the closed set (nil is allowed).
+// Shared by POST, PUT and PATCH /admin/surveys; the column is size:20.
+// SEM@0000000: validate a survey status against the allowed set (pure)
+func validateSurveyStatus(status *string) *RequestError {
+	if status == nil {
+		return nil
 	}
-	return nil
+	switch *status {
+	case SurveyStatusActive, SurveyStatusInactive, SurveyStatusArchived:
+		return nil
+	default:
+		return InvalidInputError(fmt.Sprintf("status must be one of %s, %s, %s",
+			SurveyStatusActive, SurveyStatusInactive, SurveyStatusArchived))
+	}
 }
 
 // isDuplicateConstraintError checks if an error is a database unique constraint violation.
