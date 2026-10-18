@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -87,6 +88,12 @@ func TestPatchDiagram_RejectsRootPathOp(t *testing.T) {
 		[]byte(`[{"op":"replace","path":"name","value":"x"}]`))
 	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "invalid_input")
+
+	// move removes its source, so a prohibited "from" must be rejected too.
+	w = do("PATCH", "/threat_models/"+tm.Id.String()+"/diagrams/"+d.Id.String(),
+		[]byte(`[{"op":"move","path":"/description","from":"/id"}]`))
+	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "invalid_input")
 }
 
 // The OpenAPI request validator must enforce the JsonPatchDocument schema:
@@ -118,6 +125,61 @@ func TestOpenAPIValidation_JSONPatchPaths(t *testing.T) {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 			assert.Equal(t, tt.want, w.Code, w.Body.String())
+		})
+	}
+}
+
+func TestPatchIntakeSurveyResponse_RejectsProhibitedFromPath(t *testing.T) {
+	for _, op := range []string{"move", "copy"} {
+		t.Run(op, func(t *testing.T) {
+			store := newMockSurveyResponseStore()
+			saveSurveyStores(t, nil, store)
+			id := seedSurveyResponse(store, uuid.New(), ResponseStatusDraft, TestUsers.Owner.InternalUUID)
+
+			patch := []byte(fmt.Sprintf(`[{"op":%q,"path":"/ui_state","from":"/owner"}]`, op))
+			c, w := CreateTestGinContextWithBody("PATCH", fmt.Sprintf("/intake/survey_responses/%s", id), "application/json-patch+json", patch)
+			TestUsers.Owner.SetContext(c)
+			(&Server{}).PatchIntakeSurveyResponse(c, id, PatchIntakeSurveyResponseParams{})
+
+			assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+			assert.Contains(t, w.Body.String(), "invalid_input")
+		})
+	}
+}
+
+func TestValidatePatchProhibitedPaths_FromAndPrefix(t *testing.T) {
+	assert.NotNil(t, ValidatePatchProhibitedPaths([]PatchOperation{{Op: "move", Path: "/description", From: "/id"}}))
+	assert.NotNil(t, ValidatePatchProhibitedPaths([]PatchOperation{{Op: "copy", Path: "/description", From: "/created_at"}}))
+	assert.NotNil(t, ValidatePatchProhibitedPaths([]PatchOperation{{Op: "move", Path: "/description", From: "/id/x"}}))
+	assert.Nil(t, ValidatePatchProhibitedPaths([]PatchOperation{{Op: "move", Path: "/description", From: "/name"}}))
+	// "from" is ignored for ops that do not use it.
+	assert.Nil(t, ValidatePatchProhibitedPaths([]PatchOperation{{Op: "replace", Path: "/name", From: "/id"}}))
+}
+
+func TestBulkPatchThreats_RejectsProhibitedPaths(t *testing.T) {
+	ops := []map[string]any{
+		{"op": "replace", "path": "/id", "value": testUUID1},
+		{"op": "replace", "path": "/created_at", "value": "2020-01-01T00:00:00Z"},
+		{"op": "move", "path": "/description", "from": "/id"},
+	}
+	for _, op := range ops {
+		t.Run(fmt.Sprintf("%v_%v", op["op"], op["path"]), func(t *testing.T) {
+			r, mockStore := setupThreatSubResourceHandler()
+			mockStore.On("Patch", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&Threat{}, nil).Maybe()
+			mockStore.On("Get", mock.Anything, mock.Anything).Return(&Threat{}, nil).Maybe()
+
+			body, err := json.Marshal(map[string]any{
+				"patches": []map[string]any{{"id": testUUID2, "operations": []map[string]any{op}}},
+			})
+			require.NoError(t, err)
+			req := httptest.NewRequest("PATCH", "/threat_models/"+testUUID1+"/threats/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+			assert.Contains(t, w.Body.String(), "invalid_input")
+			mockStore.AssertNotCalled(t, "Patch", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
 }

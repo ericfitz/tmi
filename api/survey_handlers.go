@@ -351,7 +351,7 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 // PatchAdminSurvey partially updates a survey.
 // PATCH /admin/surveys/{survey_id}
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: partially update a non-archived survey via JSON Patch and emit a webhook event (mutates shared state)
+// SEM@0000000: partially update a non-archived survey via JSON Patch and emit a webhook event (mutates shared state)
 func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -395,16 +395,11 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 		"/id", "/created_at", "/modified_at", "/created_by",
 	}
 
-	for _, op := range operations {
-		for _, prohibitedPath := range prohibitedPaths {
-			if op.Path == prohibitedPath {
-				fieldName := strings.TrimPrefix(prohibitedPath, "/")
-				HandleRequestError(c, InvalidInputError(fmt.Sprintf(
-					"Field '%s' is not allowed in PATCH requests",
-					fieldName)))
-				return
-			}
-		}
+	if p, found := FindProhibitedPatchPath(operations, prohibitedPaths); found {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Field '%s' is not allowed in PATCH requests",
+			strings.TrimPrefix(p, "/"))))
+		return
 	}
 
 	// Apply patch operations to the existing survey
@@ -882,7 +877,7 @@ func validateIntakeStatusTarget(status string) error {
 // PatchIntakeSurveyResponse partially updates a survey response.
 // PATCH /intake/survey_responses/{response_id}
 // Supports status transitions: draft->submitted, needs_revision->submitted
-// SEM@fea6b3be63afa09c0668f3eaa2f51f933c5e05f1: apply a JSON Patch to a draft or needs-revision survey response, allowing only draft or submitted status targets (mutates DB)
+// SEM@0000000: apply a JSON Patch to a draft or needs-revision survey response, allowing only draft or submitted status targets (mutates DB)
 func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId, _ PatchIntakeSurveyResponseParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -916,18 +911,15 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 
 	// Check for status change in operations
 	hasStatusChange := false
+	if p, found := FindProhibitedPatchPath(operations, prohibitedPaths); found {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Field '%s' is not allowed in PATCH requests",
+			strings.TrimPrefix(p, "/"))))
+		return
+	}
 	for _, op := range operations {
 		if op.Path == PatchPathStatus {
 			hasStatusChange = true
-		}
-		for _, prohibitedPath := range prohibitedPaths {
-			if op.Path == prohibitedPath {
-				fieldName := strings.TrimPrefix(prohibitedPath, "/")
-				HandleRequestError(c, InvalidInputError(fmt.Sprintf(
-					"Field '%s' is not allowed in PATCH requests",
-					fieldName)))
-				return
-			}
 		}
 	}
 
@@ -1195,7 +1187,7 @@ func (s *Server) GetTriageSurveyResponse(c *gin.Context, surveyResponseId Survey
 // PatchTriageSurveyResponse partially updates a survey response for triage.
 // PATCH /triage/survey_responses/{response_id}
 // Supports status transitions: submitted->ready_for_review, submitted->needs_revision, ready_for_review->needs_revision
-// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: apply a JSON Patch to a survey response's triage status for a matching triage reviewer (mutates DB)
+// SEM@0000000: apply a JSON Patch to a survey response's triage status for a matching triage reviewer (mutates DB)
 func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1224,18 +1216,15 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 	}
 
 	hasStatusChange := false
+	if p, found := FindProhibitedPatchPath(operations, prohibitedPaths); found {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Field '%s' is not allowed in PATCH requests",
+			strings.TrimPrefix(p, "/"))))
+		return
+	}
 	for _, op := range operations {
 		if op.Path == PatchPathStatus {
 			hasStatusChange = true
-		}
-		for _, prohibitedPath := range prohibitedPaths {
-			if op.Path == prohibitedPath {
-				fieldName := strings.TrimPrefix(prohibitedPath, "/")
-				HandleRequestError(c, InvalidInputError(fmt.Sprintf(
-					"Field '%s' is not allowed in PATCH requests",
-					fieldName)))
-				return
-			}
 		}
 	}
 

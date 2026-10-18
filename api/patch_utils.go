@@ -155,22 +155,38 @@ var readOnlyPatchPaths = []string{
 	"/modified_at",
 }
 
-// ValidatePatchProhibitedPaths rejects any PATCH operation that targets a
-// server-managed (read-only) path. Returns a *RequestError with HTTP 400 on
-// the first prohibited path found, or nil when all paths are allowed.
-// SEM@270f55053109ed75ccf6cdf123884b9edf831d15: reject patch operations that target read-only fields such as id or created_at (pure)
-func ValidatePatchProhibitedPaths(operations []PatchOperation) *RequestError {
+// FindProhibitedPatchPath returns the first prohibited path (or sub-path of
+// one) that any operation reads or writes, and whether one was found. It
+// checks the "from" source of move and copy as well as the target: move removes
+// its source, and copy would expose a prohibited field (owner, is_confidential,
+// ...) through a field the caller may read.
+// SEM@0000000: find the first prohibited path touched by JSON Patch operations (pure)
+func FindProhibitedPatchPath(operations []PatchOperation, prohibited []string) (string, bool) {
 	for _, op := range operations {
-		for _, prohibited := range readOnlyPatchPaths {
-			if op.Path == prohibited || strings.HasPrefix(op.Path, prohibited+"/") {
-				field := strings.TrimPrefix(prohibited, "/")
-				return InvalidInputError(fmt.Sprintf(
-					"Field '%s' is not allowed in PATCH requests. %s",
-					field,
-					GetFieldErrorMessage(field, "PATCH"),
-				))
+		for _, path := range patchOpPaths(op) {
+			for _, p := range prohibited {
+				if path == p || strings.HasPrefix(path, p+"/") {
+					return p, true
+				}
 			}
 		}
+	}
+	return "", false
+}
+
+// ValidatePatchProhibitedPaths rejects any PATCH operation that targets a
+// server-managed (read-only) path, or moves/copies from one. Returns a
+// *RequestError with HTTP 400 on the first prohibited path found, or nil when
+// all paths are allowed.
+// SEM@0000000: reject patch operations that read or write read-only fields such as id or created_at (pure)
+func ValidatePatchProhibitedPaths(operations []PatchOperation) *RequestError {
+	if p, found := FindProhibitedPatchPath(operations, readOnlyPatchPaths); found {
+		field := strings.TrimPrefix(p, "/")
+		return InvalidInputError(fmt.Sprintf(
+			"Field '%s' is not allowed in PATCH requests. %s",
+			field,
+			GetFieldErrorMessage(field, "PATCH"),
+		))
 	}
 	return nil
 }

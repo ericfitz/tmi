@@ -292,7 +292,7 @@ func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID, _ U
 // PatchProject partially updates a project via JSON Patch.
 // Requires team membership or admin.
 // PATCH /projects/{project_id}
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: apply JSON Patch operations to a project with optimistic-locking enforcement, emitting an update event (mutates DB)
+// SEM@0000000: apply JSON Patch operations to a project with optimistic-locking enforcement, emitting an update event (mutates DB)
 func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID, _ PatchProjectParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -327,13 +327,9 @@ func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID, _ Pa
 
 	// Validate prohibited fields
 	prohibitedPaths := []string{"/id", "/created_at", "/modified_at", "/created_by", "/modified_by"}
-	for _, op := range operations {
-		for _, p := range prohibitedPaths {
-			if op.Path == p {
-				HandleRequestError(c, InvalidInputError("Field '"+strings.TrimPrefix(p, "/")+"' is not allowed in PATCH requests"))
-				return
-			}
-		}
+	if p, found := FindProhibitedPatchPath(operations, prohibitedPaths); found {
+		HandleRequestError(c, InvalidInputError("Field '"+strings.TrimPrefix(p, "/")+"' is not allowed in PATCH requests"))
+		return
 	}
 
 	// Get existing project
