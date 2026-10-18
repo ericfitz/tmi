@@ -735,7 +735,7 @@ func TestValidateTimmyAtStartup(t *testing.T) {
 
 // timmyStubSettings serves canned string values for the keys read by
 // api.TimmyConfigProvider.Current; every other method panics via the nil embed.
-// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: stub settings service returning canned values by key (pure)
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: stub settings service returning canned values by key (pure)
 type timmyStubSettings struct {
 	api.SettingsServiceInterface
 	values map[string]string

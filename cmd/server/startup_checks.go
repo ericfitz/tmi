@@ -53,6 +53,7 @@ type settingsLister interface {
 // anything else (request logs start with REQUEST_COMPLETE).
 const settingsAtRestCheckPrefix = "settings-at-rest check: "
 
+// SEM@7430764167888f43111b8fe959e8c73449a4f9af: warn when secret-classified settings are stored as plaintext at rest (reads DB)
 func warnIfPlaintextSecretsAtRest(
 	ctx context.Context,
 	encryptor *crypto.SettingsEncryptor,

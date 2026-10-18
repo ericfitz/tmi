@@ -365,7 +365,7 @@ func TestGetClientConfig_TimmyReaderAbsent(t *testing.T) {
 	assert.False(t, *cfg.Features.TimmyEnabled)
 }
 
-// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify listing system settings requires admin
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: verify listing system settings requires admin
 func TestListSystemSettings_AdminRequired(t *testing.T) {
 	// Save original admin store
 	originalAdminStore := GlobalGroupMemberRepository
@@ -405,7 +405,7 @@ func TestListSystemSettings_AdminRequired(t *testing.T) {
 	assert.Equal(t, "forbidden", string(errResp.Error))
 }
 
-// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify listing system settings returns 503 when the service is unavailable
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: verify listing system settings returns 503 when the service is unavailable
 func TestListSystemSettings_ServiceUnavailable(t *testing.T) {
 	// Save original admin store
 	originalAdminStore := GlobalGroupMemberRepository
@@ -812,7 +812,7 @@ func TestGetSystemSetting_ConfigSourced(t *testing.T) {
 	assert.Equal(t, true, setting["read_only"])
 }
 
-// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify updating a config-sourced setting returns 409
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: verify updating a config-sourced setting returns 409
 func TestUpdateSystemSetting_409_ConfigSourced(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
@@ -1521,7 +1521,7 @@ func TestBuildContentProviders_PickerConfigDeepCopy(t *testing.T) {
 // The pass runs in one transaction (#845), so a database failure is a whole-
 // request failure and must be reported as 503 (transient, retry) or 500, never
 // as the 409 "encryption_not_enabled" precondition.
-// SEM@094904c7a8ba41296e31c7fa9623c72c3f018fa2: test reencrypt maps not-enabled/unreadable to 409, transient DB failure to 503, other to 500
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: test reencrypt maps not-enabled/unreadable to 409, transient DB failure to 503, other to 500
 func TestReencryptSystemSettings_ErrorMapping(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)

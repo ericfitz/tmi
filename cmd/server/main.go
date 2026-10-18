@@ -247,7 +247,7 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 }
 
 // JWT Middleware factory function that takes config, token blacklist, auth handlers, and ticket validator
-// SEM@411a53c663401d55a0f66913e00979599a208c93: build middleware that validates JWT tokens on protected paths and on bearer-carrying handler-auth paths
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build middleware that validates JWT tokens on protected paths and on bearer-carrying handler-auth paths
 func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, authHandlers *auth.Handlers, ticketValidator *TicketValidator) gin.HandlerFunc {
 	// Initialize authentication components
 	publicPathChecker := &PublicPathChecker{}
@@ -306,7 +306,7 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 }
 
 // Dev-mode only endpoint to get current user info
-// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: build a dev-only handler that returns the authenticated user's name and role from JWT context
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a dev-only handler that returns the authenticated user's name and role from JWT context
 func DevUserInfoHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.GetContextLogger(c)
@@ -1397,7 +1397,7 @@ func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) *api.ExtractionP
 // content provider), or when any required collaborator is unavailable, the
 // function logs and leaves the handler unset; the generated delegation
 // wrappers will respond with 503 for the affected endpoints.
-// SEM@f69d82c5864c65f768181d82416962e3bbd63667: build and register delegated content-OAuth handlers on the API server
+// SEM@d5435580d5a233d66783c8c40148f924403f1809: build and register delegated content-OAuth handlers on the API server
 func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB *gorm.DB, dbManager *db.Manager, authHandlers *auth.Handlers) (api.ContentTokenRepository, *api.ContentOAuthProviderRegistry) {
 	logger := slogging.Get()
 
@@ -1917,7 +1917,7 @@ func startWebhookWorkers(ctx context.Context, cfg *config.Config) (*api.WebhookE
 	return webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker
 }
 
-// SEM@d0dd04daab6a17c9492d01d80920f869be8a735a: parse flags, load config, resolve secrets, and launch the server process
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: parse flags, load config, resolve secrets, and launch the server process
 func main() {
 	// Parse command line flags
 	flags, err := config.ParseFlagsExt()
