@@ -110,7 +110,7 @@ func (s *Server) ListAdminSurveys(c *gin.Context, params ListAdminSurveysParams)
 
 // CreateAdminSurvey creates a new survey.
 // POST /admin/surveys
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: store a new survey template and emit a webhook event (mutates shared state)
+// SEM@7f98676d5cf378435fc7478542365dfd50fba318: store a new survey template and emit a webhook event (mutates shared state)
 func (s *Server) CreateAdminSurvey(c *gin.Context) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -227,7 +227,7 @@ func (s *Server) GetAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 // UpdateAdminSurvey fully updates a survey.
 // PUT /admin/surveys/{survey_id}
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: fully replace a non-archived survey and emit a webhook event (mutates shared state)
+// SEM@7f98676d5cf378435fc7478542365dfd50fba318: replace a non-archived survey template and emit a webhook event (mutates shared state)
 func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1071,7 +1071,7 @@ func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 
 // ListTriageSurveyResponses returns survey responses for triage.
 // GET /triage/survey_responses
-// SEM@0000000: list survey responses scoped to caller reviewer groups and is_confidential filter (reads DB)
+// SEM@2af088d4f39f8fea02f01623d3a2442cf14e0927: list survey responses scoped to reviewer groups and confidentiality filter (reads DB)
 func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurveyResponsesParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1159,7 +1159,7 @@ func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurv
 // intersectConfidentialScope combines the caller's reviewer scope with the
 // is_confidential query parameter. A nil input means "no restriction"; empty is
 // true when the two disagree, so the result set is necessarily empty.
-// SEM@0000000: intersect reviewer confidentiality scope with a query filter (pure)
+// SEM@2af088d4f39f8fea02f01623d3a2442cf14e0927: intersect reviewer confidentiality scope with a requested confidentiality filter (pure)
 func intersectConfidentialScope(scope, param *bool) (effective *bool, empty bool) {
 	switch {
 	case scope == nil:
