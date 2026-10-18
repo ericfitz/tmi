@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +22,9 @@ func TestPatchIntakeSurveyResponse_RejectsRootPathOp(t *testing.T) {
 	store := newMockSurveyResponseStore()
 	saveSurveyStores(t, nil, store)
 	id := seedSurveyResponse(store, uuid.New(), ResponseStatusDraft, TestUsers.Owner.InternalUUID)
+	// Any store write would surface as a non-400 status below.
+	store.updateErr = errors.New("update must not be called")
+	store.updateStatusErr = errors.New("update status must not be called")
 
 	patch := []byte(`[{"op":"replace","path":"","value":{"status":"submitted","is_confidential":true}}]`)
 	c, w := CreateTestGinContextWithBody("PATCH", fmt.Sprintf("/intake/survey_responses/%s", id), "application/json-patch+json", patch)
@@ -29,6 +33,9 @@ func TestPatchIntakeSurveyResponse_RejectsRootPathOp(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "invalid_input")
+	stored := store.responses[id]
+	assert.Equal(t, ResponseStatusDraft, *stored.Status)
+	assert.False(t, *stored.IsConfidential)
 }
 
 func TestPatchDiagram_RejectsRootPathOp(t *testing.T) {
@@ -182,4 +189,67 @@ func TestBulkPatchThreats_RejectsProhibitedPaths(t *testing.T) {
 			mockStore.AssertNotCalled(t, "Patch", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
+}
+
+func TestPatchProjectAndTeam_RejectProhibitedFromAndSubPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{}
+	bodies := map[string]string{
+		"move from prohibited path": `[{"op":"move","path":"/description","from":"/id"}]`,
+		"copy from prohibited path": `[{"op":"copy","path":"/description","from":"/created_by"}]`,
+		"prohibited sub-path":       `[{"op":"replace","path":"/id/x","value":"v"}]`,
+	}
+	for name, body := range bodies {
+		t.Run("project "+name, func(t *testing.T) {
+			projectStore := newMockProjectStore()
+			seedProjectInStore(projectStore, testProjectID, "Project", testTeamID)
+			saveTeamProjectStores(t, nil, projectStore)
+			db := setupTestTeamAuthDB(t)
+			seedTeamAuthData(t, db, testTeamID, testUserUUID)
+			seedProjectAuthData(t, db, testProjectID, testTeamID)
+
+			projectUUID, _ := uuid.Parse(testProjectID)
+			c, w := CreateTestGinContextWithBody("PATCH", "/projects/"+testProjectID, "application/json-patch+json", []byte(body))
+			TestUsers.Owner.SetContext(c)
+			server.PatchProject(c, projectUUID, PatchProjectParams{})
+
+			assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+			assert.Contains(t, w.Body.String(), "not allowed")
+		})
+		t.Run("team "+name, func(t *testing.T) {
+			store := newMockTeamStore()
+			seedTeamInStore(store, testTeamID, "Team")
+			saveTeamProjectStores(t, store, nil)
+			db := setupTestTeamAuthDB(t)
+			seedTeamAuthData(t, db, testTeamID, testUserUUID)
+
+			teamUUID, _ := uuid.Parse(testTeamID)
+			c, w := CreateTestGinContextWithBody("PATCH", "/teams/"+testTeamID, "application/json-patch+json", []byte(body))
+			TestUsers.Owner.SetContext(c)
+			server.PatchTeam(c, teamUUID, PatchTeamParams{})
+
+			assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+			assert.Contains(t, w.Body.String(), "not allowed")
+		})
+	}
+}
+
+func TestBulkPatchThreats_ValidatesAllEntriesBeforeApplying(t *testing.T) {
+	r, mockStore := setupThreatSubResourceHandler()
+	mockStore.On("Patch", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&Threat{}, nil).Maybe()
+
+	body, err := json.Marshal(map[string]any{
+		"patches": []map[string]any{
+			{"id": testUUID2, "operations": []map[string]any{{"op": "replace", "path": "/name", "value": "ok"}}},
+			{"id": "00000000-0000-0000-0000-000000000003", "operations": []map[string]any{{"op": "replace", "path": "/id", "value": testUUID1}}},
+		},
+	})
+	require.NoError(t, err)
+	req := httptest.NewRequest("PATCH", "/threat_models/"+testUUID1+"/threats/bulk", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	mockStore.AssertNotCalled(t, "Patch", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }

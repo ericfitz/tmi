@@ -924,9 +924,10 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 
 	logger.Debug("Bulk patching %d threats (user: %s)", len(bulkPatchRequest.Patches), user.Email)
 
-	// Apply patches to each threat
-	updatedThreats := make([]Threat, 0, len(bulkPatchRequest.Patches))
-	for _, patch := range bulkPatchRequest.Patches {
+	// Validate every entry before applying any, so a rejected entry never
+	// leaves earlier entries committed.
+	for i := range bulkPatchRequest.Patches {
+		patch := &bulkPatchRequest.Patches[i]
 		// Validate threat ID (a request-body field, so a failure is invalid_input)
 		if _, err := ParseUUID(patch.ID); err != nil {
 			HandleRequestError(c, InvalidInputError(fmt.Sprintf("Invalid threat ID format: %s", patch.ID)))
@@ -954,7 +955,11 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 			HandleRequestError(c, err)
 			return
 		}
+	}
 
+	// Apply patches to each threat
+	updatedThreats := make([]Threat, 0, len(bulkPatchRequest.Patches))
+	for _, patch := range bulkPatchRequest.Patches {
 		// Apply patch. Classify the error rather than calling everything a
 		// server fault: ApplyPatchOperations returns a *RequestError carrying
 		// 400 for a patch document the client got wrong (malformed JSON
