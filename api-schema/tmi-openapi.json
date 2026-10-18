@@ -6273,8 +6273,8 @@
             },
             "path": {
               "type": "string",
-              "description": "JSON path to target",
-              "pattern": "^(/[^/]*)*$",
+              "description": "JSON Pointer (RFC 6901) to the target; must start with \"/\" (the document root \"\" is not allowed)",
+              "pattern": "^(/[^/]*)+$",
               "maxLength": 512
             },
             "value": {
@@ -6322,6 +6322,12 @@
                   }
                 }
               ]
+            },
+            "from": {
+              "type": "string",
+              "description": "JSON Pointer (RFC 6901) to the source location. Required for move and copy operations, ignored otherwise; must start with \"/\".",
+              "pattern": "^(/[^/]*)+$",
+              "maxLength": 512
             }
           },
           "required": [

@@ -88,3 +88,36 @@ func TestPatchDiagram_RejectsRootPathOp(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "invalid_input")
 }
+
+// The OpenAPI request validator must enforce the JsonPatchDocument schema:
+// root path "" is rejected with 400, and move/copy "from" is accepted.
+func TestOpenAPIValidation_JSONPatchPaths(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mw, err := SetupOpenAPIValidation()
+	require.NoError(t, err)
+	r := gin.New()
+	r.Use(mw)
+	r.PATCH("/projects/:project_id", func(c *gin.Context) { c.Status(http.StatusOK) })
+	url := "/projects/" + uuid.New().String()
+
+	tests := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"root path rejected", `[{"op":"replace","path":"","value":{"name":"x"}}]`, http.StatusBadRequest},
+		{"path without slash rejected", `[{"op":"replace","path":"name","value":"x"}]`, http.StatusBadRequest},
+		{"from without slash rejected", `[{"op":"move","path":"/a","from":"b"}]`, http.StatusBadRequest},
+		{"normal replace accepted", `[{"op":"replace","path":"/name","value":"x"}]`, http.StatusOK},
+		{"move with from accepted", `[{"op":"move","path":"/a","from":"/b"}]`, http.StatusOK},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("PATCH", url, bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json-patch+json")
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			assert.Equal(t, tt.want, w.Code, w.Body.String())
+		})
+	}
+}
