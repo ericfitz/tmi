@@ -115,7 +115,7 @@ func isPublicEndpoint(path string) bool {
 }
 
 // isAuthFlowEndpoint checks if the path is an OAuth or SAML auth flow endpoint
-// SEM@0e2dc694: report whether a request path is an OAuth or SAML auth flow endpoint exempt from rate limiting (pure)
+// SEM@c0b50b4b57f4dcf67acd03dc8524fccfc907c40c: report whether a request path is an OAuth or SAML auth flow endpoint governed by the auth-flow limiter, not the per-user limiter (pure)
 func isAuthFlowEndpoint(path string) bool {
 	authPaths := []string{
 		"/oauth2/authorize",
