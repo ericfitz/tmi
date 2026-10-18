@@ -12,7 +12,7 @@ import (
 )
 
 // RateLimitMiddleware creates a middleware that enforces API rate limiting
-// SEM@c70d49ed2d6089c24d05f8bc287ba5711c73abde: enforce per-user API rate limits and set rate limit response headers, skipping public and auth endpoints
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: enforce per-user API rate limits and set rate limit response headers, skipping public and auth endpoints
 func RateLimitMiddleware(server *Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
