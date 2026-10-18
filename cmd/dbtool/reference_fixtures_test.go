@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -255,6 +256,36 @@ func TestWriteYAMLReferenceDecoysSurvey(t *testing.T) {
 		}
 		if got := doc["/admin/surveys/{survey_id}"]["survey_id"]; got != "sv-decoy" {
 			t.Fatalf("survey anchor = %v, want sv-decoy", got)
+		}
+	}
+}
+
+// Every ref a seed entry points at (target_ref and the *_ref fields) must
+// resolve to an entry defined EARLIER in the file, because the seeder resolves
+// them in order against the refs created so far. Renaming a fixture used to
+// break a metadata target only at live-seed time (#1115). Pure and offline.
+func TestCatsSeedRefsAllResolve(t *testing.T) {
+	seedFile, err := loadSeedFile("../../test/seeds/cats-seed-data.json")
+	if err != nil {
+		t.Fatalf("loadSeedFile: %v", err)
+	}
+	defined := map[string]bool{}
+	for i, e := range seedFile.Seeds {
+		for field, v := range e.Data {
+			if field != "target_ref" && !strings.HasSuffix(field, "_ref") {
+				continue
+			}
+			ref, ok := v.(string)
+			if !ok || ref == "" {
+				continue
+			}
+			if !defined[ref] {
+				t.Errorf("seed entry %d (kind=%s, ref=%q): %s %q is not defined by an earlier entry",
+					i, e.Kind, e.Ref, field, ref)
+			}
+		}
+		if e.Ref != "" {
+			defined[e.Ref] = true
 		}
 	}
 }

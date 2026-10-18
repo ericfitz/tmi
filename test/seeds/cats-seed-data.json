@@ -380,7 +380,7 @@
       "value": "cats-test-value"
     },
     {
-      "target": "repo:cats-test-threat-model:",
+      "target": "repo:cats-test-threat-model:cats-test-repository",
       "target_kind": "repository",
       "key": "cats-test-key",
       "value": "cats-test-value"
