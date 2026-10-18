@@ -66,6 +66,14 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 	log.Info("  Bootstrap (stay in file): %d settings", len(bootstrapSettings))
 	log.Info("  Operational (move to database): %d settings", len(operationalSettings))
 
+	// Validate every value first (#1108): dbtool bypasses SettingsService.Set,
+	// so apply its semantic validators here and write nothing if any fails.
+	// Runs before the dry-run exit so --dry-run reports the same failures.
+	productionMode := settingsProductionMode(cfg.Auth.BuildMode)
+	if err := validateSettingValues(operationalSettings, productionMode); err != nil {
+		return err
+	}
+
 	if dryRun {
 		log.Info("")
 		log.Info("[DRY RUN] Bootstrap settings (would stay in config file):")
@@ -110,13 +118,6 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 		if closeErr := secretsProvider.Close(); closeErr != nil {
 			log.Debug("Failed to close secrets provider: %v", closeErr)
 		}
-	}
-
-	// Validate every value first (#1108): dbtool bypasses SettingsService.Set,
-	// so apply its semantic validators here and write nothing if any fails.
-	productionMode := settingsProductionMode(cfg.Auth.BuildMode)
-	if err := validateSettingValues(operationalSettings, productionMode); err != nil {
-		return err
 	}
 
 	// Write DB-eligible settings

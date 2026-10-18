@@ -108,3 +108,38 @@ func TestValidateSeedSettings_RejectsBadEntryAmongValid(t *testing.T) {
 		t.Errorf("valid entries rejected: %v", err)
 	}
 }
+
+// TestRunConfigSeed_RejectsNegativeMaxTokens covers timmy.llm_max_tokens, the
+// third key the startup Timmy check validates.
+func TestRunConfigSeed_RejectsNegativeMaxTokens(t *testing.T) {
+	db, _ := newExportTestDB(t)
+	inputPath := filepath.Join(t.TempDir(), "settings.yml")
+	if err := os.WriteFile(inputPath, []byte("timmy:\n  llm_max_tokens: -3\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := runConfigSeed(db, inputPath, "", true, false, false)
+	if err == nil || !strings.Contains(err.Error(), "timmy.llm_max_tokens") {
+		t.Fatalf("expected error naming timmy.llm_max_tokens, got %v", err)
+	}
+}
+
+// TestRunConfigSeed_DryRunRejectsInvalid pins that --dry-run reports validation
+// failures (non-zero) and writes nothing.
+func TestRunConfigSeed_DryRunRejectsInvalid(t *testing.T) {
+	db, _ := newExportTestDB(t)
+	inputPath := filepath.Join(t.TempDir(), "settings.yml")
+	if err := os.WriteFile(inputPath, []byte("timmy:\n  llm_provider: \"bogus\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := runConfigSeed(db, inputPath, "", true, true, false)
+	if err == nil || !strings.Contains(err.Error(), "timmy.llm_provider") {
+		t.Fatalf("dry-run: expected error naming timmy.llm_provider, got %v", err)
+	}
+	var n int64
+	if cErr := db.DB().Model(&models.SystemSetting{}).Count(&n).Error; cErr != nil {
+		t.Fatal(cErr)
+	}
+	if n != 0 {
+		t.Errorf("dry-run wrote %d rows, want 0", n)
+	}
+}

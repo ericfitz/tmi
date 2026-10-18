@@ -516,6 +516,13 @@ var settingSemanticValidators = map[string]func(value string, productionMode boo
 	"timmy.llm_provider": func(value string, _ bool) error {
 		return config.TimmyConfig{LLMProvider: value}.ValidateLLMProvider()
 	},
+	"timmy.llm_max_tokens": func(value string, _ bool) error {
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("timmy.llm_max_tokens: value is not a valid integer")
+		}
+		return config.TimmyConfig{LLMMaxTokens: n}.ValidateLLMMaxTokens()
+	},
 }
 
 // ValidateSettingSemantics applies the per-key semantic validator for key, if
