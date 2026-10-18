@@ -389,7 +389,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 }
 
 // PatchDiagram partially updates a diagram within a threat model
-// SEM@0000000: update a diagram by applying JSON Patch operations with optimistic locking; reject active sessions (reads DB)
+// SEM@40d527743ae56474b63b0a5f7d5f397c797e4d33: update a diagram by applying JSON Patch operations with optimistic locking; reject active sessions (reads DB)
 func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, diagramId string) {
 	// Similar to UpdateDiagram but with JSON Patch operations
 	// For brevity, this implementation is simplified

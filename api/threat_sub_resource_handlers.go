@@ -879,7 +879,7 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 
 // BulkPatchThreats applies JSON patch operations to multiple threats
 // PATCH /threat_models/{threat_model_id}/threats/bulk
-// SEM@0000000: update multiple threats by applying JSON Patch operations, authorizing each (mutates DB)
+// SEM@e92145ccb20292d695dc5d2f767278b6fc18e4f3: update multiple threats by applying JSON Patch operations, authorizing each (mutates DB)
 func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkPatchThreats - applying patch operations to multiple threats")

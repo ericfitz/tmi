@@ -292,7 +292,7 @@ func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID, _ U
 // PatchProject partially updates a project via JSON Patch.
 // Requires team membership or admin.
 // PATCH /projects/{project_id}
-// SEM@0000000: apply JSON Patch operations to a project with optimistic-locking enforcement, emitting an update event (mutates DB)
+// SEM@a7d2f8aeb90bc354bf081e462f3579fabb8503fe: apply JSON Patch operations to a project with optimistic-locking enforcement, emitting an update event (mutates DB)
 func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID, _ PatchProjectParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()

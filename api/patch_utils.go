@@ -14,7 +14,7 @@ import (
 )
 
 // ApplyPatchOperations applies JSON Patch operations to an entity and returns the modified entity
-// SEM@95fbc20511ce80f464d07e7723483035dbf87346: apply RFC 6902 JSON Patch operations to an entity, promoting replace to add and rejecting case-aliased keys (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: apply RFC 6902 JSON Patch operations to an entity, promoting replace to add and rejecting case-aliased keys (pure)
 func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, error) {
 	var zero T
 
@@ -126,7 +126,7 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 }
 
 // ValidatePatchAuthorization validates that the user has permission to perform the patch operations
-// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: validate that the caller's role permits the requested ownership or authorization changes (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: validate that the caller's role permits the requested ownership or authorization changes (pure)
 func ValidatePatchAuthorization(operations []PatchOperation, userRole Role) error {
 	// Check if any operations modify owner or authorization fields
 	ownerChanging, authChanging := CheckOwnershipChanges(operations)
@@ -160,7 +160,7 @@ var readOnlyPatchPaths = []string{
 // checks the "from" source of move and copy as well as the target: move removes
 // its source, and copy would expose a prohibited field (owner, is_confidential,
 // ...) through a field the caller may read.
-// SEM@0000000: find the first prohibited path touched by JSON Patch operations (pure)
+// SEM@a7d2f8aeb90bc354bf081e462f3579fabb8503fe: find the first prohibited path touched by JSON Patch operations (pure)
 func FindProhibitedPatchPath(operations []PatchOperation, prohibited []string) (string, bool) {
 	for _, op := range operations {
 		for _, path := range patchOpPaths(op) {
@@ -178,7 +178,7 @@ func FindProhibitedPatchPath(operations []PatchOperation, prohibited []string) (
 // server-managed (read-only) path, or moves/copies from one. Returns a
 // *RequestError with HTTP 400 on the first prohibited path found, or nil when
 // all paths are allowed.
-// SEM@0000000: reject patch operations that read or write read-only fields such as id or created_at (pure)
+// SEM@a7d2f8aeb90bc354bf081e462f3579fabb8503fe: reject patch operations that read or write read-only fields such as id or created_at (pure)
 func ValidatePatchProhibitedPaths(operations []PatchOperation) *RequestError {
 	if p, found := FindProhibitedPatchPath(operations, readOnlyPatchPaths); found {
 		field := strings.TrimPrefix(p, "/")
@@ -192,7 +192,7 @@ func ValidatePatchProhibitedPaths(operations []PatchOperation) *RequestError {
 }
 
 // CheckOwnershipChanges analyzes patch operations to determine if owner or authorization fields are being modified
-// SEM@0000000: detect whether patch operations modify the owner or authorization fields (pure)
+// SEM@2a1432a9123ec75f66c846ef9aa32f0a1c7bbab1: detect whether patch operations modify the owner or authorization fields (pure)
 func CheckOwnershipChanges(operations []PatchOperation) (ownerChanging, authChanging bool) {
 	for _, op := range operations {
 		// move and copy write op.Path; move also removes op.From.
@@ -250,7 +250,7 @@ func promoteReplaceToAdd(originalBytes []byte, operations []PatchOperation) []Pa
 // validateReplacePaths checks that all "replace" operations target paths that exist in the
 // original document. This is a workaround for evanphx/json-patch v1 which silently adds
 // fields instead of returning an error when replacing a nonexistent path (violating RFC 6902).
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: reject replace operations whose target path does not exist in the serialized entity (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: reject replace operations whose target path does not exist in the serialized entity (pure)
 func validateReplacePaths(originalBytes []byte, operations []PatchOperation) error {
 	var doc any
 	if err := json.Unmarshal(originalBytes, &doc); err != nil {
@@ -308,7 +308,7 @@ func pathExistsInDoc(doc any, parts []string) bool {
 }
 
 // ValidatePatchedEntity validates that the patched entity meets business rules
-// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: run a caller-supplied validator against the patched entity and map failures to 400 errors (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: run a caller-supplied validator against the patched entity and map failures to 400 errors (pure)
 func ValidatePatchedEntity[T any](original, patched T, userName string, validator func(T, T, string) error) error {
 	if validator == nil {
 		return nil

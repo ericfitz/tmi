@@ -282,7 +282,7 @@ func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID, _ UpdateT
 // PatchTeam partially updates a team via JSON Patch.
 // Requires team membership or admin.
 // PATCH /teams/{team_id}
-// SEM@0000000: partially update a team via JSON Patch, requiring membership or admin role with optimistic locking (writes DB)
+// SEM@a7d2f8aeb90bc354bf081e462f3579fabb8503fe: partially update a team via JSON Patch, requiring membership or admin role with optimistic locking (writes DB)
 func (s *Server) PatchTeam(c *gin.Context, teamId openapi_types.UUID, _ PatchTeamParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()

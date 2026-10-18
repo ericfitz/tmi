@@ -110,7 +110,7 @@ func (s *Server) ListAdminSurveys(c *gin.Context, params ListAdminSurveysParams)
 
 // CreateAdminSurvey creates a new survey.
 // POST /admin/surveys
-// SEM@8d2dcafcad63defc5e493d1177c845268338ee2b: store a new survey template and emit a webhook event, rejecting invalid status (mutates shared state)
+// SEM@7f98676d5cf378435fc7478542365dfd50fba318: store a new survey template and emit a webhook event (mutates shared state)
 func (s *Server) CreateAdminSurvey(c *gin.Context) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -232,7 +232,7 @@ func (s *Server) GetAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 // UpdateAdminSurvey fully updates a survey.
 // PUT /admin/surveys/{survey_id}
-// SEM@8d2dcafcad63defc5e493d1177c845268338ee2b: replace a non-archived survey template and emit a webhook event (mutates shared state)
+// SEM@7f98676d5cf378435fc7478542365dfd50fba318: fully replace a non-archived survey and emit a webhook event (mutates shared state)
 func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -351,7 +351,7 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 // PatchAdminSurvey partially updates a survey.
 // PATCH /admin/surveys/{survey_id}
-// SEM@0000000: partially update a non-archived survey via JSON Patch and emit a webhook event (mutates shared state)
+// SEM@a7d2f8aeb90bc354bf081e462f3579fabb8503fe: partially update a non-archived survey via JSON Patch and emit a webhook event (mutates shared state)
 func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -877,7 +877,7 @@ func validateIntakeStatusTarget(status string) error {
 // PatchIntakeSurveyResponse partially updates a survey response.
 // PATCH /intake/survey_responses/{response_id}
 // Supports status transitions: draft->submitted, needs_revision->submitted
-// SEM@0000000: apply a JSON Patch to a draft or needs-revision survey response, allowing only draft or submitted status targets (mutates DB)
+// SEM@2a1432a9123ec75f66c846ef9aa32f0a1c7bbab1: apply a JSON Patch to a draft or needs-revision survey response, allowing only draft or submitted status targets (mutates DB)
 func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId, _ PatchIntakeSurveyResponseParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1187,7 +1187,7 @@ func (s *Server) GetTriageSurveyResponse(c *gin.Context, surveyResponseId Survey
 // PatchTriageSurveyResponse partially updates a survey response for triage.
 // PATCH /triage/survey_responses/{response_id}
 // Supports status transitions: submitted->ready_for_review, submitted->needs_revision, ready_for_review->needs_revision
-// SEM@0000000: apply a JSON Patch to a survey response's triage status for a matching triage reviewer (mutates DB)
+// SEM@2a1432a9123ec75f66c846ef9aa32f0a1c7bbab1: apply a JSON Patch to a survey response's triage status for a matching triage reviewer (mutates DB)
 func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1748,7 +1748,7 @@ func validateSurveyJSON(surveyJSON map[string]any) error {
 
 // patchChangesStatus reports whether any operation writes /status; a move
 // also removes its source, so moving /status away counts.
-// SEM@0000000: detect whether JSON Patch operations write or remove the status field (pure)
+// SEM@d30ebe3b866d5558268f5a280963e91e27c1dedd: detect whether JSON Patch operations write or remove the status field (pure)
 func patchChangesStatus(operations []PatchOperation) bool {
 	for _, op := range operations {
 		if op.Path == PatchPathStatus || (op.Op == string(Move) && op.From == PatchPathStatus) {
