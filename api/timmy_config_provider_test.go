@@ -24,6 +24,7 @@ func TestTimmyConfigProvider_Current_AssemblesFromSettings(t *testing.T) {
 	ms.AddSetting("timmy.embedding_dimension", "3072", "int")
 	ms.AddSetting("timmy.text_retrieval_top_k", "7", "int")
 	ms.AddSetting("timmy.embedding_cleanup_interval_minutes", "120", "int")
+	ms.AddSetting("timmy.dump_extracted_text_to_note", "true", "bool")
 
 	p := NewTimmyConfigProvider(ms)
 	cfg := p.Current(context.Background())
@@ -37,6 +38,7 @@ func TestTimmyConfigProvider_Current_AssemblesFromSettings(t *testing.T) {
 	assert.Equal(t, 3072, cfg.EmbeddingDimension)
 	assert.Equal(t, 7, cfg.TextRetrievalTopK)
 	assert.Equal(t, 120, cfg.EmbeddingCleanupIntervalMinutes)
+	assert.True(t, cfg.DumpExtractedTextToNote)
 	assert.Equal(t, 50, cfg.MaxConversationHistory)
 	require.True(t, cfg.IsConfigured())
 }

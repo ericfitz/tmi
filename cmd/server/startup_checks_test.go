@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/crypto"
@@ -727,6 +729,61 @@ func TestValidateTimmyAtStartup(t *testing.T) {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantErr)
 			assert.Contains(t, err.Error(), tt.source)
+		})
+	}
+}
+
+// timmyStubSettings serves canned string values for the keys read by
+// api.TimmyConfigProvider.Current; every other method panics via the nil embed.
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: stub settings service returning canned values by key (pure)
+type timmyStubSettings struct {
+	api.SettingsServiceInterface
+	values map[string]string
+}
+
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: fetch a canned string setting from the stub (pure)
+func (s timmyStubSettings) GetString(_ context.Context, key string) (string, error) {
+	return s.values[key], nil
+}
+
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: fetch a canned int setting from the stub (pure)
+func (s timmyStubSettings) GetInt(_ context.Context, key string) (int, error) {
+	if v, ok := s.values[key]; ok {
+		return strconv.Atoi(v)
+	}
+	return 0, nil
+}
+
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: fetch a canned bool setting from the stub (pure)
+func (s timmyStubSettings) GetBool(_ context.Context, key string) (bool, error) {
+	if v, ok := s.values[key]; ok {
+		return strconv.ParseBool(v)
+	}
+	return false, nil
+}
+
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: verify the DB-resolved Timmy config path enforces production dump flag and provider validity
+func TestValidateEffectiveTimmyAtStartup(t *testing.T) {
+	tests := []struct {
+		name      string
+		values    map[string]string
+		buildMode string
+		wantErr   string
+	}{
+		{"production dump flag from DB", map[string]string{"timmy.dump_extracted_text_to_note": "true"}, "production", "timmy.dump_extracted_text_to_note"},
+		{"development dump flag from DB", map[string]string{"timmy.dump_extracted_text_to_note": "true"}, "dev", ""},
+		{"unknown provider from DB", map[string]string{"timmy.llm_provider": "bogus"}, "production", "timmy.llm_provider"},
+		{"valid config from DB", map[string]string{"timmy.llm_provider": "openai", "timmy.dump_extracted_text_to_note": "false"}, "production", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateEffectiveTimmyAtStartup(context.Background(), timmyStubSettings{values: tt.values}, tt.buildMode)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
 		})
 	}
 }

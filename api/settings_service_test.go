@@ -1210,4 +1210,10 @@ func TestSettingsService_SetValidatesTimmyKeys(t *testing.T) {
 		// the provider validator must not be what rejects them.
 		require.NoError(t, settingSemanticValidators["timmy.llm_provider"]("", true))
 	})
+
+	t.Run("dump flag validator fails closed on unparseable value", func(t *testing.T) {
+		for _, prod := range []bool{true, false} {
+			require.Error(t, settingSemanticValidators["timmy.dump_extracted_text_to_note"]("maybe", prod))
+		}
+	})
 }

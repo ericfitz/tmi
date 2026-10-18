@@ -1681,14 +1681,13 @@ func TestSystemSetting_UnclassifiedKeyGetAndDelete(t *testing.T) {
 // SEM@0e2dc694: verify the system-setting PUT handler returns 400 for invalid Timmy values
 func TestUpdateSystemSetting_TimmyValidation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	originalAdminStore := GlobalGroupMemberRepository
+	defer restoreConfigStores(originalAdminStore)
+	GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
 
 	put := func(t *testing.T, buildMode, key, body string) *httptest.ResponseRecorder {
 		t.Helper()
 		t.Setenv("TMI_BUILD_MODE", buildMode)
-		originalAdminStore := GlobalGroupMemberRepository
-		t.Cleanup(func() { restoreConfigStores(originalAdminStore) })
-		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
-
 		server := &Server{settingsService: NewSettingsService(setupSettingsTestDB(t), nil)}
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)

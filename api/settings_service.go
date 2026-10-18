@@ -502,7 +502,7 @@ var settingSemanticValidators = map[string]func(value string, productionMode boo
 	"timmy.dump_extracted_text_to_note": func(value string, productionMode bool) error {
 		enabled, err := strconv.ParseBool(value)
 		if err != nil {
-			return nil // type validation reports unparseable bools
+			return fmt.Errorf("timmy.dump_extracted_text_to_note: value is not a valid boolean")
 		}
 		buildMode := ""
 		if productionMode {
