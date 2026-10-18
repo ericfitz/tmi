@@ -25,6 +25,7 @@ type mockTicketStore struct {
 	sessionID    string
 	tokenHash    string
 	credentialID string
+	groups       []string
 	err          error
 }
 
@@ -38,7 +39,7 @@ func (m *mockTicketStore) ValidateTicket(_ context.Context, _ string) (api.Ticke
 	}
 	return api.TicketClaims{
 		UserID: m.userID, Provider: m.provider, InternalUUID: m.internalUUID, SessionID: m.sessionID,
-		TokenHash: m.tokenHash, CredentialID: m.credentialID,
+		TokenHash: m.tokenHash, CredentialID: m.credentialID, Groups: m.groups,
 	}, nil
 }
 
@@ -250,3 +251,32 @@ func TestCheckRevocation_TicketHandles(t *testing.T) {
 
 // Verify that the mockTicketStore implements the TicketStore interface at compile time
 var _ api.TicketStore = (*mockTicketStore)(nil)
+
+// #1107: the ticket path must expose the minting token's group claims as
+// userGroups so group-based grants apply to the WebSocket upgrade.
+func TestTicketValidator_SetsUserGroups(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	run := func(groups []string) *gin.Context {
+		store := &mockTicketStore{userID: "user123", provider: "tmi", sessionID: "session-abc", groups: groups}
+		validator := &TicketValidator{ticketStore: store}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request, _ = http.NewRequest(http.MethodGet, "/ws/diagrams/123?ticket=tok", nil)
+		_ = validator.ValidateTicket(c, "tok") // user lookup fails (no DB); context is set before it
+		return c
+	}
+
+	c := run([]string{"g1", "g2"})
+	got, ok := c.Get("userGroups")
+	if !ok {
+		t.Fatal("userGroups not set for a ticket carrying groups")
+	}
+	if g, _ := got.([]string); len(g) != 2 || g[0] != "g1" || g[1] != "g2" {
+		t.Fatalf("userGroups = %v, want [g1 g2]", got)
+	}
+
+	if _, ok := run(nil).Get("userGroups"); ok {
+		t.Fatal("userGroups must not be set for a ticket without groups")
+	}
+}

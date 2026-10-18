@@ -150,6 +150,10 @@ type WebSocketClient struct {
 	UserProvider string
 	// Internal UUID from users table (system-assigned)
 	InternalUUID string
+	// Groups are the user's group claims, captured at connect time. They are
+	// frozen for the socket's lifetime, like JWT claims on REST requests; the
+	// heartbeat re-check (checkReadPermission) still observes ACL changes.
+	Groups []string
 	// Buffered channel of outbound messages
 	Send chan []byte
 	// Last activity timestamp
@@ -1122,7 +1126,7 @@ func (h *WebSocketHub) getThreatModelIdForDiagram(diagramID string) openapi_type
 // validateWebSocketDiagramAccessWithFlexibleMatching validates that a user has at least reader access to a diagram
 // using flexible user identifier matching (email, provider_user_id, or internal_uuid)
 // This is critical for WebSocket security to prevent unauthorized access to collaboration sessions
-// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: authorize WebSocket access to a diagram using flexible identity matching; deny without reader role (reads DB)
+// SEM@0000000: authorize WebSocket access to a diagram using flexible identity matching; deny without reader role (reads DB)
 func (h *WebSocketHub) validateWebSocketDiagramAccessWithFlexibleMatching(userInfo *UserInfo, threatModelID string, diagramID string) bool {
 	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), deny access
 	if ThreatModelStore == nil {
@@ -1167,10 +1171,10 @@ func (h *WebSocketHub) validateWebSocketDiagramAccessWithFlexibleMatching(userIn
 		Email:      userInfo.UserEmail,
 	}
 	hasAccess, err := CheckResourceAccessWithGroups(
-		wsUser,     // user
-		nil,        // groups (not available in WebSocket context)
-		tm,         // resource
-		RoleReader, // requiredRole
+		wsUser,          // user
+		userInfo.Groups, // groups
+		tm,              // resource
+		RoleReader,      // requiredRole
 	)
 	if err != nil {
 		// If there's an error checking access, deny access
@@ -1704,6 +1708,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		UserEmail:    userInfo.UserEmail,
 		UserProvider: userInfo.UserProvider,
 		InternalUUID: userInfo.InternalUUID,
+		Groups:       userInfo.Groups,
 		Send:         make(chan []byte, 256),
 		LastActivity: time.Now().UTC(),
 		JWTExpiry:    userInfo.TokenExpiry,
@@ -2312,7 +2317,7 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 // Helper methods
 
 // handlePresenterDisconnection handles when the current presenter leaves the session
-// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: reassign the presenter role when the current presenter disconnects (mutates shared state)
+// SEM@0000000: reassign the presenter role when the current presenter disconnects (mutates shared state)
 func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -2347,10 +2352,10 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 			for client := range s.Clients {
 				clientUser := ResolvedUserFromWebSocketClient(client)
 				hasWriteAccess, err := CheckResourceAccessWithGroups(
-					clientUser, // user
-					nil,        // groups (not available in client)
-					tm,         // resource
-					RoleWriter, // requiredRole
+					clientUser,    // user
+					client.Groups, // groups
+					tm,            // resource
+					RoleWriter,    // requiredRole
 				)
 				if err == nil && hasWriteAccess {
 					newPresenter = &clientUser
@@ -2621,7 +2626,7 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 
 // checkMutationPermission checks if user can perform mutations
 // Uses flexible user identifier matching (email, provider_user_id, or internal_uuid)
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: validate that the client holds writer access to the session's threat model (reads DB)
+// SEM@0000000: validate that the client holds writer access to the session's threat model (reads DB)
 func (s *DiagramSession) checkMutationPermission(client *WebSocketClient) bool {
 	// Anonymous users cannot perform mutations
 	if client == nil || client.UserID == "" {
@@ -2647,10 +2652,10 @@ func (s *DiagramSession) checkMutationPermission(client *WebSocketClient) bool {
 		Email:      client.UserEmail,
 	}
 	hasWriteAccess, err := CheckResourceAccessWithGroups(
-		clientUser, // user
-		nil,        // groups (not available in client)
-		tm,         // resource
-		RoleWriter, // requiredRole
+		clientUser,    // user
+		client.Groups, // groups
+		tm,            // resource
+		RoleWriter,    // requiredRole
 	)
 	if err != nil {
 		// If there's an error checking access, deny for safety
@@ -2666,7 +2671,7 @@ func (s *DiagramSession) checkMutationPermission(client *WebSocketClient) bool {
 // called from the WritePump heartbeat so that a user whose role is revoked
 // mid-session stops receiving broadcast diagram content instead of keeping
 // read access until disconnect or JWT expiry.
-// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: validate that the client still holds reader access to the session's threat model (reads DB)
+// SEM@0000000: validate that the client still holds reader access to the session's threat model (reads DB)
 func (s *DiagramSession) checkReadPermission(client *WebSocketClient) bool {
 	// Anonymous users cannot hold read access
 	if client == nil || client.UserID == "" {
@@ -2695,10 +2700,10 @@ func (s *DiagramSession) checkReadPermission(client *WebSocketClient) bool {
 	// Full resolved identity (includes InternalUUID) for SamePrincipal matching
 	clientUser := ResolvedUserFromWebSocketClient(client)
 	hasReadAccess, err := CheckResourceAccessWithGroups(
-		clientUser, // user
-		nil,        // groups (not available in WebSocket context; same as the connect-time check)
-		tm,         // resource
-		RoleReader, // requiredRole
+		clientUser,    // user
+		client.Groups, // groups
+		tm,            // resource
+		RoleReader,    // requiredRole
 	)
 	if err != nil {
 		// If there's an error checking access, deny for safety

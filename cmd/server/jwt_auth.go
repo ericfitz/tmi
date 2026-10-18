@@ -429,7 +429,7 @@ func NewTicketValidator(ticketStore api.TicketStore, authHandlers *auth.Handlers
 }
 
 // ValidateTicket validates a WebSocket ticket and populates user context.
-// SEM@c161adfd8ba839441ccd825e818d342a09c63849: authenticate a WebSocket ticket and populate request identity from it (reads DB)
+// SEM@0000000: authenticate a WebSocket ticket and populate request identity from it (reads DB)
 func (v *TicketValidator) ValidateTicket(c *gin.Context, ticketStr string) error {
 	logger := slogging.GetContextLogger(c)
 
@@ -457,6 +457,10 @@ func (v *TicketValidator) ValidateTicket(c *gin.Context, ticketStr string) error
 	// Revocation handles of the token that minted the ticket (#869); consumed
 	// by checkRevocation after the ticket is accepted.
 	c.Set("authTokenHash", claims.TokenHash)
+	// Group claims of the minting token, so group grants apply to the upgrade (#1107).
+	if len(claims.Groups) > 0 {
+		c.Set("userGroups", claims.Groups)
+	}
 	if claims.CredentialID != "" {
 		c.Set("isServiceAccount", true)
 		c.Set("serviceAccountCredentialID", claims.CredentialID)

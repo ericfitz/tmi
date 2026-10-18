@@ -22,6 +22,10 @@ type TicketClaims struct {
 	SessionID    string `json:"session_id"`
 	TokenHash    string `json:"token_hash,omitempty"`
 	CredentialID string `json:"credential_id,omitempty"`
+	// Groups are the minting token's group claims, frozen at issue time so the
+	// ticket-authenticated upgrade can make group-aware access checks. Absent
+	// (nil) on tickets issued before this field existed, which fails closed.
+	Groups []string `json:"groups,omitempty"`
 }
 
 // TicketStore manages short-lived, single-use WebSocket authentication tickets.

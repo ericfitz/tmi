@@ -186,3 +186,24 @@ func TestGetWsTicket_UnauthorizedUser(t *testing.T) {
 	// User without access should get 404 (not 403, to avoid revealing resource existence)
 	assert.Equal(t, http.StatusNotFound, w.Code, "Should return 404 for user without access")
 }
+
+// #1107: the minted ticket carries the caller's group claims so the WebSocket
+// upgrade can make group-aware access checks.
+func TestGetWsTicket_RecordsGroups(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	server, sessionID, _ := setupWsTicketTestServer(t, TestFixtures.OwnerUser)
+
+	c, w := CreateTestGinContext("GET", "/ws/ticket?session_id="+sessionID)
+	SetFullUserContext(c, TestFixtures.OwnerUser, TestFixtures.OwnerUser, uuid.New().String(), "test", []string{"dev-team", "ops"})
+
+	server.GetWsTicket(c, GetWsTicketParams{SessionId: uuid.MustParse(sessionID)})
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp WsTicketResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+
+	claims, err := server.ticketStore.ValidateTicket(c.Request.Context(), resp.Ticket)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"dev-team", "ops"}, claims.Groups)
+}
