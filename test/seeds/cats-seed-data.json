@@ -11,7 +11,8 @@
       "email": "charlie@tmi.local",
       "display_name": "Charlie (Seed User)",
       "roles": {
-        "is_admin": true
+        "is_admin": true,
+        "is_security_reviewer": true
       },
       "oauth_provider": "tmi",
       "api_quota": {
