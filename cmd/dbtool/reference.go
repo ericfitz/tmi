@@ -140,7 +140,7 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	deliveryID := findRefByKind(refs, "webhook_test_delivery")
 	addonID := findRefByKind(refs, "addon")
 	credID := findRefByKind(refs, "client_credential")
-	surveyID := findRefByKind(refs, "survey")
+	surveyID := findRefByName(refs, surveyRef(realSurveyName), "survey")
 	// Index 0 explicitly: survey responses are seeded positionally and
 	// findRefByKind ranges over a map, so with the #608 decoy present it
 	// could return either one — and the decoy is the one DELETE consumes.
@@ -223,6 +223,8 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 			findRefByName(refs, childRef("note", realThreatModelName, throwawayNoteName), "")},
 		{"/threat_models/{threat_model_id}/repositories/{repository_id}", "repository_id",
 			findRefByName(refs, childRef("repo", realThreatModelName, throwawayRepositoryName), "")},
+		{"/admin/surveys/{survey_id}", "survey_id",
+			findRefByName(refs, surveyRef(throwawaySurveyName), "")},
 		// Survey responses are seeded positionally; index 1 is the decoy.
 		{"/intake/survey_responses/{survey_response_id}", "survey_response_id",
 			findRefByName(refs, "survey-response:1", "")},
@@ -511,6 +513,8 @@ func writeFixtureManifest(path string, ids fixtureIDs) error {
 		"/teams/{team_id}/notes/{team_note_id}":         true,
 		"/admin/webhooks/subscriptions/{webhook_id}":    true,
 
+		"/admin/surveys/{survey_id}": true,
+
 		"/threat_models/{threat_model_id}/diagrams/{diagram_id}":        true,
 		"/threat_models/{threat_model_id}/threats/{threat_id}":          true,
 		"/threat_models/{threat_model_id}/documents/{document_id}":      true,
@@ -619,7 +623,7 @@ const (
 	realDocumentName   = "CATS Test Document"
 	realAssetName      = "CATS Test Asset"
 	realNoteName       = "CATS Test Note"
-	realRepositoryName = "" // the seeded repository carries no name
+	realRepositoryName = "CATS Test Repository"
 
 	throwawayDiagramName    = "CATS Throwaway Diagram"
 	throwawayThreatName     = "CATS Throwaway Threat"
@@ -627,6 +631,13 @@ const (
 	throwawayAssetName      = "CATS Throwaway Asset"
 	throwawayNoteName       = "CATS Throwaway Note"
 	throwawayRepositoryName = "CATS Throwaway Repository"
+
+	// Survey decoy (#1115). A separate survey with no responses: the existing
+	// "CATS Decoy Survey" carries the survey_response decoy, and /admin/surveys
+	// sorts before /intake/survey_responses, so deleting it would cascade the
+	// response decoy away.
+	realSurveyName      = "CATS Test Survey"
+	throwawaySurveyName = "CATS Throwaway Survey"
 )
 
 // findRefByName returns a seeded id by its exact seed ref, falling back to the

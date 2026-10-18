@@ -164,7 +164,8 @@
       ],
       "repositories": [
         {
-          "uri": "https://github.com/example/cats-test-repo"
+          "uri": "https://github.com/example/cats-test-repo",
+          "name": "CATS Test Repository"
         },
         {
           "name": "CATS Throwaway Repository",
@@ -214,6 +215,29 @@
     {
       "name": "CATS Decoy Survey",
       "description": "Carrier for the destructive-fuzz decoy survey response (#608).",
+      "version": "1.0",
+      "status": "active",
+      "survey_json": {
+        "pages": [
+          {
+            "name": "page1",
+            "elements": [
+              {
+                "type": "text",
+                "name": "project_name",
+                "title": "Project Name"
+              }
+            ]
+          }
+        ]
+      },
+      "settings": {
+        "allow_threat_model_linking": true
+      }
+    },
+    {
+      "name": "CATS Throwaway Survey",
+      "description": "Throwaway survey consumed by DELETE fuzzing; has no responses",
       "version": "1.0",
       "status": "active",
       "survey_json": {

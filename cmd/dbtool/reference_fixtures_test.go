@@ -96,8 +96,8 @@ func TestFixtureManifestMarksDecoyedAnchors(t *testing.T) {
 		// deleted fixture.
 		"diagram_id": true, "threat_id": true, "document_id": true,
 		"asset_id": true, "note_id": true, "repository_id": true,
-		// Nested fixtures with no decoy.
-		"survey_id": false,
+		// /admin/surveys/{survey_id} has nested paths and a DELETE (#1115).
+		"survey_id": true,
 	}
 	for _, f := range m.Fixtures {
 		want, tracked := decoyed[f.Key]
@@ -224,6 +224,37 @@ func TestCatsSeedDefinesChildDecoys(t *testing.T) {
 			if ref := c.ref(name); !have[ref] {
 				t.Errorf("seed lacks %s %q (ref %q)", c.kind, name, ref)
 			}
+		}
+	}
+}
+
+// survey_id has the same failure class as the threat-model children: DELETE on
+// /admin/surveys/{survey_id} sorts before its nested paths. The decoy must be a
+// survey of its own, never the one that carries the survey_response decoy.
+func TestWriteYAMLReferenceDecoysSurvey(t *testing.T) {
+	refs := RefMap{
+		surveyRef(realSurveyName):      {Kind: "survey", ID: "sv-real"},
+		surveyRef("CATS Decoy Survey"): {Kind: "survey", ID: "sv-responses-decoy"},
+		surveyRef(throwawaySurveyName): {Kind: "survey", ID: "sv-decoy"},
+	}
+	for i := 0; i < 40; i++ {
+		path := filepath.Join(t.TempDir(), "cats-test-data.yml")
+		if err := writeYAMLReference(path, refs, "charlie", "tmi"); err != nil {
+			t.Fatalf("writeYAMLReference: %v", err)
+		}
+		data, err := os.ReadFile(path) // #nosec G304 -- test-controlled temp path
+		if err != nil {
+			t.Fatalf("read refData: %v", err)
+		}
+		var doc map[string]map[string]any
+		if err := yaml.Unmarshal(data, &doc); err != nil {
+			t.Fatalf("parse refData: %v", err)
+		}
+		if got := doc["all"]["survey_id"]; got != "sv-real" {
+			t.Fatalf("all.survey_id = %v, want sv-real", got)
+		}
+		if got := doc["/admin/surveys/{survey_id}"]["survey_id"]; got != "sv-decoy" {
+			t.Fatalf("survey anchor = %v, want sv-decoy", got)
 		}
 	}
 }
