@@ -127,3 +127,36 @@ func TestExtractUserInfo_Groups(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, info.Groups)
 }
+
+// #1107: a participant's permission is resolved with that participant's own
+// groups, not the (possibly group-less) requester's.
+func TestBuildSessionParticipants_UsesParticipantGroups(t *testing.T) {
+	tm := createGroupACLThreatModel(t, uuid.New().String())
+	session, _ := createTestSession(t, tm.Id.String())
+	w := addClientToSession(t, session, "gw@example.com", "gw@example.com", "GW", "test-idp")
+	w.Groups = []string{"writers-group"}
+
+	// Requester has no groups in context (nil gin context).
+	got := buildSessionParticipants(nil, session, &tm, ResolvedUser{})
+	perms := map[string]ParticipantPermissions{}
+	for _, p := range got {
+		perms[string(p.User.Email)] = p.Permissions
+	}
+	assert.Equal(t, ParticipantPermissionsWriter, perms["gw@example.com"])
+
+	// GetActiveSessions (no request context) resolves the same way.
+	hub := NewWebSocketHubForTests()
+	hub.mu.Lock()
+	hub.Diagrams[session.DiagramID] = session
+	hub.mu.Unlock()
+	found := false
+	for _, cs := range hub.GetActiveSessions() {
+		for _, p := range cs.Participants {
+			if string(p.User.Email) == "gw@example.com" {
+				found = true
+				assert.Equal(t, ParticipantPermissionsWriter, p.Permissions)
+			}
+		}
+	}
+	assert.True(t, found, "group-only writer must be listed by GetActiveSessions")
+}

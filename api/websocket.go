@@ -718,7 +718,7 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 		}
 
 		for client := range session.Clients {
-			participant := convertClientToParticipant(nil, client, session, tm)
+			participant := convertClientToParticipant(client, session, tm)
 			if participant != nil {
 				participants = append(participants, *participant)
 			}
@@ -762,7 +762,7 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 
 // convertClientToParticipant converts a WebSocket client to a Participant
 // SEM@1ee903740fbfd71dacb8286ffc539a07887a60ad: convert a WebSocket client to a Participant, matching identity by provider ID or internal UUID (reads DB)
-func convertClientToParticipant(c *gin.Context, client *WebSocketClient, _ *DiagramSession, tm *ThreatModel) *Participant {
+func convertClientToParticipant(client *WebSocketClient, _ *DiagramSession, tm *ThreatModel) *Participant {
 	// Get user's session permissions using existing auth system
 	var permissions ParticipantPermissions
 	if tm != nil {
@@ -773,7 +773,7 @@ func convertClientToParticipant(c *gin.Context, client *WebSocketClient, _ *Diag
 			ProviderID:   client.UserID,
 			Email:        client.UserEmail,
 		}
-		permsPtr := getSessionPermissionsForUser(c, permUser, tm)
+		permsPtr := getSessionPermissionsForUser(permUser, client.Groups, tm)
 		if permsPtr == nil {
 			// User is unauthorized
 			return nil
@@ -798,33 +798,19 @@ func convertClientToParticipant(c *gin.Context, client *WebSocketClient, _ *Diag
 }
 
 // getSessionPermissionsForUser determines session permissions using the existing auth system.
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: resolve a user's session permissions against a threat model's ACL (reads DB)
-func getSessionPermissionsForUser(c *gin.Context, user ResolvedUser, tm *ThreatModel) *ParticipantPermissions {
-	// Use the existing AccessCheck system to determine permissions
+// The caller supplies the user's own groups (a connected client's frozen groups, or the
+// requester's request-context groups) so group-based grants are honored.
+// SEM@0000000: resolve a user's session permissions against a threat model's ACL, honoring groups (pure)
+func getSessionPermissionsForUser(user ResolvedUser, groups []string, tm *ThreatModel) *ParticipantPermissions {
 	// Check for writer/resource owner access first (highest permission)
-	var hasWriterAccess bool
-	var err error
-	if c != nil {
-		// Use context-aware check that includes provider ID, groups, etc.
-		hasWriterAccess, err = CheckResourceAccessFromContext(c, user, tm, RoleWriter)
-	} else {
-		// Fallback to basic check when context not available
-		hasWriterAccess, err = CheckResourceAccess(user.Email, tm, RoleWriter)
-	}
+	hasWriterAccess, err := CheckResourceAccessWithGroups(user, groups, tm, RoleWriter)
 	if err == nil && hasWriterAccess {
 		permissions := ParticipantPermissionsWriter
 		return &permissions
 	}
 
 	// Check for reader access (lowest permission that grants session access)
-	var hasReaderAccess bool
-	if c != nil {
-		// Use context-aware check that includes provider ID, groups, etc.
-		hasReaderAccess, err = CheckResourceAccessFromContext(c, user, tm, RoleReader)
-	} else {
-		// Fallback to basic check when context not available
-		hasReaderAccess, err = CheckResourceAccess(user.Email, tm, RoleReader)
-	}
+	hasReaderAccess, err := CheckResourceAccessWithGroups(user, groups, tm, RoleReader)
 	if err == nil && hasReaderAccess {
 		permissions := ParticipantPermissionsReader
 		return &permissions
@@ -858,7 +844,7 @@ func buildSessionParticipants(c *gin.Context, session *DiagramSession, tm *Threa
 
 	// Connected clients first, so their live display name and activity time win.
 	for client := range session.Clients {
-		participant := convertClientToParticipant(c, client, session, tm)
+		participant := convertClientToParticipant(client, session, tm)
 		if participant == nil {
 			logger.Debug("Session %s: connected client user_id=%s has no access to threat model %s, omitting from participants",
 				session.ID, client.UserID, session.ThreatModelID)
@@ -922,7 +908,11 @@ func buildSessionParticipants(c *gin.Context, session *DiagramSession, tm *Threa
 	// The requester was authorized by the handler, possibly via a group entry or the
 	// "everyone" pseudo-group; list them with their effective permission.
 	if !requester.IsEmpty() && !alreadyListed(requester) {
-		if perm := getSessionPermissionsForUser(c, requester, tm); perm != nil {
+		var requesterGroups []string
+		if c != nil {
+			_, _, _, requesterGroups = GetUserAuthFieldsForAccessCheck(c)
+		}
+		if perm := getSessionPermissionsForUser(requester, requesterGroups, tm); perm != nil {
 			add(requester, *perm)
 		} else {
 			logger.Warn("Session %s: requester user_id=%s has no resolvable permission on threat model %s, omitting from participants",

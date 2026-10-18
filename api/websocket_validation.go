@@ -102,13 +102,13 @@ func (u *UserInfoExtractor) ExtractUserInfo(c *gin.Context) (*UserInfo, error) {
 	}
 
 	return &UserInfo{
-		Groups:       groups,
 		UserID:       userIDStr,
 		UserName:     userNameStr,
 		UserEmail:    userEmailStr,
 		UserProvider: userProviderStr,
 		InternalUUID: internalUUIDStr,
 		TokenExpiry:  tokenExpiry,
+		Groups:       groups,
 	}, nil
 }
 
