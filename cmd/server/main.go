@@ -740,7 +740,7 @@ func newSystemAuditRepo(db *gorm.DB, operatorName string) api.SystemAuditReposit
 	return repo
 }
 
-// SEM@ab6a7ff21a80d96c9f7c490184f44a06dc5607b9: initialize databases and subsystems and register all API routes, returning the router
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: initialize databases and subsystems and register all API routes, returning the router
 func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.EmbeddingCleaner) {
 	// Create a gin router without default middleware
 	r := gin.New()

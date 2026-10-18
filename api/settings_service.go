@@ -495,9 +495,11 @@ func (s *SettingsService) ListByPrefix(ctx context.Context, prefix string) ([]mo
 }
 
 // settingSemanticValidators is the single key -> validator map applied by Set,
-// so semantic checks on specific settings are enforced for every writer (admin
-// API, dbtool, ...) rather than per handler. The validators mirror the
-// startup checks in config.ValidateTimmyConfig (#1102).
+// so semantic checks on specific settings are enforced for every writer that
+// goes through Set (the admin API) rather than per handler. Writers that
+// bypass Set, such as dbtool (cmd/dbtool/config.go) and raw DB writes, are not
+// covered here; the startup check catches their values at the next boot. The
+// validators mirror the startup checks in config.ValidateTimmyConfig (#1102).
 var settingSemanticValidators = map[string]func(value string, productionMode bool) error{
 	"timmy.dump_extracted_text_to_note": func(value string, productionMode bool) error {
 		enabled, err := strconv.ParseBool(value)
@@ -516,7 +518,7 @@ var settingSemanticValidators = map[string]func(value string, productionMode boo
 }
 
 // validateSettingSemantics applies the per-key validator for the setting, if any.
-// SEM@0e2dc694: validate a setting value against its key-specific semantic rules (pure)
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: validate a setting value against its key-specific semantic rules (pure)
 func (s *SettingsService) validateSettingSemantics(setting *models.SystemSetting) error {
 	validate, ok := settingSemanticValidators[string(setting.SettingKey)]
 	if !ok {
@@ -526,7 +528,7 @@ func (s *SettingsService) validateSettingSemantics(setting *models.SystemSetting
 }
 
 // Set creates or updates a setting
-// SEM@0e2dc694: store or update a system setting, stamping explicit origin, with type validation, encryption, and cache invalidation (reads DB)
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: store or update a system setting, stamping explicit origin, with type validation, encryption, and cache invalidation (reads DB)
 func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting) error {
 	logger := slogging.Get()
 
@@ -572,8 +574,8 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 
 	// Encrypt value before saving to database
 	dbSetting := *setting
-	// Set is always an operator-initiated write (admin API, dbtool, or any
-	// other caller) — stamp it explicit regardless of what the caller passed
+	// Set is always an operator-initiated write (the admin API or any other
+	// caller of Set) — stamp it explicit regardless of what the caller passed
 	// in, so an operator overwriting a seeded row promotes it (#794).
 	dbSetting.Origin = models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true}
 	if encryptionEnabled {

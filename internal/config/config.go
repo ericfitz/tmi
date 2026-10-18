@@ -1083,14 +1083,14 @@ func (c *Config) ResolveSecretReferences(ctx context.Context, vault SecretResolv
 // ValidateTimmyConfig at startup, on both the env/YAML config and the
 // DB-resolved effective config (#1102), and the settings service applies the
 // per-key checks on writes.
-// SEM@0e2dc694: validate dev-only Timmy flags and LLM provider settings (pure)
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: validate dev-only Timmy flags and LLM provider settings (pure)
 func (c *Config) validateTimmy() error {
 	return ValidateTimmyConfig(c.Timmy, c.Auth.BuildMode)
 }
 
 // ValidateTimmyConfig enforces the Timmy invariants on any Timmy config
 // (env/YAML or DB-resolved) for the given build mode.
-// SEM@0e2dc694: validate Timmy dev-only flag, LLM provider and max tokens for a build mode (pure)
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: validate Timmy dev-only flag, LLM provider and max tokens for a build mode (pure)
 func ValidateTimmyConfig(t TimmyConfig, buildMode string) error {
 	if err := ValidateTimmyDumpFlag(t.DumpExtractedTextToNote, buildMode); err != nil {
 		return err
@@ -1103,7 +1103,7 @@ func ValidateTimmyConfig(t TimmyConfig, buildMode string) error {
 
 // ValidateTimmyDumpFlag rejects enabling timmy.dump_extracted_text_to_note in
 // production builds.
-// SEM@0e2dc694: reject enabling the dev-only extracted-text dump flag in production builds (pure)
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: reject enabling the dev-only extracted-text dump flag in production builds (pure)
 func ValidateTimmyDumpFlag(enabled bool, buildMode string) error {
 	if enabled && buildMode == "production" {
 		return fmt.Errorf("timmy.dump_extracted_text_to_note is a dev/test-only flag; set TMI_BUILD_MODE != production or disable TMI_TIMMY_DUMP_EXTRACTED_TEXT_TO_NOTE")

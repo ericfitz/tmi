@@ -699,7 +699,7 @@ func TestWarnIfConfigDatabaseDiverges_RedactsProviderClientSecret(t *testing.T) 
 	}
 }
 
-// SEM@0e2dc694: verify startup Timmy validation rejects the production dump flag and unknown providers
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: verify startup Timmy validation rejects the production dump flag and unknown providers
 func TestValidateTimmyAtStartup(t *testing.T) {
 	dump := config.TimmyConfig{DumpExtractedTextToNote: true}
 	badProvider := config.TimmyConfig{LLMProvider: "bogus"}
@@ -741,12 +741,12 @@ type timmyStubSettings struct {
 	values map[string]string
 }
 
-// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: fetch a canned string setting from the stub (pure)
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: fetch a canned string setting from the stub (pure)
 func (s timmyStubSettings) GetString(_ context.Context, key string) (string, error) {
 	return s.values[key], nil
 }
 
-// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: fetch a canned int setting from the stub (pure)
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: fetch a canned int setting from the stub (pure)
 func (s timmyStubSettings) GetInt(_ context.Context, key string) (int, error) {
 	if v, ok := s.values[key]; ok {
 		return strconv.Atoi(v)
@@ -754,7 +754,7 @@ func (s timmyStubSettings) GetInt(_ context.Context, key string) (int, error) {
 	return 0, nil
 }
 
-// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: fetch a canned bool setting from the stub (pure)
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: fetch a canned bool setting from the stub (pure)
 func (s timmyStubSettings) GetBool(_ context.Context, key string) (bool, error) {
 	if v, ok := s.values[key]; ok {
 		return strconv.ParseBool(v)
@@ -762,7 +762,7 @@ func (s timmyStubSettings) GetBool(_ context.Context, key string) (bool, error) 
 	return false, nil
 }
 
-// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: verify the DB-resolved Timmy config path enforces production dump flag and provider validity
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: verify the DB-resolved Timmy config path enforces production dump flag and provider validity
 func TestValidateEffectiveTimmyAtStartup(t *testing.T) {
 	tests := []struct {
 		name      string

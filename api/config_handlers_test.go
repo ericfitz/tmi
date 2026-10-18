@@ -1678,7 +1678,7 @@ func TestSystemSetting_UnclassifiedKeyGetAndDelete(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, do("DELETE", "never_created_key"))
 }
 
-// SEM@0e2dc694: verify the system-setting PUT handler returns 400 for invalid Timmy values
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: verify the system-setting PUT handler returns 400 for invalid Timmy values
 func TestUpdateSystemSetting_TimmyValidation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	originalAdminStore := GlobalGroupMemberRepository

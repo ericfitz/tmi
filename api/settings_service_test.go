@@ -1162,7 +1162,7 @@ func TestReEncryptAll_UnreadableCap(t *testing.T) {
 	assert.Len(t, errs, maxUnreadableSettings)
 }
 
-// SEM@0e2dc694: verify settings writes reject invalid Timmy values (production dump flag, unknown provider)
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: verify settings writes reject invalid Timmy values (production dump flag, unknown provider)
 func TestSettingsService_SetValidatesTimmyKeys(t *testing.T) {
 	mk := func(key, value string, typ models.DBVarchar) *models.SystemSetting {
 		return &models.SystemSetting{SettingKey: models.DBVarchar(key), Value: models.DBText(value), SettingType: typ}
