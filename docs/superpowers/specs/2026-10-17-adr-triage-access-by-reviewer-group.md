@@ -33,6 +33,6 @@ A static role gate on the route cannot see the per-row `is_confidential` value, 
 - A reviewer no longer needs an ACL row on a response to triage it, and an ACL row alone no longer grants triage.
 - Existing tests that encoded owner-based triage access were updated to authenticate as reviewer-group members.
 
-## Intake status writes (controller ruling that follows from Eric's decision)
+## Intake status writes (controller ruling, confirmed by Eric as a human decision, 2026-10-17)
 
 Restricting triage endpoints is not enough if the submitter can reach the same outcome through intake: `PATCH /intake/survey_responses/{id}` previously accepted any valid status value, so a submitter could move their own response to `ready_for_review` or `review_created` and bypass triage. Intake writes may now set status only to `draft` or `submitted`; any other target returns 400 `invalid_input` from one shared helper, `validateIntakeStatusTarget`. `PUT` and create carry no status field, so PATCH is the only intake path affected. Triage status transitions are unchanged.
