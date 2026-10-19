@@ -112,9 +112,7 @@ func TestMicrosoftPickerGrantHandler_Handle_NoAppObjectID(t *testing.T) {
 	h.Handle(c)
 
 	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "picker_grants_not_configured", resp["code"])
+	assertPickerErrorBody(t, rec.Body.Bytes(), "unprocessable_entity", "picker_grants_not_configured")
 }
 
 // Case 3: No authenticated user → 401 unauthenticated.
@@ -128,9 +126,7 @@ func TestMicrosoftPickerGrantHandler_Handle_Unauthenticated(t *testing.T) {
 	h.Handle(c)
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "unauthenticated", resp["code"])
+	assertPickerErrorBody(t, rec.Body.Bytes(), "unauthorized", "")
 }
 
 // Case 4: No linked Microsoft token → 404 not_linked.
@@ -144,9 +140,7 @@ func TestMicrosoftPickerGrantHandler_Handle_NotLinked(t *testing.T) {
 	h.Handle(c)
 
 	assert.Equal(t, http.StatusNotFound, rec.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "not_linked", resp["code"])
+	assertPickerErrorBody(t, rec.Body.Bytes(), "not_found", "not_linked")
 }
 
 // Case 5: Graph returns 403 → 422 grant_failed.
@@ -175,9 +169,7 @@ func TestMicrosoftPickerGrantHandler_Handle_GraphReturns403(t *testing.T) {
 	h.Handle(c)
 
 	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
-	var resp map[string]any
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "grant_failed", resp["code"])
+	assertPickerErrorBody(t, rec.Body.Bytes(), "unprocessable_entity", "grant_failed")
 }
 
 // Case 6: Token in failed_refresh status → 401 token_refresh_failed (no Graph call).
@@ -200,9 +192,7 @@ func TestMicrosoftPickerGrantHandler_Handle_FailedRefreshStatus(t *testing.T) {
 	h.Handle(c)
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "token_refresh_failed", resp["code"])
+	assertPickerErrorBody(t, rec.Body.Bytes(), "unauthorized", "token_refresh_failed")
 }
 
 // Case 7: Missing drive_id → 400 invalid_request.
@@ -227,9 +217,7 @@ func TestMicrosoftPickerGrantHandler_Handle_MissingDriveID(t *testing.T) {
 	h.Handle(c)
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "invalid_request", resp["code"])
+	assertPickerErrorBody(t, rec.Body.Bytes(), "invalid_input", "")
 }
 
 // Case 8: Transport error reaching Graph (connection closed without response) → 503 transient_failure.
@@ -265,9 +253,7 @@ func TestMicrosoftPickerGrantHandler_Handle_TransportError(t *testing.T) {
 	h.Handle(c)
 
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "transient_failure", resp["code"])
+	assertPickerErrorBody(t, rec.Body.Bytes(), "service_unavailable", "transient_failure")
 }
 
 // Case 10: Consumer Microsoft account (personal MSA) — handler skips Graph
@@ -344,7 +330,5 @@ func TestMicrosoftPickerGrantHandler_Handle_GraphReturns500(t *testing.T) {
 	h.Handle(c)
 
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "transient_failure", resp["code"])
+	assertPickerErrorBody(t, rec.Body.Bytes(), "service_unavailable", "transient_failure")
 }

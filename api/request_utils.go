@@ -670,6 +670,19 @@ func WithDetailCode(err *RequestError, code errcode.Code) *RequestError {
 	return err
 }
 
+// WithDetailContext adds one key/value to err's details.context and returns it.
+// SEM@5e6e00bd650bd3fdec6654c4a7d0f26192c35f2d: attach a key/value pair to a RequestError's details context (pure)
+func WithDetailContext(err *RequestError, key string, value any) *RequestError {
+	if err.Details == nil {
+		err.Details = &ErrorDetails{}
+	}
+	if err.Details.Context == nil {
+		err.Details.Context = map[string]any{}
+	}
+	err.Details.Context[key] = value
+	return err
+}
+
 // SEM@074f3ca8790e600162273d06152aff41b7223b07: build a RequestError from status, code and message (pure)
 func newRequestError(status int, code errcode.Code, message string) *RequestError {
 	return &RequestError{Status: status, Code: code, Message: message}
