@@ -9,11 +9,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/redis/go-redis/v9"
 )
 
 // ErrContentOAuthStateNotFound is returned when the OAuth state nonce is not found or has expired.
 var ErrContentOAuthStateNotFound = errors.New("content oauth state not found or expired")
+
+// ErrContentOAuthStateUnavailable is returned when the Redis state store cannot be
+// reached or rejects the operation. It wraps dberrors.ErrTransient so handlers map
+// it to 503 through StoreErrorToRequestError (#1119).
+var ErrContentOAuthStateUnavailable = fmt.Errorf("content oauth state store unavailable: %w", dberrors.ErrTransient)
 
 // ContentOAuthStatePayload holds the data associated with a pending OAuth authorization flow.
 // SEM@0ee4fc6b79c5a6c5a7dade501546a8eec4509aed: data held in a pending content OAuth authorization state nonce (pure)
@@ -52,7 +58,7 @@ func (s *ContentOAuthStateStore) Put(ctx context.Context, p ContentOAuthStatePay
 		return "", err
 	}
 	if err := s.rdb.Set(ctx, s.keyPrefix+nonce, payload, ttl).Err(); err != nil {
-		return "", fmt.Errorf("put state: %w", err)
+		return "", fmt.Errorf("put state: %w: %w", ErrContentOAuthStateUnavailable, err)
 	}
 	return nonce, nil
 }
@@ -67,7 +73,7 @@ func (s *ContentOAuthStateStore) Consume(ctx context.Context, nonce string) (*Co
 		return nil, ErrContentOAuthStateNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("consume state: %w: %w", ErrContentOAuthStateUnavailable, err)
 	}
 	var out ContentOAuthStatePayload
 	if err := json.Unmarshal(val, &out); err != nil {

@@ -67,7 +67,7 @@ func (h *ContentOAuthHandlers) AdminList(c *gin.Context) {
 	toks, err := h.Tokens.ListByUser(c.Request.Context(), userID)
 	if err != nil {
 		slogging.Get().WithContext(c).Error("admin list content tokens user=%s: %v", userID, err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		HandleRequestError(c, StoreErrorToRequestError(err, "content tokens not found", "failed to list content tokens"))
 		return
 	}
 
@@ -94,7 +94,7 @@ func (h *ContentOAuthHandlers) AdminDelete(c *gin.Context) {
 			return
 		}
 		slogging.Get().WithContext(c).Error("admin delete content token user=%s provider=%s: %v", userID, providerID, err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		HandleRequestError(c, StoreErrorToRequestError(err, "content token not found", "failed to delete content token"))
 		return
 	}
 
