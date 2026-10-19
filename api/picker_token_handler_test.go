@@ -198,9 +198,7 @@ func TestMintPickerToken_NoLinkedToken(t *testing.T) {
 
 	require.Equal(t, http.StatusNotFound, w.Code)
 
-	var body map[string]string
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	assert.Equal(t, "not_linked", body["code"])
+	assertPickerErrorBody(t, w.Body.Bytes(), "not_found", "not_linked")
 }
 
 // Case 3: Token in failed_refresh status → 401 with code "token_refresh_failed".
@@ -228,9 +226,7 @@ func TestMintPickerToken_FailedRefreshStatus(t *testing.T) {
 
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 
-	var body map[string]string
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	assert.Equal(t, "token_refresh_failed", body["code"])
+	assertPickerErrorBody(t, w.Body.Bytes(), "unauthorized", "token_refresh_failed")
 }
 
 // Case 4: Provider not registered in registry → 422 with code "provider_not_registered".
@@ -248,9 +244,7 @@ func TestMintPickerToken_ProviderNotRegistered(t *testing.T) {
 
 	require.Equal(t, http.StatusUnprocessableEntity, w.Code)
 
-	var body map[string]string
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	assert.Equal(t, "provider_not_registered", body["code"])
+	assertPickerErrorBody(t, w.Body.Bytes(), "unprocessable_entity", "provider_not_registered")
 }
 
 // Case 5: Picker inputs missing from config → 422 with code "picker_not_configured".
@@ -273,9 +267,7 @@ func TestMintPickerToken_PickerNotConfigured(t *testing.T) {
 
 	require.Equal(t, http.StatusUnprocessableEntity, w.Code)
 
-	var body map[string]string
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	assert.Equal(t, "picker_not_configured", body["code"])
+	assertPickerErrorBody(t, w.Body.Bytes(), "unprocessable_entity", "picker_not_configured")
 }
 
 // Case 6: No user in context → 401 with code "unauthenticated".
@@ -297,9 +289,7 @@ func TestMintPickerToken_Unauthenticated(t *testing.T) {
 
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 
-	var body map[string]string
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	assert.Equal(t, "unauthenticated", body["code"])
+	assertPickerErrorBody(t, w.Body.Bytes(), "unauthorized", "")
 }
 
 // Case 7: Token expired but refresh succeeds → 200 with refreshed token.
@@ -510,7 +500,5 @@ func TestMintPickerToken_RefreshPermanentFailure(t *testing.T) {
 
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 
-	var body map[string]string
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	assert.Equal(t, "token_refresh_failed", body["code"])
+	assertPickerErrorBody(t, w.Body.Bytes(), "unauthorized", "token_refresh_failed")
 }

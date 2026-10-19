@@ -8,6 +8,7 @@ package errcode
 import "regexp"
 
 // Code is a machine-readable error code.
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: machine-readable error code emitted in API error bodies
 type Code string
 
 // Tier 1: REST codes (Error.error enum in the OpenAPI spec).
@@ -153,6 +154,12 @@ const (
 	DetailLlmBusy                           Code = "llm_busy"
 	DetailLlmNotConfigured                  Code = "llm_not_configured"
 	DetailCollaborationSessionExists        Code = "collaboration_session_exists"
+	DetailPickerNotConfigured               Code = "picker_not_configured"
+	DetailPickerGrantsNotConfigured         Code = "picker_grants_not_configured"
+	DetailNotLinked                         Code = "not_linked"
+	DetailTokenRefreshFailed                Code = "token_refresh_failed"
+	DetailTransientFailure                  Code = "transient_failure"
+	DetailGrantFailed                       Code = "grant_failed"
 )
 
 // transportCodes are emitted by route-agnostic middleware before dispatch, so
@@ -217,6 +224,12 @@ var detailCodes = []Code{
 	DetailLlmBusy,
 	DetailLlmNotConfigured,
 	DetailCollaborationSessionExists,
+	DetailPickerNotConfigured,
+	DetailPickerGrantsNotConfigured,
+	DetailNotLinked,
+	DetailTokenRefreshFailed,
+	DetailTransientFailure,
+	DetailGrantFailed,
 }
 
 var (

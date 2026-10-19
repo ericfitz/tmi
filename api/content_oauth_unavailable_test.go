@@ -31,8 +31,10 @@ func assertServiceUnavailable(t *testing.T, w *httptest.ResponseRecorder) {
 	t.Helper()
 	require.Equal(t, http.StatusServiceUnavailable, w.Code)
 	assert.NotEmpty(t, w.Header().Get("Retry-After"))
+	dec := json.NewDecoder(bytes.NewReader(w.Body.Bytes()))
+	dec.DisallowUnknownFields()
 	var body Error
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.NoError(t, dec.Decode(&body), "body must match the Error schema: %s", w.Body.String())
 	assert.Equal(t, "service_unavailable", string(body.Error))
 	assert.NotEmpty(t, body.ErrorDescription)
 }
@@ -172,6 +174,99 @@ func TestContentOAuthUnavailable_MicrosoftPickerGrantHandler_Handle_TransientLoo
 	}
 	h := NewMicrosoftPickerGrantHandler(repo, NewContentOAuthProviderRegistry(), "app-id", "",
 		func(_ *gin.Context) (string, bool) { return "u1", true }, permissiveLoopbackValidator())
+
+	body, _ := json.Marshal(MicrosoftPickerGrantRequest{DriveId: "b!abc", ItemId: "01XYZ"})
+	c, rec := newPickerGrantGinContext(t, "POST", "/me/microsoft/picker_grants", bytes.NewReader(body))
+	h.Handle(c)
+
+	assertServiceUnavailable(t, rec)
+}
+
+// assertPickerErrorBody decodes body strictly as the spec's Error schema (which
+// forbids additional properties) and checks the error and details.code values.
+// An empty wantDetail asserts that no details.code is present.
+func assertPickerErrorBody(t *testing.T, body []byte, wantError, wantDetail string) {
+	t.Helper()
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.DisallowUnknownFields()
+	var e Error
+	require.NoError(t, dec.Decode(&e), "body must match the Error schema: %s", body)
+	assert.Equal(t, wantError, string(e.Error))
+	assert.NotEmpty(t, e.ErrorDescription)
+	gotDetail := ""
+	if e.Details != nil && e.Details.Code != nil {
+		gotDetail = *e.Details.Code
+	}
+	assert.Equal(t, wantDetail, gotDetail)
+}
+
+// expiredPickerToken returns a linked token that needs a refresh before use.
+func expiredPickerToken(providerID string) *ContentToken {
+	past := time.Now().Add(-1 * time.Hour)
+	return &ContentToken{
+		ID:           "tok-expired",
+		UserID:       testUserID,
+		ProviderID:   providerID,
+		AccessToken:  "old",
+		RefreshToken: "refresh",
+		Status:       ContentTokenStatusActive,
+		ExpiresAt:    &past,
+	}
+}
+
+func TestContentOAuthUnavailable_MintPickerToken_RefreshErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		refreshErr  error // provider Refresh error
+		lockErr     error // RefreshWithLock store error (skips the provider call)
+		wantStatus  int
+		wantError   string
+		wantDetail  string
+		wantRetryAf bool
+	}{
+		{"transient provider failure", errors.New("provider timeout"), nil, http.StatusServiceUnavailable, "service_unavailable", "transient_failure", true},
+		{"transient DB fault in refresh lock", nil, errTransientDB, http.StatusServiceUnavailable, "service_unavailable", "", true},
+		{"unclassified refresh lock error", nil, errors.New("boom"), http.StatusInternalServerError, "server_error", "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tok := expiredPickerToken(pickerProviderID)
+			repo := &mockContentTokenRepo{
+				getByUserAndProvider: func(_ context.Context, _, _ string) (*ContentToken, error) { return tok, nil },
+				refreshWithLock: func(_ context.Context, _ string, fn func(*ContentToken) (*ContentToken, error)) (*ContentToken, error) {
+					if tc.lockErr != nil {
+						return nil, tc.lockErr
+					}
+					cur := *tok
+					return fn(&cur)
+				},
+			}
+			registry := NewContentOAuthProviderRegistry()
+			registry.Register(&stubRefreshableProvider{id: pickerProviderID, refreshErr: tc.refreshErr})
+			r := pickerTestRouter(newPickerTestHandler(repo, registry, defaultPickerConfigs()))
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/me/picker_tokens/"+pickerProviderID, nil))
+
+			require.Equal(t, tc.wantStatus, w.Code)
+			assert.Equal(t, tc.wantRetryAf, w.Header().Get("Retry-After") != "")
+			assertPickerErrorBody(t, w.Body.Bytes(), tc.wantError, tc.wantDetail)
+		})
+	}
+}
+
+func TestContentOAuthUnavailable_MicrosoftPickerGrantHandler_RefreshLockTransient_Returns503(t *testing.T) {
+	tok := expiredPickerToken(ProviderMicrosoft)
+	repo := &mockContentTokenRepo{
+		getByUserAndProvider: func(_ context.Context, _, _ string) (*ContentToken, error) { return tok, nil },
+		refreshWithLock: func(_ context.Context, _ string, _ func(*ContentToken) (*ContentToken, error)) (*ContentToken, error) {
+			return nil, errTransientDB
+		},
+	}
+	registry := NewContentOAuthProviderRegistry()
+	registry.Register(&stubRefreshableProvider{id: ProviderMicrosoft})
+	h := NewMicrosoftPickerGrantHandler(repo, registry, "app-id", "",
+		func(_ *gin.Context) (string, bool) { return testUserID, true }, permissiveLoopbackValidator())
 
 	body, _ := json.Marshal(MicrosoftPickerGrantRequest{DriveId: "b!abc", ItemId: "01XYZ"})
 	c, rec := newPickerGrantGinContext(t, "POST", "/me/microsoft/picker_grants", bytes.NewReader(body))

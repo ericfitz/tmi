@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -83,7 +84,7 @@ func NewPickerTokenHandler(
 //  6. refreshIfNeeded → 401/503 on error.
 //  7. 200 with access_token, expires_at, developer_key, app_id.
 //
-// SEM@d5435580d5a233d66783c8c40148f924403f1809: validate and dispatch a picker token request, refreshing the OAuth token if needed (reads DB)
+// SEM@5e6e00bd650bd3fdec6654c4a7d0f26192c35f2d: validate and dispatch a picker token request, refreshing the OAuth token if needed (reads DB)
 func (h *PickerTokenHandler) Handle(c *gin.Context) {
 	log := slogging.Get().WithContext(c)
 	providerID := c.Param("provider_id")
@@ -91,32 +92,23 @@ func (h *PickerTokenHandler) Handle(c *gin.Context) {
 	// Step 1: Check picker configuration.
 	cfg, hasCfg := h.configs[providerID]
 	if !hasCfg || (len(cfg.ProviderConfig) == 0 && cfg.DeveloperKey == "" && cfg.AppID == "") {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"code":        "picker_not_configured",
-			"message":     "picker is not configured for this provider",
-			"provider_id": providerID,
-		})
+		HandleRequestError(c, WithDetailContext(WithDetailCode(UnprocessableEntityError("picker is not configured for this provider"),
+			errcode.DetailPickerNotConfigured), "provider_id", providerID))
 		return
 	}
 
 	// Step 2: Check provider registry.
 	_, ok := h.registry.Get(providerID)
 	if !ok {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"code":        "provider_not_registered",
-			"message":     "OAuth provider is not registered",
-			"provider_id": providerID,
-		})
+		HandleRequestError(c, WithDetailContext(WithDetailCode(UnprocessableEntityError("OAuth provider is not registered"),
+			errcode.DetailProviderNotRegistered), "provider_id", providerID))
 		return
 	}
 
 	// Step 3: Authenticate the caller.
 	userID, ok := h.userLookup(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    "unauthenticated",
-			"message": "authentication required",
-		})
+		HandleRequestError(c, UnauthorizedError("authentication required"))
 		return
 	}
 
@@ -124,11 +116,8 @@ func (h *PickerTokenHandler) Handle(c *gin.Context) {
 	tok, err := h.tokens.GetByUserAndProvider(c.Request.Context(), userID, providerID)
 	if err != nil {
 		if errors.Is(err, ErrContentTokenNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":        "not_linked",
-				"message":     "no linked token for this provider",
-				"provider_id": providerID,
-			})
+			HandleRequestError(c, WithDetailContext(WithDetailCode(NotFoundError("no linked token for this provider"),
+				errcode.DetailNotLinked), "provider_id", providerID))
 			return
 		}
 		log.Error("picker_token: GetByUserAndProvider user=%s provider=%s: %v", userID, providerID, err)
@@ -138,10 +127,8 @@ func (h *PickerTokenHandler) Handle(c *gin.Context) {
 
 	// Step 5: Short-circuit on permanently failed token.
 	if tok.Status == ContentTokenStatusFailedRefresh {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    "token_refresh_failed",
-			"message": "token is in a failed refresh state; please re-authorize",
-		})
+		HandleRequestError(c, WithDetailCode(UnauthorizedError("token is in a failed refresh state; please re-authorize"),
+			errcode.DetailTokenRefreshFailed))
 		return
 	}
 
@@ -149,21 +136,18 @@ func (h *PickerTokenHandler) Handle(c *gin.Context) {
 	accessToken, expiresAt, err := h.refreshIfNeeded(c, tok, providerID)
 	if err != nil {
 		if errors.Is(err, ErrAuthRequired) {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"code":    "token_refresh_failed",
-				"message": "token refresh failed; please re-authorize",
-			})
+			HandleRequestError(c, WithDetailCode(UnauthorizedError("token refresh failed; please re-authorize"),
+				errcode.DetailTokenRefreshFailed))
 			return
 		}
 		if errors.Is(err, ErrTransient) {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"code":    "transient_failure",
-				"message": "a transient error occurred; please retry",
-			})
+			HandleRequestError(c, WithDetailCode(ServiceUnavailableError("a transient error occurred; please retry"),
+				errcode.DetailTransientFailure))
 			return
 		}
 		log.Error("picker_token: refreshIfNeeded user=%s provider=%s: %v", userID, providerID, err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		// Remaining errors come from the token store's RefreshWithLock.
+		HandleRequestError(c, StoreErrorToRequestError(err, "no linked token for this provider", "failed to refresh linked token"))
 		return
 	}
 
