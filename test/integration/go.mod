@@ -6,7 +6,7 @@ replace github.com/ericfitz/tmi => ../..
 
 require (
 	github.com/ericfitz/tmi v0.0.0-00010101000000-000000000000
-	github.com/getkin/kin-openapi v0.150.0
+	github.com/getkin/kin-openapi v0.151.0
 	github.com/godror/godror v0.51.5
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
