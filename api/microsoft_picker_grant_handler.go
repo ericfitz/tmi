@@ -125,7 +125,7 @@ func (h *MicrosoftPickerGrantHandler) Handle(c *gin.Context) {
 			return
 		}
 		log.Error("microsoft_picker_grant: token lookup user=%s: %v", userID, err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		HandleRequestError(c, StoreErrorToRequestError(err, "no linked Microsoft token", "failed to look up linked token"))
 		return
 	}
 

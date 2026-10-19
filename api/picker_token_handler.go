@@ -83,7 +83,7 @@ func NewPickerTokenHandler(
 //  6. refreshIfNeeded → 401/503 on error.
 //  7. 200 with access_token, expires_at, developer_key, app_id.
 //
-// SEM@67569fbeb577336dd278978473f2ea666cf1543f: validate and dispatch a picker token request, refreshing the OAuth token if needed (reads DB)
+// SEM@d5435580d5a233d66783c8c40148f924403f1809: validate and dispatch a picker token request, refreshing the OAuth token if needed (reads DB)
 func (h *PickerTokenHandler) Handle(c *gin.Context) {
 	log := slogging.Get().WithContext(c)
 	providerID := c.Param("provider_id")
@@ -132,7 +132,7 @@ func (h *PickerTokenHandler) Handle(c *gin.Context) {
 			return
 		}
 		log.Error("picker_token: GetByUserAndProvider user=%s provider=%s: %v", userID, providerID, err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		HandleRequestError(c, StoreErrorToRequestError(err, "no linked token for this provider", "failed to look up linked token"))
 		return
 	}
 
