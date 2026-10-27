@@ -13,7 +13,7 @@ overrides:
   protobufjs: 7.6.4
   js-yaml@<4.2.0: 4.2.0
   postcss@<8.5.10: 8.5.10
-  fast-uri@<3.1.8: 3.1.8
+  fast-uri@<3.1.9: 3.1.9
   brace-expansion@<1.1.21: 1.1.21
   fast-xml-parser@<5.7.0: 5.7.3
   '@asyncapi/specs': 6.11.1
@@ -26,8 +26,8 @@ importers:
   .:
     devDependencies:
       '@redocly/cli':
-        specifier: ^2.63.0
-        version: 2.63.0
+        specifier: ^2.71.0
+        version: 2.71.0
       '@stoplight/spectral-cli':
         specifier: ^6.17.0
         version: 6.17.0
@@ -67,8 +67,8 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@redocly/cli@2.63.0':
-    resolution: {integrity: sha512-ErLDLdXNX20EbjpOi/BnZS5cTf0B2aarg8vtlGB7sQn6fe+cP6WvZCwKQVEbx6HkkE+XfIzAQ3iemJAWOgyT0w==}
+  '@redocly/cli@2.71.0':
+    resolution: {integrity: sha512-QaAo5zdmvtK2GCJzLNZYCn5q3tm2MYImvRt/kDJdwd/zYJsTjNrGl+aindv63tFBrh0FWckXeUnOM5aM+7NQuA==}
     engines: {node: '>=22.12.0 || >=20.19.0 <21.0.0', npm: '>=10'}
     hasBin: true
 
@@ -409,8 +409,8 @@ packages:
   fast-memoize@2.5.2:
     resolution: {integrity: sha512-Ue0LwpDYErFbmNnZSF0UH6eImUwDmogUO1jyE+JbN2gsQz/jICm1Ve7t9QT0rNSsfJt+Hs4/S3GnsDVjL4HVrw==}
 
-  fast-uri@3.1.8:
-    resolution: {integrity: sha512-GZMtZUTNRpOVIECoXwLNZS5xUGE+mVNbTB8h/7Rwh2TFWcBQiPzTgyZi05BF9UMZKkLJv8XBRJTlU7zg8+ZfMg==}
+  fast-uri@3.1.9:
+    resolution: {integrity: sha512-hS/0Wt3Ya043oKXs0sIxrMpKQITXhMLIrVAKKXi4gozGC9v7YRWVnXIZzjNPTO02M9BdxLCWqK1yRXgNziVyJQ==}
 
   fastq@1.20.1:
     resolution: {integrity: sha512-GGToxJ/w1x32s/D2EKND7kTil4n8OVk/9mycTc4VDza13lOvpUZTGX3mFSCtV9ksdGBVzvsyAVLM6mHFThxXxw==}
@@ -1010,7 +1010,7 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@redocly/cli@2.63.0': {}
+  '@redocly/cli@2.71.0': {}
 
   '@rollup/plugin-commonjs@22.0.2(rollup@2.80.0)':
     dependencies:
@@ -1326,7 +1326,7 @@ snapshots:
   ajv@8.20.0:
     dependencies:
       fast-deep-equal: 3.1.3
-      fast-uri: 3.1.8
+      fast-uri: 3.1.9
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
@@ -1586,7 +1586,7 @@ snapshots:
 
   fast-memoize@2.5.2: {}
 
-  fast-uri@3.1.8: {}
+  fast-uri@3.1.9: {}
 
   fastq@1.20.1:
     dependencies:
