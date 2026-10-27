@@ -6,7 +6,7 @@ replace github.com/ericfitz/tmi => ../..
 
 require (
 	github.com/ericfitz/tmi v0.0.0-00010101000000-000000000000
-	github.com/getkin/kin-openapi v0.151.0
+	github.com/getkin/kin-openapi v0.152.0
 	github.com/godror/godror v0.51.5
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
@@ -24,7 +24,7 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
 	github.com/VictoriaMetrics/easyproto v1.2.0 // indirect
 	github.com/alicebob/miniredis/v2 v2.40.0 // indirect
-	github.com/anthropics/anthropic-sdk-go v1.81.0 // indirect
+	github.com/anthropics/anthropic-sdk-go v1.82.0 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.47.3 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.33.9 // indirect
