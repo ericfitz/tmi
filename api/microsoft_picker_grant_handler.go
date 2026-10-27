@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -85,55 +86,41 @@ func NewMicrosoftPickerGrantHandler(
 //  6. Refresh if expired → 401 (permanent) or 503 (transient) on failure.
 //  7. Call Graph permissions API → 200 / 422 grant_failed / 503 transient_failure.
 //
-// SEM@16390049ed01287835d8186f860dadff9c8c9288: handle a Microsoft File Picker grant request, issuing a Graph permission and returning the permission ID
+// SEM@5e6e00bd650bd3fdec6654c4a7d0f26192c35f2d: handle a Microsoft File Picker grant request, issuing a Graph permission and returning the permission ID
 func (h *MicrosoftPickerGrantHandler) Handle(c *gin.Context) {
 	log := slogging.Get().WithContext(c)
 
 	if h.applicationObjectID == "" {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"code":    "picker_grants_not_configured",
-			"message": "Microsoft picker grants are not configured (application_object_id is empty)",
-		})
+		HandleRequestError(c, WithDetailCode(UnprocessableEntityError("Microsoft picker grants are not configured (application_object_id is empty)"),
+			errcode.DetailPickerGrantsNotConfigured))
 		return
 	}
 
 	userID, ok := h.userLookup(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    "unauthenticated",
-			"message": "authentication required",
-		})
+		HandleRequestError(c, UnauthorizedError("authentication required"))
 		return
 	}
 
 	var req MicrosoftPickerGrantRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.DriveId == "" || req.ItemId == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    "invalid_request",
-			"message": "drive_id and item_id are required",
-		})
+		HandleRequestError(c, InvalidInputError("drive_id and item_id are required"))
 		return
 	}
 
 	tok, err := h.tokens.GetByUserAndProvider(c.Request.Context(), userID, ProviderMicrosoft)
 	if err != nil {
 		if errors.Is(err, ErrContentTokenNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    "not_linked",
-				"message": "no linked Microsoft token",
-			})
+			HandleRequestError(c, WithDetailCode(NotFoundError("no linked Microsoft token"), errcode.DetailNotLinked))
 			return
 		}
 		log.Error("microsoft_picker_grant: token lookup user=%s: %v", userID, err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		HandleRequestError(c, StoreErrorToRequestError(err, "no linked Microsoft token", "failed to look up linked token"))
 		return
 	}
 
 	if tok.Status == ContentTokenStatusFailedRefresh {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    "token_refresh_failed",
-			"message": "re-link Microsoft account",
-		})
+		HandleRequestError(c, WithDetailCode(UnauthorizedError("re-link Microsoft account"), errcode.DetailTokenRefreshFailed))
 		return
 	}
 
@@ -151,21 +138,16 @@ func (h *MicrosoftPickerGrantHandler) Handle(c *gin.Context) {
 	accessToken, _, err := h.refreshIfNeeded(c, tok)
 	if err != nil {
 		if errors.Is(err, ErrAuthRequired) {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"code":    "token_refresh_failed",
-				"message": "re-link Microsoft account",
-			})
+			HandleRequestError(c, WithDetailCode(UnauthorizedError("re-link Microsoft account"), errcode.DetailTokenRefreshFailed))
 			return
 		}
 		if errors.Is(err, ErrTransient) {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"code":    "transient_failure",
-				"message": "retry later",
-			})
+			HandleRequestError(c, WithDetailCode(ServiceUnavailableError("retry later"), errcode.DetailTransientFailure))
 			return
 		}
 		log.Error("microsoft_picker_grant: refresh user=%s: %v", userID, err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		// Remaining errors come from the token store's RefreshWithLock.
+		HandleRequestError(c, StoreErrorToRequestError(err, "no linked Microsoft token", "failed to refresh linked token"))
 		return
 	}
 
@@ -176,23 +158,17 @@ func (h *MicrosoftPickerGrantHandler) Handle(c *gin.Context) {
 			// Transport error reaching Graph (DNS, connection refused, TLS, timeout):
 			// canonically transient.
 			log.Warn("microsoft_picker_grant: transport error to graph user=%s: %v", userID, gerr)
-			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "transient_failure", "message": "could not reach Graph"})
+			HandleRequestError(c, WithDetailCode(ServiceUnavailableError("could not reach Graph"), errcode.DetailTransientFailure))
 		case status >= 400 && status < 500:
-			c.JSON(http.StatusUnprocessableEntity, gin.H{
-				"code":         "grant_failed",
-				"message":      "Graph rejected the permission grant",
-				"graph_status": status,
-			})
+			HandleRequestError(c, WithDetailContext(WithDetailCode(UnprocessableEntityError("Graph rejected the permission grant"),
+				errcode.DetailGrantFailed), "graph_status", status))
 		case status >= 500:
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"code":    "transient_failure",
-				"message": "Graph 5xx",
-			})
+			HandleRequestError(c, WithDetailCode(ServiceUnavailableError("Graph returned a server error"), errcode.DetailTransientFailure))
 		default:
 			// Truly unexpected: status >= 200 but < 400 with a non-nil error
 			// (e.g., decode failure on success body). Log and return 500.
 			log.Error("microsoft_picker_grant: graph user=%s status=%d: %v", userID, status, gerr)
-			c.AbortWithStatus(http.StatusInternalServerError)
+			HandleRequestError(c, ServerError("unexpected response from Graph"))
 		}
 		return
 	}

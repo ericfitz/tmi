@@ -91,7 +91,7 @@ func (h *ContentOAuthHandlers) List(c *gin.Context) {
 	toks, err := h.Tokens.ListByUser(c.Request.Context(), userID)
 	if err != nil {
 		slogging.Get().WithContext(c).Error("list content tokens: %v", err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		HandleRequestError(c, StoreErrorToRequestError(err, "content tokens not found", "failed to list content tokens"))
 		return
 	}
 	out := make([]contentTokenInfo, 0, len(toks))
@@ -104,7 +104,7 @@ func (h *ContentOAuthHandlers) List(c *gin.Context) {
 // Authorize handles POST /me/content_tokens/:provider_id/authorize.
 // Validates the provider and client_callback, generates PKCE, stores state in Redis,
 // and returns {authorization_url, expires_at}.
-// SEM@462c9c5f31b3e00796bfbcea980a74ada200f7f7: initiate a PKCE OAuth flow for a content provider and return the authorization URL (mutates shared state)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: initiate a PKCE OAuth flow for a content provider and return the authorization URL; 503 when state store is down (mutates shared state)
 func (h *ContentOAuthHandlers) Authorize(c *gin.Context) {
 	userID, ok := h.UserLookup(c)
 	if !ok {
@@ -139,7 +139,7 @@ func (h *ContentOAuthHandlers) Authorize(c *gin.Context) {
 	verifier, err := NewPKCEVerifier()
 	if err != nil {
 		slogging.Get().WithContext(c).Error("generate PKCE verifier: %v", err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		HandleRequestError(c, ServerError("failed to start content provider authorization"))
 		return
 	}
 
@@ -154,7 +154,8 @@ func (h *ContentOAuthHandlers) Authorize(c *gin.Context) {
 	nonce, err := h.StateStore.Put(c.Request.Context(), payload, ttl)
 	if err != nil {
 		slogging.Get().WithContext(c).Error("put content oauth state: %v", err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		// A Redis outage is ErrContentOAuthStateUnavailable (ErrTransient) -> 503 (#1119).
+		HandleRequestError(c, StoreErrorToRequestError(err, "authorization state not found", "failed to start content provider authorization"))
 		return
 	}
 
@@ -198,7 +199,7 @@ func (h *ContentOAuthHandlers) Delete(c *gin.Context) {
 			return
 		}
 		slogging.Get().WithContext(c).Error("delete content token: %v", err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		HandleRequestError(c, StoreErrorToRequestError(err, "content token not found", "failed to delete content token"))
 		return
 	}
 
@@ -224,6 +225,12 @@ func (h *ContentOAuthHandlers) Callback(c *gin.Context) {
 	}
 
 	state, err := h.StateStore.Consume(ctx, nonce)
+	if errors.Is(err, ErrContentOAuthStateUnavailable) {
+		// The state store is down, so the nonce is unverifiable rather than invalid (#1119).
+		logger.Error("content oauth callback: state store unavailable: %v", err)
+		HandleRequestError(c, ServiceUnavailableError("Authorization state store temporarily unavailable - please retry"))
+		return
+	}
 	if err != nil {
 		logger.Warn("content oauth callback: invalid/expired state: %v", err)
 		renderCallbackError(c, "invalid_state")
