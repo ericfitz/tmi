@@ -183,18 +183,9 @@ var ErrAccessDenied = errors.New("access denied")
 
 // GetUserRole determines the role of the user for a given threat model.
 // Uses SamePrincipal for identity matching via AccessCheckWithGroups.
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: compute the highest role a user holds on a threat model (pure)
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: compute the highest role a user holds on a threat model (pure)
 func GetUserRole(user ResolvedUser, groups []string, threatModel ThreatModel) Role {
-	// Build authorization data
-	var authSlice []Authorization
-	if threatModel.Authorization != nil {
-		authSlice = *threatModel.Authorization
-	}
-	authData := AuthorizationData{
-		Type:          AuthTypeTMI10,
-		Owner:         threatModel.Owner,
-		Authorization: authSlice,
-	}
+	authData := threatModelAuthorizationData(threatModel)
 
 	// Check access with groups support
 	// We'll check each role level from highest to lowest to determine user's actual role
@@ -214,25 +205,27 @@ func GetUserRole(user ResolvedUser, groups []string, threatModel ThreatModel) Ro
 
 // CheckThreatModelAccess checks if a user has required access to a threat model.
 // Uses SamePrincipal for identity matching via AccessCheckWithGroups.
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: authorize a user against a required role on a threat model, returning an error if denied (pure)
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: authorize a user against a required role on a threat model, returning an error if denied (pure)
 func CheckThreatModelAccess(user ResolvedUser, groups []string, threatModel ThreatModel, requiredRole Role) error {
-	// Build authorization data
-	var checkAuthSlice []Authorization
-	if threatModel.Authorization != nil {
-		checkAuthSlice = *threatModel.Authorization
-	}
-	authData := AuthorizationData{
-		Type:          AuthTypeTMI10,
-		Owner:         threatModel.Owner,
-		Authorization: checkAuthSlice,
-	}
-
-	// Check access with groups support
-	if AccessCheckWithGroups(user, groups, requiredRole, authData) {
+	if AccessCheckWithGroups(user, groups, requiredRole, threatModelAuthorizationData(threatModel)) {
 		return nil
 	}
 
 	return ErrAccessDenied
+}
+
+// threatModelAuthorizationData builds the authorization data (owner plus grants) for a threat model.
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: build authorization data from a threat model's owner and grants (pure)
+func threatModelAuthorizationData(threatModel ThreatModel) AuthorizationData {
+	var authSlice []Authorization
+	if threatModel.Authorization != nil {
+		authSlice = slices.Clone(*threatModel.Authorization)
+	}
+	return AuthorizationData{
+		Type:          AuthTypeTMI10,
+		Owner:         threatModel.Owner,
+		Authorization: authSlice,
+	}
 }
 
 // ThreatModelMiddleware creates middleware for threat model authorization
@@ -271,7 +264,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 // /threat_models/* routes that have not yet been annotated with x-tmi-authz.
 // Once #371 (slice 8) lands and every operation is annotated, the entire
 // ThreatModelMiddleware closure can be deleted.
-// SEM@8fa90ed6c2a4a20c3a5b7d508736a882e9c647a0: enforce ownership-based authorization on /threat_models/* routes not yet covered by x-tmi-authz
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: enforce ownership-based authorization on /threat_models/* routes not yet covered by x-tmi-authz
 func threatModelMiddlewareLegacy(c *gin.Context, logger slogging.SimpleLogger) {
 	userID, exists := c.Get("userEmail")
 	if !exists {
@@ -466,7 +459,7 @@ func getUserRoleFromAuthData(user ResolvedUser, groups []string, authData Author
 }
 
 // DiagramMiddleware creates middleware for diagram authorization
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: enforce role-based authorization on /diagrams/* routes and set diagram context
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: enforce role-based authorization on /diagrams/* routes and set diagram context
 func DiagramMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get logger from context
@@ -727,7 +720,7 @@ func CheckDiagramAccess(user ResolvedUser, groups []string, diagram DfdDiagram, 
 // ValidateSubResourceAccess creates middleware for sub-resource authorization with caching
 // This middleware validates access to sub-resources (threats, documents, sources) by inheriting
 // permissions from their parent threat model
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: enforce inherited threat-model authorization for sub-resource routes at a given role level
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: enforce inherited threat-model authorization for sub-resource routes at a given role level
 func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Role) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.GetContextLogger(c)
@@ -993,7 +986,7 @@ func (w *bufferedResponseWriter) Flush() {
 // JSONErrorHandler middleware converts plain text error responses to JSON format
 // This catches Gin framework errors that bypass application error handling
 // It uses a buffered response writer to intercept responses before they're sent
-// SEM@5d72468ae02763853a1bb7b148ece4292c8d3f99: intercept plain-text error responses and convert them to JSON format
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: intercept plain-text error responses and convert them to JSON format
 func JSONErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Create a buffered response writer
@@ -1084,6 +1077,7 @@ var negotiatedMediaTypeRoutes = map[string]map[string]bool{
 // types. Substring matching, so it tolerates quality parameters and multi-type
 // headers.
 // SEM@0: report whether an Accept header mentions any of the given media types (pure)
+// SEM@2f8bdf4ee323d43b42d14954da7fbbf9544367c7: validate whether an Accept header mentions any of the given media types (pure)
 func acceptsAnyOf(acceptHeader string, mediaTypes []string) bool {
 	for _, t := range mediaTypes {
 		if strings.Contains(acceptHeader, t) {
@@ -1095,7 +1089,7 @@ func acceptsAnyOf(acceptHeader string, mediaTypes []string) bool {
 
 // AcceptHeaderValidation middleware validates that the Accept header is application/json
 // Returns 406 Not Acceptable for unsupported media types
-// SEM@2f8bdf4ee323d43b42d14954da7fbbf9544367c7: build middleware that rejects requests with unsupported Accept media types
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build middleware that rejects requests with unsupported Accept media types
 func AcceptHeaderValidation() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get logger from context

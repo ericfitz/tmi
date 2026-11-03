@@ -34,12 +34,18 @@ const (
 )
 
 // NotificationMessage is the base structure for all notification messages
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: envelope for all WebSocket notification messages with type, actor, and payload (pure)
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: envelope for WebSocket notification messages with type, actor, payload, and unserialized access snapshot (pure)
 type NotificationMessage struct {
 	MessageType NotificationMessageType `json:"message_type"`
 	UserID      string                  `json:"user_id"` // internal_uuid of user who triggered the event
 	Timestamp   time.Time               `json:"timestamp"`
 	Data        any                     `json:"data,omitempty"` // Type-specific data
+
+	// authz is the authorization of the threat model the event is about, captured
+	// when the event is emitted. The hub delivers threat model and collaboration
+	// events only to clients with reader access under it. Unexported so it is never
+	// serialized to clients.
+	authz *AuthorizationData
 }
 
 // ThreatModelNotificationData contains data for threat model notifications

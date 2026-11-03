@@ -1593,7 +1593,7 @@ func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyRespo
 	RecordAuditCreate(c, createdTM.Id.String(), "threat_model", createdTM.Id.String(), createdTM)
 
 	// Step 8: Broadcast notification
-	BroadcastThreatModelCreated(user.Email, createdTM.Id.String(), createdTM.Name)
+	BroadcastThreatModelCreated(user.Email, *createdTM)
 
 	// Step 9: Emit webhooks
 	if GlobalEventEmitter != nil {
