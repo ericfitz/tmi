@@ -11,7 +11,7 @@ import (
 )
 
 // NotificationClient represents a client connected to the notification hub
-// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: represents a connected WebSocket notification subscriber with its user info and subscription
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: represent a connected notification subscriber with its user identity, groups, and subscription
 type NotificationClient struct {
 	// Unique identifier for the client
 	ID string
@@ -105,7 +105,7 @@ func (h *NotificationHub) Run() {
 // registerClient adds a new client to the hub. It runs on the Run goroutine, so it
 // delivers the user-joined event directly: sending it to the broadcast channel,
 // which only Run drains, would deadlock the hub.
-// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: add a client to the hub and broadcast a user-joined event (mutates shared state)
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: add a client to the hub and broadcast a user-joined event (mutates shared state)
 func (h *NotificationHub) registerClient(client *NotificationClient) {
 	h.mu.Lock()
 	h.clients[client.ID] = client
@@ -136,7 +136,7 @@ func (h *NotificationHub) registerClient(client *NotificationClient) {
 
 // unregisterClient removes a client from the hub. Like registerClient it runs on
 // the Run goroutine and delivers the user-left event directly.
-// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: remove a client from the hub and broadcast a user-left event if no connections remain (mutates shared state)
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: remove a client from the hub and broadcast a user-left event if no connections remain (mutates shared state)
 func (h *NotificationHub) unregisterClient(client *NotificationClient) {
 	h.mu.Lock()
 	if _, ok := h.clients[client.ID]; !ok {
@@ -208,7 +208,7 @@ func (h *NotificationHub) broadcastMessage(message *NotificationMessage) {
 // to clients with reader access to the threat model, under the authorization
 // captured when the event was emitted; an event without that snapshot, or of an
 // unrecognized type, is delivered to no one.
-// SEM@pending: authorize a client to receive a notification by message type and threat model access (pure)
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: authorize a client to receive a notification by message type and threat model read access (pure)
 func isAuthorizedForMessage(client *NotificationClient, message *NotificationMessage) bool {
 	switch message.MessageType {
 	case NotificationHeartbeat,
@@ -229,7 +229,7 @@ func isAuthorizedForMessage(client *NotificationClient, message *NotificationMes
 }
 
 // shouldReceiveMessage checks if a client should receive a specific message
-// SEM@pending: check whether a client is authorized for a message and its subscription includes it (pure)
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: validate that a client is authorized for a notification and its subscription includes it (pure)
 func (h *NotificationHub) shouldReceiveMessage(client *NotificationClient, message *NotificationMessage) bool {
 	if !isAuthorizedForMessage(client, message) {
 		return false
@@ -295,7 +295,7 @@ func (h *NotificationHub) sendHeartbeat() {
 // newThreatModelNotification builds a threat model event carrying a snapshot of the
 // threat model's authorization, so delivery can be limited to its readers even
 // after the threat model is deleted.
-// SEM@pending: build a threat model lifecycle notification with its access snapshot (pure)
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: build a threat model lifecycle notification carrying a snapshot of its access (pure)
 func newThreatModelNotification(eventType NotificationMessageType, userID string, tm ThreatModel, action string) *NotificationMessage {
 	authz := threatModelAuthorizationData(tm)
 	tmID := ""
@@ -317,7 +317,7 @@ func newThreatModelNotification(eventType NotificationMessageType, userID string
 
 // newCollaborationNotification builds a diagram collaboration event carrying a
 // snapshot of the parent threat model's authorization.
-// SEM@pending: build a diagram collaboration notification with its threat model access snapshot (pure)
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: build a diagram collaboration notification carrying a snapshot of its threat model access (pure)
 func newCollaborationNotification(eventType NotificationMessageType, userID, diagramID, diagramName string, tm ThreatModel, sessionID string) *NotificationMessage {
 	authz := threatModelAuthorizationData(tm)
 	tmID := ""
@@ -340,13 +340,13 @@ func newCollaborationNotification(eventType NotificationMessageType, userID, dia
 }
 
 // BroadcastThreatModelEvent broadcasts a threat model event to clients with read access to it
-// SEM@pending: dispatch a threat model lifecycle event to subscribed clients that can read it
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: dispatch a threat model lifecycle event to clients that can read it
 func (h *NotificationHub) BroadcastThreatModelEvent(eventType NotificationMessageType, userID string, tm ThreatModel, action string) {
 	h.broadcast <- newThreatModelNotification(eventType, userID, tm, action)
 }
 
 // BroadcastCollaborationEvent broadcasts a collaboration event to clients with read access to the threat model
-// SEM@pending: dispatch a diagram collaboration event to subscribed clients that can read its threat model
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: dispatch a diagram collaboration event to clients that can read its threat model
 func (h *NotificationHub) BroadcastCollaborationEvent(eventType NotificationMessageType, userID, diagramID, diagramName string, tm ThreatModel, sessionID string) {
 	h.broadcast <- newCollaborationNotification(eventType, userID, diagramID, diagramName, tm, sessionID)
 }

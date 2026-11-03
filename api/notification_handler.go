@@ -32,7 +32,7 @@ func GetNotificationHub() *NotificationHub {
 }
 
 // HandleNotificationWebSocket handles WebSocket connections for notifications
-// SEM@a7d1b052bb879606eca59fea8d7f7bac57531eeb: upgrade an authenticated connection to a notification WebSocket and register the client (mutates shared state)
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: upgrade an authenticated connection to a notification WebSocket and register the client with its identity and groups (mutates shared state)
 func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 	logger := slogging.Get()
 
@@ -249,7 +249,7 @@ func (c *NotificationClient) handleSubscriptionUpdate(msg map[string]any) {
 }
 
 // BroadcastThreatModelCreated notifies connected clients that can read the threat model that it was created
-// SEM@pending: notify clients with read access that a threat model was created (mutates shared state)
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: notify clients with read access that a threat model was created (mutates shared state)
 func BroadcastThreatModelCreated(userID string, tm ThreatModel) {
 	if notificationHub != nil {
 		notificationHub.BroadcastThreatModelEvent(NotificationThreatModelCreated, userID, tm, "created")
@@ -257,7 +257,7 @@ func BroadcastThreatModelCreated(userID string, tm ThreatModel) {
 }
 
 // BroadcastThreatModelUpdated notifies connected clients that can read the threat model that it was updated
-// SEM@pending: notify clients with read access that a threat model was updated (mutates shared state)
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: notify clients with read access that a threat model was updated (mutates shared state)
 func BroadcastThreatModelUpdated(userID string, tm ThreatModel) {
 	if notificationHub != nil {
 		notificationHub.BroadcastThreatModelEvent(NotificationThreatModelUpdated, userID, tm, "updated")
@@ -265,7 +265,7 @@ func BroadcastThreatModelUpdated(userID string, tm ThreatModel) {
 }
 
 // BroadcastThreatModelDeleted notifies connected clients that can read the threat model that it was deleted
-// SEM@pending: notify clients with read access that a threat model was deleted (mutates shared state)
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: notify clients with read access that a threat model was deleted (mutates shared state)
 func BroadcastThreatModelDeleted(userID string, tm ThreatModel) {
 	if notificationHub != nil {
 		notificationHub.BroadcastThreatModelEvent(NotificationThreatModelDeleted, userID, tm, "deleted")
@@ -273,7 +273,7 @@ func BroadcastThreatModelDeleted(userID string, tm ThreatModel) {
 }
 
 // BroadcastCollaborationStarted notifies clients that can read the threat model about a new collaboration session
-// SEM@pending: notify clients with read access to the threat model that a diagram collaboration session started (mutates shared state)
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: notify clients with read access that a diagram collaboration session started (mutates shared state)
 func BroadcastCollaborationStarted(userID, diagramID, diagramName string, tm ThreatModel, sessionID string) {
 	if notificationHub != nil {
 		notificationHub.BroadcastCollaborationEvent(NotificationCollaborationStarted, userID, diagramID, diagramName, tm, sessionID)

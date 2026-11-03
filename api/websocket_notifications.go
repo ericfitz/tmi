@@ -34,7 +34,7 @@ const (
 )
 
 // NotificationMessage is the base structure for all notification messages
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: envelope for all WebSocket notification messages with type, actor, and payload (pure)
+// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: envelope for WebSocket notification messages with type, actor, payload, and unserialized access snapshot (pure)
 type NotificationMessage struct {
 	MessageType NotificationMessageType `json:"message_type"`
 	UserID      string                  `json:"user_id"` // internal_uuid of user who triggered the event
