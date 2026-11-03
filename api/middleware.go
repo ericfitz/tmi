@@ -185,16 +185,7 @@ var ErrAccessDenied = errors.New("access denied")
 // Uses SamePrincipal for identity matching via AccessCheckWithGroups.
 // SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: compute the highest role a user holds on a threat model (pure)
 func GetUserRole(user ResolvedUser, groups []string, threatModel ThreatModel) Role {
-	// Build authorization data
-	var authSlice []Authorization
-	if threatModel.Authorization != nil {
-		authSlice = *threatModel.Authorization
-	}
-	authData := AuthorizationData{
-		Type:          AuthTypeTMI10,
-		Owner:         threatModel.Owner,
-		Authorization: authSlice,
-	}
+	authData := threatModelAuthorizationData(threatModel)
 
 	// Check access with groups support
 	// We'll check each role level from highest to lowest to determine user's actual role
@@ -216,23 +207,25 @@ func GetUserRole(user ResolvedUser, groups []string, threatModel ThreatModel) Ro
 // Uses SamePrincipal for identity matching via AccessCheckWithGroups.
 // SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: authorize a user against a required role on a threat model, returning an error if denied (pure)
 func CheckThreatModelAccess(user ResolvedUser, groups []string, threatModel ThreatModel, requiredRole Role) error {
-	// Build authorization data
-	var checkAuthSlice []Authorization
-	if threatModel.Authorization != nil {
-		checkAuthSlice = *threatModel.Authorization
-	}
-	authData := AuthorizationData{
-		Type:          AuthTypeTMI10,
-		Owner:         threatModel.Owner,
-		Authorization: checkAuthSlice,
-	}
-
-	// Check access with groups support
-	if AccessCheckWithGroups(user, groups, requiredRole, authData) {
+	if AccessCheckWithGroups(user, groups, requiredRole, threatModelAuthorizationData(threatModel)) {
 		return nil
 	}
 
 	return ErrAccessDenied
+}
+
+// threatModelAuthorizationData builds the authorization data (owner plus grants) for a threat model.
+// SEM@pending: build authorization data from a threat model's owner and grants (pure)
+func threatModelAuthorizationData(threatModel ThreatModel) AuthorizationData {
+	var authSlice []Authorization
+	if threatModel.Authorization != nil {
+		authSlice = slices.Clone(*threatModel.Authorization)
+	}
+	return AuthorizationData{
+		Type:          AuthTypeTMI10,
+		Owner:         threatModel.Owner,
+		Authorization: authSlice,
+	}
 }
 
 // ThreatModelMiddleware creates middleware for threat model authorization

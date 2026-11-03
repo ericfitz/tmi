@@ -341,7 +341,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	// Counts are now calculated dynamically - no need to initialize
 
 	// Broadcast notification about new threat model
-	BroadcastThreatModelCreated(user.Email, createdTM.Id.String(), createdTM.Name)
+	BroadcastThreatModelCreated(user.Email, createdTM)
 
 	// Emit event for webhook subscriptions
 	if GlobalEventEmitter != nil {
@@ -599,7 +599,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	// Counts are now calculated dynamically - no need to update
 
 	// Broadcast notification about updated threat model
-	BroadcastThreatModelUpdated(user.Email, updatedTM.Id.String(), updatedTM.Name)
+	BroadcastThreatModelUpdated(user.Email, updatedTM)
 
 	// Emit event for webhook subscriptions
 	if GlobalEventEmitter != nil {
@@ -832,7 +832,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	// Counts are now calculated dynamically - no need to update
 
 	// Broadcast notification about updated threat model
-	BroadcastThreatModelUpdated(user.Email, modifiedTM.Id.String(), modifiedTM.Name)
+	BroadcastThreatModelUpdated(user.Email, modifiedTM)
 
 	// Emit event for webhook subscriptions
 	if GlobalEventEmitter != nil {
@@ -915,7 +915,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	RecordAuditDelete(c, id, "threat_model", id, preState)
 
 	// Broadcast notification about deleted threat model
-	BroadcastThreatModelDeleted(user.Email, tm.Id.String(), tm.Name)
+	BroadcastThreatModelDeleted(user.Email, tm)
 
 	// Emit event for webhook subscriptions
 	if GlobalEventEmitter != nil {

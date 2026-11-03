@@ -60,6 +60,16 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 	// For now, use userEmail as both email and ID
 	userID := userEmail
 
+	// Identity and groups for authorizing delivery of threat model scoped events
+	providerUserID, internalUUID, provider, groups := GetUserAuthFieldsForAccessCheck(c)
+	resolvedUser := ResolvedUser{
+		InternalUUID: internalUUID,
+		Provider:     provider,
+		ProviderID:   providerUserID,
+		Email:        userEmail,
+		DisplayName:  c.GetString("userDisplayName"),
+	}
+
 	// Upgrade HTTP connection to WebSocket
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -79,9 +89,11 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 		UserID:       userID,
 		UserEmail:    userEmail,
 		UserName:     userEmail,
+		User:         resolvedUser,
+		Groups:       groups,
 		Conn:         conn,
 		Send:         make(chan []byte, 256),
-		Subscription: nil, // Start with no subscription (receives all messages)
+		Subscription: nil, // Start with no subscription (receives all messages it is authorized for)
 		Hub:          notificationHub,
 		ConnectedAt:  time.Now().UTC(),
 	}
@@ -236,61 +248,35 @@ func (c *NotificationClient) handleSubscriptionUpdate(msg map[string]any) {
 	}
 }
 
-// BroadcastThreatModelCreated notifies all connected clients about a new threat model
-// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: notify all connected clients that a threat model was created (mutates shared state)
-func BroadcastThreatModelCreated(userID, threatModelID, threatModelName string) {
+// BroadcastThreatModelCreated notifies connected clients that can read the threat model that it was created
+// SEM@pending: notify clients with read access that a threat model was created (mutates shared state)
+func BroadcastThreatModelCreated(userID string, tm ThreatModel) {
 	if notificationHub != nil {
-		notificationHub.BroadcastThreatModelEvent(
-			NotificationThreatModelCreated,
-			userID,
-			threatModelID,
-			threatModelName,
-			"created",
-		)
+		notificationHub.BroadcastThreatModelEvent(NotificationThreatModelCreated, userID, tm, "created")
 	}
 }
 
-// BroadcastThreatModelUpdated notifies all connected clients about an updated threat model
-// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: notify all connected clients that a threat model was updated (mutates shared state)
-func BroadcastThreatModelUpdated(userID, threatModelID, threatModelName string) {
+// BroadcastThreatModelUpdated notifies connected clients that can read the threat model that it was updated
+// SEM@pending: notify clients with read access that a threat model was updated (mutates shared state)
+func BroadcastThreatModelUpdated(userID string, tm ThreatModel) {
 	if notificationHub != nil {
-		notificationHub.BroadcastThreatModelEvent(
-			NotificationThreatModelUpdated,
-			userID,
-			threatModelID,
-			threatModelName,
-			"updated",
-		)
+		notificationHub.BroadcastThreatModelEvent(NotificationThreatModelUpdated, userID, tm, "updated")
 	}
 }
 
-// BroadcastThreatModelDeleted notifies all connected clients about a deleted threat model
-// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: notify all connected clients that a threat model was deleted (mutates shared state)
-func BroadcastThreatModelDeleted(userID, threatModelID, threatModelName string) {
+// BroadcastThreatModelDeleted notifies connected clients that can read the threat model that it was deleted
+// SEM@pending: notify clients with read access that a threat model was deleted (mutates shared state)
+func BroadcastThreatModelDeleted(userID string, tm ThreatModel) {
 	if notificationHub != nil {
-		notificationHub.BroadcastThreatModelEvent(
-			NotificationThreatModelDeleted,
-			userID,
-			threatModelID,
-			threatModelName,
-			"deleted",
-		)
+		notificationHub.BroadcastThreatModelEvent(NotificationThreatModelDeleted, userID, tm, "deleted")
 	}
 }
 
-// BroadcastCollaborationStarted notifies about a new collaboration session
-// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: notify all connected clients that a diagram collaboration session started (mutates shared state)
-func BroadcastCollaborationStarted(userID, diagramID, diagramName, threatModelID, threatModelName, sessionID string) {
+// BroadcastCollaborationStarted notifies clients that can read the threat model about a new collaboration session
+// SEM@pending: notify clients with read access to the threat model that a diagram collaboration session started (mutates shared state)
+func BroadcastCollaborationStarted(userID, diagramID, diagramName string, tm ThreatModel, sessionID string) {
 	if notificationHub != nil {
-		notificationHub.BroadcastCollaborationEvent(
-			NotificationCollaborationStarted,
-			userID,
-			diagramID,
-			diagramName,
-			threatModelID,
-			threatModelName,
-			sessionID,
-		)
+		notificationHub.BroadcastCollaborationEvent(NotificationCollaborationStarted, userID, diagramID, diagramName, tm, sessionID)
 	}
 }
 

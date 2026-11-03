@@ -115,8 +115,13 @@ channels:
       threat model or collaboration session. Authentication uses the same ticket mechanism as the diagram channel.
 
       ## Delivery
-      - A new connection receives every notification until it sends an update_subscription message
-      - The server broadcasts each event to all connected notification clients (subject to the client's subscription filters)
+      - A new connection receives every notification it is authorized for until it sends an update_subscription message
+      - threat_model_* and collaboration_* events are delivered only to clients whose user (directly or through a group,
+        including the everyone pseudo-group) has at least reader access to the threat model, as authorized when the event was
+        emitted; a threat_model_deleted event therefore reaches the users who could read the threat model before it was deleted
+      - Subscription filters can only narrow delivery; they never grant access to events for threat models the user cannot read
+      - Other events (user_joined, user_left, heartbeat, system_*) are broadcast to all connected notification clients
+        (subject to the client's subscription filters)
       - A heartbeat is sent every 30 seconds to every client, regardless of subscription
       - Read timeout: 60 seconds with ping/pong keepalive
 
