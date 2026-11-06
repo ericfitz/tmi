@@ -191,12 +191,19 @@ func (p *SAMLProvider) ValidateIDToken(ctx context.Context, idToken string) (*ID
 }
 
 // ParseResponse parses and validates a SAML response with full signature verification
-// SEM@3cfa5ca8e2e34a45e99f3137a0eb102176a82bc4: decode and validate a base64 SAML response, returning a verified assertion (pure)
+// SEM@b50a40200e4338e13e0818ad44b5899a41ffff7b: decode, pre-check, and validate a base64 SAML response, returning a verified assertion; recover panics
 func (p *SAMLProvider) ParseResponse(samlResponse string) (*saml.Assertion, error) {
 	// Decode base64-encoded SAML response
 	decodedResponse, err := base64.StdEncoding.DecodeString(samlResponse)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode base64 SAML response: %w", err)
+	}
+
+	// SECURITY (GO-2026-6909, #1138): reject crafted assertions the library
+	// mishandles (foreign-namespace NameID, missing Subject/Conditions/Issuer)
+	// before it parses them.
+	if err := precheckSAMLResponse(decodedResponse, p.serviceProvider.Key); err != nil {
+		return nil, fmt.Errorf("failed to validate SAML response: %w", err)
 	}
 
 	// Use the service provider's ParseXMLResponse which:
@@ -211,7 +218,10 @@ func (p *SAMLProvider) ParseResponse(samlResponse string) (*saml.Assertion, erro
 	// We use an empty URL since we don't have access to the original request URL here.
 	// The library will fall back to validating against the ACS URL configured in the SP.
 	emptyURL := url.URL{}
-	assertion, err := p.serviceProvider.ParseXMLResponse(decodedResponse, []string{}, emptyURL)
+	// recoverToError is defense in depth against residual library panics.
+	assertion, err := recoverToError("SAML response", func() (*saml.Assertion, error) {
+		return p.serviceProvider.ParseXMLResponse(decodedResponse, []string{}, emptyURL)
+	})
 	if err != nil {
 		// crewjam/saml wraps validation errors in InvalidResponseError which returns
 		// a generic "Authentication failed" from Error(). Extract PrivateErr for diagnostics.
@@ -296,7 +306,7 @@ const (
 // SECURITY: the request is only trusted after its enveloped XML signature has
 // been verified against the IdP signing certificate(s) from metadata.
 // Unsigned requests are rejected outright.
-// SEM@bbf626f42894b3914617abadecf11fccd86a73b1: validate signature and fields of a base64 SAML logout request from the IdP (pure)
+// SEM@b50a40200e4338e13e0818ad44b5899a41ffff7b: validate signature, NameID namespace, and fields of a base64 SAML logout request from the IdP (pure)
 func (p *SAMLProvider) ProcessLogoutRequest(samlRequest string) (*saml.LogoutRequest, error) {
 	// Decode base64-encoded SAML logout request
 	decodedRequest, err := base64.StdEncoding.DecodeString(samlRequest)
@@ -346,6 +356,13 @@ func (p *SAMLProvider) ProcessLogoutRequest(samlRequest string) (*saml.LogoutReq
 	verifiedXML, err := signedDoc.WriteToBytes()
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize verified logout request: %w", err)
+	}
+
+	// SECURITY (GO-2026-6909, #1138): saml.LogoutRequest.NameID is namespace-blind;
+	// reject a NameID outside the SAML assertion namespace. The check runs on the
+	// exact bytes that get unmarshaled below.
+	if err := precheckLogoutRequestNameID(verifiedXML); err != nil {
+		return nil, err
 	}
 	logoutRequest := &saml.LogoutRequest{}
 	if err := xml.Unmarshal(verifiedXML, logoutRequest); err != nil {
