@@ -133,3 +133,27 @@ func TestPrecheckLogoutRequestNameID(t *testing.T) {
 		t.Fatal("malformed XML accepted")
 	}
 }
+
+func TestPrecheckSAMLResponse_DefaultNamespaceSubject(t *testing.T) {
+	const wrap = `<r><Assertion xmlns="urn:oasis:names:tc:SAML:2.0:assertion"><Issuer>i</Issuer>%s<Conditions/></Assertion></r>`
+	cases := map[string]struct {
+		subject string
+		ok      bool
+	}{
+		"saml default ns subject and nameid": {`<Subject><NameID>a</NameID></Subject>`, true},
+		"foreign default ns on nameid":       {`<Subject><NameID xmlns="urn:evil">a</NameID></Subject>`, false},
+		"foreign default ns on subject":      {`<Subject xmlns="urn:evil"><NameID>a</NameID></Subject>`, false},
+		"foreign nameid next to real":        {`<Subject><NameID>a</NameID><NameID xmlns="urn:evil">b</NameID></Subject>`, false},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := precheckSAMLResponse([]byte(strings.Replace(wrap, "%s", c.subject, 1)), nil)
+			if c.ok && err != nil {
+				t.Fatalf("rejected: %v", err)
+			}
+			if !c.ok && !errors.Is(err, errPrecheckRejected) {
+				t.Fatalf("expected pre-check rejection, got %v", err)
+			}
+		})
+	}
+}

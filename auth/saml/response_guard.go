@@ -2,6 +2,7 @@ package saml
 
 import (
 	"crypto"
+	"errors"
 	"fmt"
 
 	"github.com/beevik/etree"
@@ -25,15 +26,32 @@ const (
 	xmlEncNS        = "http://www.w3.org/2001/04/xmlenc#"
 )
 
-// SEM@b50a40200e4338e13e0818ad44b5899a41ffff7b: reject SAML responses with malformed or namespace-spoofed assertions before library parsing (pure)
+// errPrecheckRejected is the only error precheckSAMLResponse returns. It is
+// deliberately generic: the pre-check decrypts unauthenticated input, and
+// distinguishable failure messages (padding vs. parse vs. structure) would give
+// a client a decryption oracle. Detail is logged server-side only.
+var errPrecheckRejected = errors.New("SAML response rejected")
+
+// SEM@74c94fa9dd5167632559edfe2f08920768f67aca: reject SAML responses with malformed or namespace-spoofed assertions, returning one generic error
 func precheckSAMLResponse(responseXML []byte, spKey crypto.Signer) error {
+	if err := inspectSAMLResponse(responseXML, spKey); err != nil {
+		// The internal error text is built from fixed strings only (never
+		// XML, values, or underlying library errors).
+		slogging.Get().Warn("SAML response rejected by pre-check: %v", err)
+		return errPrecheckRejected
+	}
+	return nil
+}
+
+// SEM@74c94fa9dd5167632559edfe2f08920768f67aca: inspect SAML response assertions and return a fixed-text reason on rejection (pure)
+func inspectSAMLResponse(responseXML []byte, spKey crypto.Signer) error {
 	doc := etree.NewDocument()
 	if err := doc.ReadFromBytes(responseXML); err != nil {
-		return fmt.Errorf("SAML response pre-check: malformed XML: %w", err)
+		return errors.New("malformed XML")
 	}
 	root := doc.Root()
 	if root == nil {
-		return fmt.Errorf("SAML response pre-check: no root element")
+		return errors.New("no root element")
 	}
 
 	// Mirror the library: only direct children of the root, matched by
@@ -54,7 +72,7 @@ func precheckSAMLResponse(responseXML []byte, spKey crypto.Signer) error {
 			}
 			plain, err := decryptAssertionForPrecheck(child, spKey)
 			if err != nil {
-				return fmt.Errorf("SAML response pre-check: cannot inspect encrypted assertion: %w", err)
+				return fmt.Errorf("cannot inspect encrypted assertion: %w", err)
 			}
 			if err := precheckAssertion(plain); err != nil {
 				return err
@@ -64,7 +82,7 @@ func precheckSAMLResponse(responseXML []byte, spKey crypto.Signer) error {
 	return nil
 }
 
-// SEM@b50a40200e4338e13e0818ad44b5899a41ffff7b: decrypt an EncryptedAssertion element to its plaintext Assertion element, as the library does
+// SEM@74c94fa9dd5167632559edfe2f08920768f67aca: decrypt an EncryptedAssertion element to its plaintext Assertion element, as the library does
 func decryptAssertionForPrecheck(encryptedEl *etree.Element, spKey crypto.Signer) (*etree.Element, error) {
 	var dataEls []*etree.Element
 	for _, c := range encryptedEl.ChildElements() {
@@ -73,35 +91,35 @@ func decryptAssertionForPrecheck(encryptedEl *etree.Element, spKey crypto.Signer
 		}
 	}
 	if len(dataEls) != 1 {
-		return nil, fmt.Errorf("expected exactly one EncryptedData element, found %d", len(dataEls))
+		return nil, errors.New("EncryptedData element count is not one")
 	}
 
 	var key interface{} = spKey
 	if keyEl := encryptedEl.FindElement("./EncryptedKey"); keyEl != nil {
 		k, err := xmlenc.Decrypt(spKey, keyEl)
 		if err != nil {
-			return nil, fmt.Errorf("decrypt key: %w", err)
+			return nil, errors.New("key decryption failed")
 		}
 		key = k
 	}
 	plaintext, err := xmlenc.Decrypt(key, dataEls[0])
 	if err != nil {
-		return nil, fmt.Errorf("decrypt data: %w", err)
+		return nil, errors.New("data decryption failed")
 	}
 	doc := etree.NewDocument()
 	if err := doc.ReadFromBytes(plaintext); err != nil {
-		return nil, fmt.Errorf("parse decrypted assertion: %w", err)
+		return nil, errors.New("decrypted assertion is not well-formed XML")
 	}
 	if doc.Root() == nil {
-		return nil, fmt.Errorf("decrypted assertion has no root element")
+		return nil, errors.New("decrypted assertion has no root element")
 	}
 	return doc.Root(), nil
 }
 
-// SEM@b50a40200e4338e13e0818ad44b5899a41ffff7b: validate an Assertion element has required children and only SAML-namespace NameIDs (pure)
+// SEM@74c94fa9dd5167632559edfe2f08920768f67aca: validate an Assertion element has required children and only SAML-namespace NameIDs (pure)
 func precheckAssertion(assertionEl *etree.Element) error {
 	if assertionEl.Tag != "Assertion" || assertionEl.NamespaceURI() != samlAssertionNS {
-		return fmt.Errorf("SAML response pre-check: unexpected assertion element")
+		return errors.New("unexpected assertion element")
 	}
 	var issuers, subjects, conditions int
 	for _, c := range assertionEl.ChildElements() {
@@ -114,40 +132,55 @@ func precheckAssertion(assertionEl *etree.Element) error {
 			// The library's Subject tag is namespace-blind; any Subject-named
 			// child outside the SAML namespace is an attack.
 			if c.NamespaceURI() != samlAssertionNS {
-				return fmt.Errorf("SAML response pre-check: Subject outside the SAML assertion namespace")
+				return errors.New("subject outside the SAML assertion namespace")
 			}
 			subjects++
 			if err := requireSAMLNameIDs(c, "Subject"); err != nil {
 				return err
+			}
+			// The library dereferences SubjectConfirmationData unconditionally.
+			for _, sc := range c.ChildElements() {
+				if sc.Tag != "SubjectConfirmation" {
+					continue
+				}
+				hasData := false
+				for _, d := range sc.ChildElements() {
+					if d.Tag == "SubjectConfirmationData" {
+						hasData = true
+					}
+				}
+				if !hasData {
+					return errors.New("subject confirmation has no SubjectConfirmationData")
+				}
 			}
 		case "Conditions":
 			conditions++
 		}
 	}
 	if issuers == 0 {
-		return fmt.Errorf("SAML response pre-check: assertion has no Issuer")
+		return errors.New("assertion has no Issuer")
 	}
 	// The library dereferences Subject and Conditions unconditionally.
 	if subjects != 1 {
-		return fmt.Errorf("SAML response pre-check: assertion must have exactly one Subject")
+		return errors.New("assertion must have exactly one Subject")
 	}
 	if conditions == 0 {
-		return fmt.Errorf("SAML response pre-check: assertion has no Conditions")
+		return errors.New("assertion has no Conditions")
 	}
 	return nil
 }
 
-// SEM@b50a40200e4338e13e0818ad44b5899a41ffff7b: reject any direct NameID child of an element that is outside the SAML assertion namespace (pure)
+// SEM@74c94fa9dd5167632559edfe2f08920768f67aca: reject any direct NameID child of an element that is outside the SAML assertion namespace (pure)
 func requireSAMLNameIDs(parent *etree.Element, parentName string) error {
 	for _, c := range parent.ChildElements() {
 		if c.Tag == "NameID" && c.NamespaceURI() != samlAssertionNS {
-			return fmt.Errorf("SAML pre-check: %s contains a NameID outside the SAML assertion namespace", parentName)
+			return fmt.Errorf("%s contains a NameID outside the SAML assertion namespace", parentName)
 		}
 	}
 	return nil
 }
 
-// SEM@b50a40200e4338e13e0818ad44b5899a41ffff7b: run fn, converting any panic into an error and logging the recovery
+// SEM@74c94fa9dd5167632559edfe2f08920768f67aca: run fn, converting any panic into an error and logging the recovery
 func recoverToError[T any](what string, fn func() (T, error)) (result T, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -161,14 +194,14 @@ func recoverToError[T any](what string, fn func() (T, error)) (result T, err err
 	return fn()
 }
 
-// SEM@b50a40200e4338e13e0818ad44b5899a41ffff7b: reject a signature-verified LogoutRequest whose NameID is outside the SAML namespace (pure)
+// SEM@74c94fa9dd5167632559edfe2f08920768f67aca: reject a signature-verified LogoutRequest whose NameID is outside the SAML namespace (pure)
 func precheckLogoutRequestNameID(verifiedXML []byte) error {
 	doc := etree.NewDocument()
 	if err := doc.ReadFromBytes(verifiedXML); err != nil {
-		return fmt.Errorf("SAML logout request pre-check: malformed XML: %w", err)
+		return errors.New("SAML logout request pre-check: malformed XML")
 	}
 	if doc.Root() == nil {
-		return fmt.Errorf("SAML logout request pre-check: no root element")
+		return errors.New("SAML logout request pre-check: no root element")
 	}
 	return requireSAMLNameIDs(doc.Root(), "LogoutRequest")
 }

@@ -202,7 +202,11 @@ func (p *SAMLProvider) ParseResponse(samlResponse string) (*saml.Assertion, erro
 	// SECURITY (GO-2026-6909, #1138): reject crafted assertions the library
 	// mishandles (foreign-namespace NameID, missing Subject/Conditions/Issuer)
 	// before it parses them.
-	if err := precheckSAMLResponse(decodedResponse, p.serviceProvider.Key); err != nil {
+	// The pre-check parses and decrypts attacker input, so it is panic-guarded too.
+	// Its error is a fixed generic sentinel (no decryption oracle).
+	if _, err := recoverToError("SAML response pre-check", func() (struct{}, error) {
+		return struct{}{}, precheckSAMLResponse(decodedResponse, p.serviceProvider.Key)
+	}); err != nil {
 		return nil, fmt.Errorf("failed to validate SAML response: %w", err)
 	}
 

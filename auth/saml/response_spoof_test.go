@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"math/big"
 	"net/url"
@@ -122,6 +123,8 @@ type assertionOpts struct {
 	omitConditions bool
 	// subjectNameIDs is the raw XML of the NameID children placed in Subject.
 	subjectNameIDs string
+	// subjectConfirmation overrides the default bearer SubjectConfirmation.
+	subjectConfirmation string
 }
 
 const goodNameID = `<saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">alice@example.com</saml:NameID>`
@@ -136,8 +139,12 @@ func assertionXML(o assertionOpts) string {
 		fmt.Fprintf(&b, `<saml:Issuer>%s</saml:Issuer>`, testIdPEntityID)
 	}
 	if !o.omitSubject {
-		fmt.Fprintf(&b, `<saml:Subject>%s<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer"><saml:SubjectConfirmationData NotOnOrAfter="%s" Recipient="%s"/></saml:SubjectConfirmation></saml:Subject>`,
-			o.subjectNameIDs, ts(5*time.Minute), testACSURL)
+		sc := o.subjectConfirmation
+		if sc == "" {
+			sc = fmt.Sprintf(`<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer"><saml:SubjectConfirmationData NotOnOrAfter="%s" Recipient="%s"/></saml:SubjectConfirmation>`,
+				ts(5*time.Minute), testACSURL)
+		}
+		fmt.Fprintf(&b, `<saml:Subject>%s%s</saml:Subject>`, o.subjectNameIDs, sc)
 	}
 	if !o.omitConditions {
 		fmt.Fprintf(&b, `<saml:Conditions NotBefore="%s" NotOnOrAfter="%s"><saml:AudienceRestriction><saml:Audience>%s</saml:Audience></saml:AudienceRestriction></saml:Conditions>`,
@@ -148,13 +155,15 @@ func assertionXML(o assertionOpts) string {
 	return b.String()
 }
 
-// responseB64 wraps child (a signed Assertion or an EncryptedAssertion element)
+// responseB64 wraps children (signed Assertion or EncryptedAssertion elements)
 // in an unsigned Response and returns it base64-encoded.
-func responseB64(t *testing.T, child *etree.Element) string {
+func responseB64(t *testing.T, children ...*etree.Element) string {
 	t.Helper()
 	resp := parseEl(t, fmt.Sprintf(`<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_r1" Version="2.0" IssueInstant="%s" Destination="%s"><saml:Issuer>%s</saml:Issuer><samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status></samlp:Response>`,
 		time.Now().UTC().Format(time.RFC3339), testACSURL, testIdPEntityID))
-	resp.AddChild(child)
+	for _, c := range children {
+		resp.AddChild(c)
+	}
 	doc := etree.NewDocument()
 	doc.SetRoot(resp)
 	out, err := doc.WriteToBytes()
@@ -169,17 +178,11 @@ func (f *spoofFixture) signedResponse(t *testing.T, o assertionOpts) string {
 	return responseB64(t, f.sign(t, parseEl(t, assertionXML(o))))
 }
 
-// encryptedResponse signs the assertion, encrypts it to the SP certificate,
-// and wraps it in an EncryptedAssertion.
-func (f *spoofFixture) encryptedResponse(t *testing.T, o assertionOpts) string {
+// encryptedAssertionEl encrypts plaintext to the SP certificate and wraps it in
+// an EncryptedAssertion element. tamper, if non-nil, edits the EncryptedData
+// before wrapping.
+func (f *spoofFixture) encryptedAssertionEl(t *testing.T, plain []byte, tamper func(*etree.Element)) *etree.Element {
 	t.Helper()
-	signed := f.sign(t, parseEl(t, assertionXML(o)))
-	doc := etree.NewDocument()
-	doc.SetRoot(signed)
-	plain, err := doc.WriteToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
 	enc := xmlenc.OAEP()
 	enc.BlockCipher = xmlenc.AES128CBC
 	enc.DigestMethod = &xmlenc.SHA1
@@ -187,9 +190,30 @@ func (f *spoofFixture) encryptedResponse(t *testing.T, o assertionOpts) string {
 	if err != nil {
 		t.Fatalf("encrypt: %v", err)
 	}
+	if tamper != nil {
+		tamper(encData)
+	}
 	wrapper := parseEl(t, `<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"/>`)
 	wrapper.AddChild(encData)
-	return responseB64(t, wrapper)
+	return wrapper
+}
+
+func (f *spoofFixture) signedAssertionBytes(t *testing.T, o assertionOpts) []byte {
+	t.Helper()
+	doc := etree.NewDocument()
+	doc.SetRoot(f.sign(t, parseEl(t, assertionXML(o))))
+	plain, err := doc.WriteToBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return plain
+}
+
+// encryptedResponse signs the assertion, encrypts it to the SP certificate,
+// and wraps it in an EncryptedAssertion.
+func (f *spoofFixture) encryptedResponse(t *testing.T, o assertionOpts) string {
+	t.Helper()
+	return responseB64(t, f.encryptedAssertionEl(t, f.signedAssertionBytes(t, o), nil))
 }
 
 func (f *spoofFixture) signedLogoutRequest(t *testing.T, nameIDXML string) string {
@@ -237,17 +261,120 @@ func TestParseResponse_MissingIssuerRejectedWithoutPanic(t *testing.T) {
 	}
 }
 
-func TestParseResponse_MissingSubjectOrConditionsRejectedWithoutPanic(t *testing.T) {
+func TestParseResponse_IncompleteAssertionRejectedByPrecheck(t *testing.T) {
 	f := newSpoofFixture(t)
 	for name, o := range map[string]assertionOpts{
-		"no subject":    {omitSubject: true},
-		"no conditions": {omitConditions: true, subjectNameIDs: goodNameID},
+		"no subject":                   {omitSubject: true},
+		"no conditions":                {omitConditions: true, subjectNameIDs: goodNameID},
+		"no subject confirmation data": {subjectNameIDs: goodNameID, subjectConfirmation: `<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:holder-of-key"/>`},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := parseNoPanic(t, f.provider, f.signedResponse(t, o)); err == nil {
-				t.Fatal("assertion accepted; expected rejection")
+			_, err := parseNoPanic(t, f.provider, f.signedResponse(t, o))
+			// errors.Is discriminates the pre-check from the recovered-panic
+			// error, so these fail if the pre-check is removed.
+			if !errors.Is(err, errPrecheckRejected) {
+				t.Fatalf("expected pre-check rejection, got %v", err)
 			}
 		})
+	}
+}
+
+// TestLibraryPanicsOnIncompleteAssertion_RecoverCatchesIt proves, independent of
+// the pre-check, that the library panics on these inputs and recoverToError
+// turns the panic into an error.
+func TestLibraryPanicsOnIncompleteAssertion_RecoverCatchesIt(t *testing.T) {
+	f := newSpoofFixture(t)
+	for name, o := range map[string]assertionOpts{
+		"no subject":                   {omitSubject: true},
+		"no conditions":                {omitConditions: true, subjectNameIDs: goodNameID},
+		"no subject confirmation data": {subjectNameIDs: goodNameID, subjectConfirmation: `<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:holder-of-key"/>`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			raw, err := base64.StdEncoding.DecodeString(f.signedResponse(t, o))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = recoverToError("test", func() (*saml.Assertion, error) {
+				return f.provider.serviceProvider.ParseXMLResponse(raw, []string{}, url.URL{})
+			})
+			if err == nil || !strings.Contains(err.Error(), "internal error") {
+				t.Fatalf("expected a recovered-panic error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestParseResponse_MultipleAssertionsAnyBadRejected(t *testing.T) {
+	f := newSpoofFixture(t)
+	good := func() *etree.Element {
+		return f.sign(t, parseEl(t, assertionXML(assertionOpts{subjectNameIDs: goodNameID})))
+	}
+	bad := func() *etree.Element {
+		return f.sign(t, parseEl(t, assertionXML(assertionOpts{subjectNameIDs: foreignNameID})))
+	}
+	for name, kids := range map[string][]*etree.Element{
+		"good then bad": {good(), bad()},
+		"bad then good": {bad(), good()},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := parseNoPanic(t, f.provider, responseB64(t, kids...)); !errors.Is(err, errPrecheckRejected) {
+				t.Fatalf("expected pre-check rejection, got %v", err)
+			}
+		})
+	}
+}
+
+// TestParseResponse_PrecheckFailuresAreIndistinguishable guards against a
+// decryption oracle: every pre-check failure mode must yield the identical
+// client-visible error.
+func TestParseResponse_PrecheckFailuresAreIndistinguishable(t *testing.T) {
+	f := newSpoofFixture(t)
+	otherKey, _, otherCert := newSelfSigned(t, "other-sp")
+	_ = otherKey
+
+	corruptCipher := func(encData *etree.Element) {
+		cv := encData.FindElement("./CipherData/CipherValue")
+		if cv == nil {
+			t.Fatal("no CipherValue in EncryptedData")
+		}
+		raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(cv.Text()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw[len(raw)-1] ^= 0xff
+		cv.SetText(base64.StdEncoding.EncodeToString(raw))
+	}
+
+	wrongKeyResp := func() string {
+		// Encrypted to a certificate whose key the SP does not hold.
+		f2 := *f
+		f2.spCert = otherCert
+		return responseB64(t, f2.encryptedAssertionEl(t, f.signedAssertionBytes(t, assertionOpts{subjectNameIDs: goodNameID}), nil))
+	}
+
+	cases := map[string]string{
+		"bad padding":         responseB64(t, f.encryptedAssertionEl(t, f.signedAssertionBytes(t, assertionOpts{subjectNameIDs: goodNameID}), corruptCipher)),
+		"wrong key":           wrongKeyResp(),
+		"malformed plaintext": responseB64(t, f.encryptedAssertionEl(t, []byte("<<< not xml"), nil)),
+		"foreign nameid":      f.signedResponse(t, assertionOpts{subjectNameIDs: foreignNameID}),
+		"encrypted foreign":   f.encryptedResponse(t, assertionOpts{subjectNameIDs: foreignNameID}),
+		"no subject":          f.signedResponse(t, assertionOpts{omitSubject: true}),
+	}
+	var want string
+	for name, in := range cases {
+		_, err := parseNoPanic(t, f.provider, in)
+		if err == nil {
+			t.Fatalf("%s: expected an error", name)
+		}
+		if want == "" {
+			want = err.Error()
+		}
+		if err.Error() != want {
+			t.Fatalf("%s: error %q differs from %q (failure modes distinguishable)", name, err.Error(), want)
+		}
+	}
+	if !strings.Contains(want, errPrecheckRejected.Error()) {
+		t.Fatalf("unexpected error text: %q", want)
 	}
 }
 
