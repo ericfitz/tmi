@@ -3,3 +3,4 @@
 # An entry is only acceptable when no fixed release exists AND the exposure is
 # mitigated in code. Past its review-by date an entry stops being honored, so
 # it cannot rot: re-justify it or remove it.
+GO-2026-6909  2026-12-05  crewjam/saml nil Subject/Conditions panic + namespace-blind NameID; no fixed release (upstream #674); rejected by pre-check in saml.ParseResponse/ProcessLogoutRequest (#1138)
