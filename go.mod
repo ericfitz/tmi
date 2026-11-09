@@ -35,7 +35,7 @@ require (
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/stretchr/testify v1.12.1
 	github.com/uptrace/opentelemetry-go-extra/otelgorm v0.4.0
-	github.com/xuri/excelize/v2 v2.11.1-0.20261011032807-402e3bdd9eae
+	github.com/xuri/excelize/v2 v2.11.1
 	github.com/yuin/goldmark v1.8.7
 	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.72.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0
@@ -160,7 +160,7 @@ require (
 	github.com/tiendc/go-deepcopy v1.7.2 // indirect
 	github.com/uptrace/opentelemetry-go-extra/otelsql v0.4.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	github.com/xuri/efp v0.0.2 // indirect
+	github.com/xuri/efp v0.0.3-0.20260924042702-217b81952dec // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.9.3 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
