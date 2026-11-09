@@ -7,6 +7,19 @@ import (
 	"strings"
 )
 
+// copyMovePatchBlockedTargets are the free-text and URI fields the handlers
+// sanitize (SanitizePlainText) and URI-validate on add and replace only. The
+// store cannot reach the handler's URI validators, so copy and move, which
+// would carry unsanitized text or an unvalidated URI into one of these fields,
+// are rejected there instead; add and replace remain available.
+var copyMovePatchBlockedTargets = map[string]bool{
+	PatchPathName:        true,
+	PatchPathDescription: true,
+	"/mitigation":        true,
+	"/issue_uri":         true,
+	PatchPathURI:         true,
+}
+
 // applyEntityPatch applies RFC 6902 operations to a sub-resource entity with
 // the same engine every other resource uses (add on an existing member
 // replaces; replace on an unset optional field is promoted to add; copy, move
@@ -16,16 +29,24 @@ import (
 // dropped on save (#1143). The PUT validators registered under
 // validationConfig then run on the patched entity so a patch cannot store
 // what a PUT would reject. Errors are 400 RequestErrors.
-// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply RFC 6902 operations to an entity restricted to persisted fields, then run the PUT validators on the result (pure)
+// SEM@88d573e459d9015f908f5783c185514054038eec: apply RFC 6902 operations to an entity restricted to persisted fields, rejecting copy/move into sanitized text and URI fields, then run the PUT validators (pure)
 func applyEntityPatch[T any](entity T, operations []PatchOperation, noun string, patchable map[string]bool, validationConfig string) (T, error) {
 	var zero T
 	for _, op := range operations {
 		var writes []string
 		switch op.Op {
-		case string(Add), string(Replace), string(Remove), string(Copy):
+		case string(Add), string(Replace), string(Remove):
 			writes = []string{op.Path}
-		case string(Move):
-			writes = []string{op.Path, op.From}
+		case string(Copy), string(Move):
+			if copyMovePatchBlockedTargets[topLevelPatchPath(op.Path)] {
+				return zero, InvalidInputError(fmt.Sprintf(
+					"patch operation %q may not target %s; use add or replace with the value so it is sanitized and validated",
+					op.Op, op.Path))
+			}
+			writes = []string{op.Path}
+			if op.Op == string(Move) {
+				writes = append(writes, op.From)
+			}
 		case string(Test):
 		default:
 			return zero, InvalidInputError(fmt.Sprintf("unsupported patch operation %q", op.Op))
