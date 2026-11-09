@@ -879,7 +879,7 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 
 // BulkPatchThreats applies JSON patch operations to multiple threats
 // PATCH /threat_models/{threat_model_id}/threats/bulk
-// SEM@e92145ccb20292d695dc5d2f767278b6fc18e4f3: update multiple threats by applying JSON Patch operations, authorizing each (mutates DB)
+// SEM@0366350593b297b3143d1125e29982be617236ab: update multiple threats by JSON Patch, authorizing and dry-run validating every entry before writing any (mutates DB)
 func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkPatchThreats - applying patch operations to multiple threats")
@@ -934,6 +934,10 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 			return
 		}
 
+		if len(patch.Operations) == 0 {
+			HandleRequestError(c, InvalidInputError(fmt.Sprintf("No patch operations provided for threat %s", patch.ID)))
+			return
+		}
 		if reqErr := ValidatePatchOperationPaths(patch.Operations); reqErr != nil {
 			HandleRequestError(c, reqErr)
 			return
@@ -955,6 +959,47 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 			HandleRequestError(c, err)
 			return
 		}
+	}
+
+	// Dry run: the store rejects some patches only when it applies them (field
+	// validation, allowlist), so load each threat parent-scoped and run the
+	// same in-memory patch and validation without writing. Only when every
+	// entry passes is anything written; entries naming the same threat see the
+	// earlier entries' result.
+	parsedTMID, tmErr := ParseUUID(threatModelID)
+	if tmErr != nil {
+		HandleRequestError(c, InvalidIDError("Invalid threat model ID format, must be a valid UUID"))
+		return
+	}
+	pending := make(map[string]Threat, len(bulkPatchRequest.Patches))
+	for _, patch := range bulkPatchRequest.Patches {
+		patchUUID, _ := ParseUUID(patch.ID)
+		key := patchUUID.String()
+		current, seen := pending[key]
+		if !seen {
+			loaded, err := h.threatStore.Get(c.Request.Context(), patch.ID)
+			if err != nil {
+				HandleRequestError(c, StoreErrorToRequestError(err,
+					fmt.Sprintf("Threat %s not found", patch.ID),
+					fmt.Sprintf("Failed to load threat %s", patch.ID)))
+				return
+			}
+			if loaded == nil || loaded.ThreatModelId == nil || *loaded.ThreatModelId != parsedTMID {
+				HandleRequestError(c, StoreErrorToRequestError(ErrThreatNotFound,
+					fmt.Sprintf("Threat %s not found", patch.ID), ""))
+				return
+			}
+			current = *loaded
+		}
+		patched, err := applyThreatPatch(current, patch.Operations)
+		if err != nil {
+			logger.Error("Bulk patch dry run rejected threat %s: %v", patch.ID, err)
+			HandleRequestError(c, StoreErrorToRequestError(err,
+				fmt.Sprintf("Threat %s not found", patch.ID),
+				fmt.Sprintf("Failed to patch threat %s", patch.ID)))
+			return
+		}
+		pending[key] = patched
 	}
 
 	// Apply patches to each threat

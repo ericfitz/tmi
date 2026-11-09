@@ -66,7 +66,12 @@ func seedThreat(t *testing.T) patchHarness[Threat] {
 	score := float32(5)
 	cwe := []string{"CWE-79"}
 	md := []Metadata{{Key: "k1", Value: "v1"}}
+	seedAsset, seedDiagram, seedCell := uuid.New(), uuid.New(), uuid.New()
 	threat := &Threat{
+		AssetId:         &seedAsset,
+		DiagramId:       &seedDiagram,
+		CellId:          &seedCell,
+		Ssvc:            &SSVCScore{Vector: "v", Decision: Scheduled, Methodology: "coordinator"},
 		Name:            "orig",
 		Description:     strPtr("d"),
 		Severity:        strPtr("high"),
@@ -241,6 +246,41 @@ func TestThreatPatch_GenericApplier(t *testing.T) {
 		{name: "copy into /mitigation rejected", ops: []PatchOperation{{Op: "copy", From: "/description", Path: "/mitigation"}}, wantErr: true},
 		{name: "copy into /issue_uri rejected", ops: []PatchOperation{{Op: "copy", From: "/description", Path: "/issue_uri"}}, wantErr: true},
 		{name: "move into /issue_uri rejected", ops: []PatchOperation{{Op: "move", From: "/description", Path: "/issue_uri"}}, wantErr: true},
+		{name: "remove /asset_id", ops: []PatchOperation{{Op: "remove", Path: "/asset_id"}},
+			check: func(t *testing.T, g *Threat) { assert.Nil(t, g.AssetId) }},
+		{name: "remove /diagram_id", ops: []PatchOperation{{Op: "remove", Path: "/diagram_id"}},
+			check: func(t *testing.T, g *Threat) { assert.Nil(t, g.DiagramId) }},
+		{name: "remove /cell_id", ops: []PatchOperation{{Op: "remove", Path: "/cell_id"}},
+			check: func(t *testing.T, g *Threat) { assert.Nil(t, g.CellId) }},
+		{name: "remove /ssvc", ops: []PatchOperation{{Op: "remove", Path: "/ssvc"}},
+			check: func(t *testing.T, g *Threat) { assert.Nil(t, g.Ssvc) }},
+		{name: "add /name null", ops: []PatchOperation{pop("add", "/name", nil)}, wantErr: true},
+		{name: "add /description null", ops: []PatchOperation{pop("add", "/description", nil)},
+			check: func(t *testing.T, g *Threat) { assert.Nil(t, g.Description) }},
+		{name: "add /severity null", ops: []PatchOperation{pop("add", "/severity", nil)},
+			check: func(t *testing.T, g *Threat) { assert.Nil(t, g.Severity) }},
+		{name: "add /metadata null clears", ops: []PatchOperation{pop("add", "/metadata", nil)},
+			check: func(t *testing.T, g *Threat) { assert.Empty(t, derefSlice(g.Metadata)) }},
+		{name: "add /threat_type null", ops: []PatchOperation{pop("add", "/threat_type", nil)},
+			check: func(t *testing.T, g *Threat) { assert.Empty(t, g.ThreatType) }},
+		{name: "unrelated patch keeps metadata", ops: []PatchOperation{pop("add", "/name", "n2")},
+			check: func(t *testing.T, g *Threat) {
+				assert.Equal(t, "n2", g.Name)
+				require.Len(t, *g.Metadata, 1)
+				assert.Equal(t, "v1", (*g.Metadata)[0].Value)
+			}},
+		{name: "nested /metadata/0/value", ops: []PatchOperation{pop("replace", "/metadata/0/value", "v9")},
+			check: func(t *testing.T, g *Threat) { assert.Equal(t, "v9", (*g.Metadata)[0].Value) }},
+		{name: "nested /metadata/0/value markup is sanitized or rejected", ops: []PatchOperation{pop("replace", "/metadata/0/value", "<script>alert(1)</script>ok")},
+			check: func(t *testing.T, g *Threat) { assert.NotContains(t, (*g.Metadata)[0].Value, "<script") }},
+		{name: "nested /metadata/0/value empty", ops: []PatchOperation{pop("replace", "/metadata/0/value", "")}, wantErr: true},
+		{name: "nested /metadata/0/key invalid", ops: []PatchOperation{pop("replace", "/metadata/0/key", "bad key!")}, wantErr: true},
+		{name: "trailing-slash path /ssvc/", ops: []PatchOperation{pop("add", "/ssvc/", map[string]any{})}, wantErr: true},
+		{name: "empty-segment path", ops: []PatchOperation{pop("add", "/threat_type//0", "x")}, wantErr: true},
+		{name: "root path", ops: []PatchOperation{pop("add", "", map[string]any{"name": "x"})}, wantErr: true},
+		{name: "copy from /threat_model_id", ops: []PatchOperation{{Op: "copy", From: "/threat_model_id", Path: "/severity"}}, wantErr: true},
+		{name: "copy from root", ops: []PatchOperation{{Op: "copy", From: "", Path: "/severity"}}, wantErr: true},
+		{name: "test /threat_model_id", ops: []PatchOperation{pop("test", "/threat_model_id", uuid.New().String())}, wantErr: true},
 		{name: "test ok then add", ops: []PatchOperation{pop("test", "/name", "orig"), pop("add", "/name", "n2")},
 			check: func(t *testing.T, g *Threat) { assert.Equal(t, "n2", g.Name) }},
 		{name: "test mismatch", ops: []PatchOperation{pop("test", "/name", "other"), pop("add", "/name", "n2")}, wantErr: true},
@@ -481,4 +521,11 @@ func TestRepositoryPatch_GenericApplier(t *testing.T) {
 		{name: "read-only /id", ops: []PatchOperation{pop("replace", "/id", uuid.New().String())}, wantErr: true},
 	}
 	runPatchCases(t, seedRepository, cases)
+}
+
+func TestApplyEntityPatch_MissingValidationConfigFailsClosed(t *testing.T) {
+	_, err := applyEntityPatch(Threat{Name: "x"}, []PatchOperation{pop("add", "/name", "y")},
+		"threat", threatPatchablePaths, "no_such_validation_config")
+	require.Error(t, err, "a missing validation config must reject, not skip every validator")
+	assert.Contains(t, err.Error(), "no_such_validation_config")
 }

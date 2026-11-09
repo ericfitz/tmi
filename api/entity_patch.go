@@ -29,32 +29,31 @@ var copyMovePatchBlockedTargets = map[string]bool{
 // dropped on save (#1143). The PUT validators registered under
 // validationConfig then run on the patched entity so a patch cannot store
 // what a PUT would reject. Errors are 400 RequestErrors.
-// SEM@88d573e459d9015f908f5783c185514054038eec: apply RFC 6902 operations to an entity restricted to persisted fields, rejecting copy/move into sanitized text and URI fields, then run the PUT validators (pure)
+// SEM@0366350593b297b3143d1125e29982be617236ab: apply RFC 6902 operations to an entity restricted to well-formed persisted-field paths, rejecting copy/move into sanitized text and URI fields, then run the PUT validators, failing closed (pure)
 func applyEntityPatch[T any](entity T, operations []PatchOperation, noun string, patchable map[string]bool, validationConfig string) (T, error) {
 	var zero T
 	for _, op := range operations {
-		var writes []string
+		// paths lists every pointer the operation reads or writes: writes need
+		// the allowlist, and reads (copy/move "from", test "path") must not
+		// reach server-managed fields or the document root either.
+		var paths []string
 		switch op.Op {
-		case string(Add), string(Replace), string(Remove):
-			writes = []string{op.Path}
+		case string(Add), string(Replace), string(Remove), string(Test):
+			paths = []string{op.Path}
 		case string(Copy), string(Move):
 			if copyMovePatchBlockedTargets[topLevelPatchPath(op.Path)] {
 				return zero, InvalidInputError(fmt.Sprintf(
 					"patch operation %q may not target %s; use add or replace with the value so it is sanitized and validated",
 					op.Op, op.Path))
 			}
-			writes = []string{op.Path}
-			if op.Op == string(Move) {
-				writes = append(writes, op.From)
-			}
-		case string(Test):
+			paths = []string{op.Path, op.From}
 		default:
 			return zero, InvalidInputError(fmt.Sprintf("unsupported patch operation %q", op.Op))
 		}
-		for _, path := range writes {
-			if !patchable[topLevelPatchPath(path)] {
+		for _, path := range paths {
+			if !wellFormedPatchPointer(path) || !patchable[topLevelPatchPath(path)] {
 				return zero, InvalidInputError(fmt.Sprintf(
-					"patch operation %q may not change %s; %s patches may change %s",
+					"patch operation %q may not use path %q; %s patches may change %s",
 					op.Op, path, noun, patchablePathList(patchable)))
 			}
 		}
@@ -65,15 +64,18 @@ func applyEntityPatch[T any](entity T, operations []PatchOperation, noun string,
 		return zero, err
 	}
 
-	if cfg, ok := ValidationConfigs[validationConfig]; ok {
-		for _, validator := range cfg.CustomValidators {
-			if verr := validator(&patched); verr != nil {
-				var reqErr *RequestError
-				if errors.As(verr, &reqErr) {
-					return zero, reqErr
-				}
-				return zero, InvalidInputError(verr.Error())
+	// Fail closed: a missing config would otherwise skip every validator.
+	cfg, ok := ValidationConfigs[validationConfig]
+	if !ok {
+		return zero, fmt.Errorf("no validation config %q registered for %s patches", validationConfig, noun)
+	}
+	for _, validator := range cfg.CustomValidators {
+		if verr := validator(&patched); verr != nil {
+			var reqErr *RequestError
+			if errors.As(verr, &reqErr) {
+				return zero, reqErr
 			}
+			return zero, InvalidInputError(verr.Error())
 		}
 	}
 	return patched, nil
@@ -99,4 +101,16 @@ func defaultTrue(flag **bool) {
 		t := true
 		*flag = &t
 	}
+}
+
+// wellFormedPatchPointer reports whether path is a non-root JSON Pointer with
+// no empty segments. topLevelPatchPath folds "/ssvc/" to "/ssvc", so without
+// this check a trailing-slash or "//" path passes the allowlist and addresses
+// the empty-named member, a silent no-op.
+// SEM@0366350593b297b3143d1125e29982be617236ab: check that a JSON Pointer is non-root and has no empty segments (pure)
+func wellFormedPatchPointer(path string) bool {
+	if len(path) < 2 || path[0] != '/' {
+		return false
+	}
+	return !strings.HasSuffix(path, "/") && !strings.Contains(path, "//")
 }
