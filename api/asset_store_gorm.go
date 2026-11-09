@@ -5,14 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/api/validation"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
-	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -553,7 +551,7 @@ func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, th
 
 // patch runs patch-operation application then the content write, CAS-guarded
 // first when expectedVersion is non-nil (#594).
-// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: apply JSON patch operations to an asset, optionally CAS-guarded, and persist the result (mutates shared state)
+// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON patch operations to an asset, optionally CAS-guarded, and persist the result (mutates shared state)
 func (s *GormAssetRepository) patch(ctx context.Context, id string, operations []PatchOperation, expectedVersion *int) (*Asset, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching asset %s with %d operations", id, len(operations))
@@ -564,25 +562,15 @@ func (s *GormAssetRepository) patch(ctx context.Context, id string, operations [
 		return nil, 0, err
 	}
 
-	// Apply patch operations
-	for _, op := range operations {
-		if err := s.applyPatchOperation(asset, op); err != nil {
-			logger.Error("Failed to apply patch operation %s to asset %s: %v", op.Op, id, err)
-			// A malformed or inapplicable JSON Patch is client input, so it
-			// must surface as 400, not 500 (#611). fmt.Errorf here produced an
-			// untyped error that StoreErrorToRequestError could only classify
-			// as a server fault — a `remove` on a path the document does not
-			// have returned "Failed to patch {kind}" with a 500. RequestError
-			// passes through StoreErrorToRequestError untouched, and matches
-			// the invalid_patch code ApplyPatchOperations already returns for
-			// the entities that go through it.
-			return nil, 0, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    errcode.InvalidPatch,
-				Message: "Failed to apply patch: " + err.Error(),
-			}
-		}
+	// Apply the operations with the generic RFC 6902 applier (#1143). A
+	// malformed or inapplicable patch is client input and surfaces as a 400
+	// RequestError (#611).
+	patched, err := applyAssetPatch(*asset, operations)
+	if err != nil {
+		logger.Error("Failed to apply patch to asset %s: %v", id, err)
+		return nil, 0, err
 	}
+	*asset = patched
 
 	// Get threat model ID for update
 	threatModelID, err := s.getAssetThreatModelID(ctx, id)
@@ -613,100 +601,54 @@ func (s *GormAssetRepository) PatchWithVersion(ctx context.Context, id string, o
 	return s.patch(ctx, id, operations, &expectedVersion)
 }
 
-// applyPatchOperation applies a single patch operation to an asset
-// SEM@19668dc6d5b4991c9b461b7b41f18a37d90dfacc: apply a single JSON patch operation to an in-memory asset struct (pure)
-func (s *GormAssetRepository) applyPatchOperation(asset *Asset, op PatchOperation) error {
-	switch op.Path {
-	case PatchPathName:
-		if op.Op == string(Replace) {
-			if name, ok := op.Value.(string); ok {
-				// ASSETS.NAME is NOT NULL and Asset validation lives in
-				// BeforeCreate only, so the update path has no hook fallback.
-				// PostgreSQL stores '' happily; Oracle binds '' as NULL and
-				// raises ORA-01407 -- the same request, two different answers
-				// on dev and prod. Rejecting here surfaces as a clean 400 via
-				// the existing invalid_patch path (#614).
-				if err := validation.ValidateNonEmpty("name", name); err != nil {
-					return err
-				}
-				asset.Name = name
-			} else {
-				return fmt.Errorf("invalid value type for name: expected string")
-			}
-		}
-	case PatchPathType:
-		if op.Op == string(Replace) {
-			if assetType, ok := op.Value.(string); ok {
-				// ASSETS.TYPE is NOT NULL and, unlike repositories, had no enum
-				// check at all on this path -- the exact defect
-				// ValidateRepositoryType was re-added to close (#614).
-				if err := validation.ValidateNonEmpty("type", assetType); err != nil {
-					return err
-				}
-				if err := validation.ValidateAssetType(assetType); err != nil {
-					return err
-				}
-				asset.Type = AssetType(assetType)
-			} else {
-				return fmt.Errorf("invalid value type for type: expected string")
-			}
-		}
-	case PatchPathDescription:
-		switch op.Op {
-		case string(Replace), string(Add):
-			if desc, ok := op.Value.(string); ok {
-				asset.Description = &desc
-			} else {
-				return fmt.Errorf("invalid value type for description: expected string")
-			}
-		case string(Remove):
-			asset.Description = nil
-		}
-	case "/classification":
-		switch op.Op {
-		case string(Replace), string(Add):
-			if classArray, ok := op.Value.([]any); ok {
-				strArray := make([]string, len(classArray))
-				for i, v := range classArray {
-					if str, ok := v.(string); ok {
-						strArray[i] = str
-					} else {
-						return fmt.Errorf("invalid value in classification array: expected string")
-					}
-				}
-				asset.Classification = &strArray
-			} else {
-				return fmt.Errorf("invalid value type for classification: expected array of strings")
-			}
-		case string(Remove):
-			asset.Classification = nil
-		}
-	case "/sensitivity":
-		switch op.Op {
-		case string(Replace), string(Add):
-			if sens, ok := op.Value.(string); ok {
-				asset.Sensitivity = &sens
-			} else {
-				return fmt.Errorf("invalid value type for sensitivity: expected string")
-			}
-		case string(Remove):
-			asset.Sensitivity = nil
-		}
-	case "/criticality":
-		switch op.Op {
-		case string(Replace), string(Add):
-			if criticality, ok := op.Value.(string); ok {
-				asset.Criticality = &criticality
-			} else {
-				return fmt.Errorf("invalid value type for criticality: expected string")
-			}
-		case string(Remove):
-			asset.Criticality = nil
-		}
-	default:
-		return fmt.Errorf("unsupported patch path: %s", op.Path)
+// assetPatchablePaths are the asset fields a JSON Patch may change: exactly
+// the columns update writes. Anything else (metadata, alias, timestamps, ...)
+// is rejected rather than silently dropped on save.
+var assetPatchablePaths = map[string]bool{
+	PatchPathName:        true,
+	PatchPathType:        true,
+	PatchPathDescription: true,
+	"/classification":    true,
+	"/sensitivity":       true,
+	"/criticality":       true,
+	"/include_in_report": true,
+	"/timmy_enabled":     true,
+}
+
+// applyAssetPatch applies RFC 6902 operations to an asset via the generic
+// applier, then re-checks what the per-field code used to: ASSETS.NAME and
+// TYPE are NOT NULL, so both must be non-empty (PostgreSQL stores ” but
+// Oracle raises ORA-01407, #614) and type must be a valid enum value; unset
+// flags get the schema default (true). Only the patchable fields are taken
+// from the patched value; every other field is kept from the loaded row.
+// Errors are 400 RequestErrors.
+// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON Patch operations to an asset, keeping name and type valid, flags defaulted and all other fields pinned (pure)
+func applyAssetPatch(asset Asset, operations []PatchOperation) (Asset, error) {
+	patched, err := applyEntityPatch(asset, operations, "asset", assetPatchablePaths, "asset_update")
+	if err != nil {
+		return Asset{}, err
 	}
-	return nil
+	if err := validation.ValidateNonEmpty("name", patched.Name); err != nil {
+		return Asset{}, InvalidInputError(err.Error())
+	}
+	if err := validation.ValidateNonEmpty("type", string(patched.Type)); err != nil {
+		return Asset{}, InvalidInputError(err.Error())
+	}
+	if err := validation.ValidateAssetType(string(patched.Type)); err != nil {
+		return Asset{}, InvalidInputError(err.Error())
+	}
+	result := asset
+	result.Name = patched.Name
+	result.Type = patched.Type
+	result.Description = patched.Description
+	result.Classification = patched.Classification
+	result.Sensitivity = patched.Sensitivity
+	result.Criticality = patched.Criticality
+	result.IncludeInReport = patched.IncludeInReport
+	result.TimmyEnabled = patched.TimmyEnabled
+	defaultTrue(&result.IncludeInReport)
+	defaultTrue(&result.TimmyEnabled)
+	return result, nil
 }
 
 // getAssetThreatModelID retrieves the threat model ID for an asset using GORM

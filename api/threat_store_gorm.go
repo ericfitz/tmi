@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -14,7 +13,6 @@ import (
 	"github.com/ericfitz/tmi/api/validation"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
-	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/uuidgen"
 	"github.com/google/uuid"
@@ -699,7 +697,7 @@ func (s *GormThreatRepository) PatchWithVersion(ctx context.Context, threatModel
 
 // patch runs patch-operation application then the content write, CAS-guarded
 // first when expectedVersion is non-nil (#594).
-// SEM@436c1840b3eef9687193078750dec3e22874f10e: apply JSON patch operations to a threat, optionally CAS-guarded, and persist the result (mutates shared state)
+// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON patch operations to a threat, optionally CAS-guarded, and persist the result (mutates shared state)
 func (s *GormThreatRepository) patch(ctx context.Context, threatModelID string, id string, operations []PatchOperation, expectedVersion *int) (*Threat, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching threat %s with %d operations", id, len(operations))
@@ -723,25 +721,15 @@ func (s *GormThreatRepository) patch(ctx context.Context, threatModelID string, 
 		return nil, 0, ErrThreatNotFound
 	}
 
-	// Apply patch operations (reuse the same patch logic)
-	for _, op := range operations {
-		if err := s.applyPatchOperation(threat, op); err != nil {
-			logger.Error("Failed to apply patch operation %s to threat %s: %v", op.Op, id, err)
-			// A malformed or inapplicable JSON Patch is client input, so it
-			// must surface as 400, not 500 (#611). fmt.Errorf here produced an
-			// untyped error that StoreErrorToRequestError could only classify
-			// as a server fault — a `remove` on a path the document does not
-			// have returned "Failed to patch {kind}" with a 500. RequestError
-			// passes through StoreErrorToRequestError untouched, and matches
-			// the invalid_patch code ApplyPatchOperations already returns for
-			// the entities that go through it.
-			return nil, 0, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    errcode.InvalidPatch,
-				Message: "Failed to apply patch: " + err.Error(),
-			}
-		}
+	// Apply the operations with the generic RFC 6902 applier (#1143). A
+	// malformed or inapplicable patch is client input and surfaces as a 400
+	// RequestError (#611).
+	patched, err := applyThreatPatch(*threat, operations)
+	if err != nil {
+		logger.Error("Failed to apply patch to threat %s: %v", id, err)
+		return nil, 0, err
 	}
+	*threat = patched
 
 	// Update the threat
 	newVersion, err := s.update(ctx, threat, expectedVersion)
@@ -752,137 +740,95 @@ func (s *GormThreatRepository) patch(ctx context.Context, threatModelID string, 
 	return threat, newVersion, nil
 }
 
-// applyPatchOperation applies a single patch operation to a threat
-// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: apply a single JSON Patch operation to a threat's in-memory fields (pure)
-func (s *GormThreatRepository) applyPatchOperation(threat *Threat, op PatchOperation) error {
-	switch op.Path {
-	case PatchPathName:
-		if op.Op == string(Replace) {
-			if name, ok := op.Value.(string); ok {
-				// THREATS.NAME is NOT NULL. PostgreSQL stores '', Oracle raises
-				// ORA-01407 -- a dialect divergence, not just bad data (#614).
-				if err := validation.ValidateNonEmpty("name", name); err != nil {
-					return err
-				}
-				threat.Name = name
-				return nil
-			}
-			return fmt.Errorf("invalid value type for name: expected string")
-		}
-	case PatchPathDescription:
-		switch op.Op {
-		case string(Replace), string(Add):
-			if desc, ok := op.Value.(string); ok {
-				threat.Description = &desc
-				return nil
-			}
-			return fmt.Errorf("invalid value type for description: expected string")
-		case string(Remove):
-			threat.Description = nil
-		}
-	case "/severity":
-		if op.Op == string(Replace) {
-			if sev, ok := op.Value.(string); ok {
-				threat.Severity = &sev
-				return nil
-			}
-			return fmt.Errorf("invalid value type for severity: expected string")
-		}
-	case "/mitigation":
-		switch op.Op {
-		case string(Replace), string(Add):
-			if mit, ok := op.Value.(string); ok {
-				threat.Mitigation = &mit
-				return nil
-			}
-			return fmt.Errorf("invalid value type for mitigation: expected string")
-		case string(Remove):
-			threat.Mitigation = nil
-		}
-	case PatchPathStatus:
-		if op.Op == string(Replace) {
-			if status, ok := op.Value.(string); ok {
-				threat.Status = &status
-				return nil
-			}
-			return fmt.Errorf("invalid value type for status: expected string")
-		}
-	case "/priority":
-		if op.Op == string(Replace) {
-			if priority, ok := op.Value.(string); ok {
-				threat.Priority = &priority
-				return nil
-			}
-			return fmt.Errorf("invalid value type for priority: expected string")
-		}
-	case "/mitigated":
-		if op.Op == string(Replace) {
-			if mitigated, ok := op.Value.(bool); ok {
-				threat.Mitigated = &mitigated
-				return nil
-			}
-			return fmt.Errorf("invalid value type for mitigated: expected boolean")
-		}
-	case "/score":
-		switch op.Op {
-		case string(Replace), string(Add):
-			if score, ok := op.Value.(float64); ok {
-				score32 := float32(score)
-				threat.Score = &score32
-				return nil
-			}
-			return fmt.Errorf("invalid value type for score: expected number")
-		case string(Remove):
-			threat.Score = nil
-		}
-	case "/threat_type":
-		return s.patchThreatTypeGorm(threat, op)
-	default:
-		return fmt.Errorf("unsupported patch path: %s", op.Path)
-	}
-	return nil
+// threatPatchablePaths are the threat fields a JSON Patch may change: exactly
+// the columns update writes, plus metadata (saved to its own table by update).
+// Anything else (id, threat_model_id, alias, timestamps, ...) is rejected
+// rather than silently dropped on save.
+var threatPatchablePaths = map[string]bool{
+	PatchPathName:        true,
+	PatchPathDescription: true,
+	"/severity":          true,
+	"/mitigation":        true,
+	PatchPathStatus:      true,
+	"/priority":          true,
+	"/mitigated":         true,
+	"/score":             true,
+	"/threat_type":       true,
+	"/issue_uri":         true,
+	"/cwe_id":            true,
+	"/cvss":              true,
+	"/ssvc":              true,
+	"/asset_id":          true,
+	"/diagram_id":        true,
+	"/cell_id":           true,
+	"/include_in_report": true,
+	"/timmy_enabled":     true,
+	"/metadata":          true,
 }
 
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply add, replace, or remove patch operations to a threat's type array (pure)
-func (s *GormThreatRepository) patchThreatTypeGorm(threat *Threat, op PatchOperation) error {
-	switch op.Op {
-	case string(Replace):
-		if types, ok := op.Value.([]any); ok {
-			stringTypes := make([]string, 0, len(types))
-			for _, t := range types {
-				if str, ok := t.(string); ok {
-					stringTypes = append(stringTypes, str)
-				} else {
-					return fmt.Errorf("invalid type in threat_type array")
-				}
-			}
-			threat.ThreatType = stringTypes
-			return nil
-		}
-		return fmt.Errorf("threat_type replace requires array")
-	case string(Add):
-		if newType, ok := op.Value.(string); ok {
-			if slices.Contains(threat.ThreatType, newType) {
-				return nil
-			}
-			threat.ThreatType = append(threat.ThreatType, newType)
-			return nil
-		}
-		return fmt.Errorf("threat_type add requires string value")
-	case string(Remove):
-		if removeType, ok := op.Value.(string); ok {
-			filtered := make([]string, 0, len(threat.ThreatType))
-			for _, t := range threat.ThreatType {
-				if t != removeType {
-					filtered = append(filtered, t)
-				}
-			}
-			threat.ThreatType = filtered
-			return nil
-		}
-		return fmt.Errorf("threat_type remove requires string value")
+// applyThreatPatch applies RFC 6902 operations to a threat via the generic
+// applier, then re-checks what the per-field code used to: a non-empty name
+// (THREATS.NAME is NOT NULL; PostgreSQL stores ” but Oracle raises ORA-01407,
+// #614), metadata keys and values, and unset flags getting the schema default
+// (true). Identity and server-managed fields are re-pinned to the loaded row
+// as defense in depth. Errors are 400 RequestErrors.
+// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON Patch operations to a threat, keeping name non-empty, metadata valid, flags defaulted and identity fields pinned (pure)
+func applyThreatPatch(threat Threat, operations []PatchOperation) (Threat, error) {
+	patched, err := applyEntityPatch(threat, operations, "threat", threatPatchablePaths, "threat_update")
+	if err != nil {
+		return Threat{}, err
 	}
-	return nil
+	if err := validation.ValidateNonEmpty("name", patched.Name); err != nil {
+		return Threat{}, InvalidInputError(err.Error())
+	}
+	if patched.Metadata != nil {
+		// Checked here because update deletes the old metadata before inserting
+		// and only logs an insert failure: a bad entry would otherwise wipe
+		// the metadata and still return 200. The value column is 1024 wide.
+		for _, m := range *patched.Metadata {
+			if err := validation.ValidateMetadataKey(m.Key); err != nil {
+				return Threat{}, InvalidInputError(err.Error())
+			}
+			if err := validation.ValidateMetadataValue(m.Value); err != nil {
+				return Threat{}, InvalidInputError(err.Error())
+			}
+			if len(m.Value) > 1024 {
+				return Threat{}, InvalidInputError("metadata value must be at most 1024 characters")
+			}
+		}
+		if err := SanitizeMetadataSlice(patched.Metadata); err != nil {
+			return Threat{}, err
+		}
+	} else {
+		empty := []Metadata{}
+		patched.Metadata = &empty
+	}
+	if patched.Score != nil {
+		score := float64(*patched.Score)
+		if err := validation.ValidateScore(&score); err != nil {
+			return Threat{}, InvalidInputError(err.Error())
+		}
+	}
+	if patched.ThreatType == nil {
+		patched.ThreatType = []string{}
+	}
+	if patched.IncludeInReport == nil {
+		t := true
+		patched.IncludeInReport = &t
+	}
+	if patched.TimmyEnabled == nil {
+		t := true
+		patched.TimmyEnabled = &t
+	}
+	patched.Id = threat.Id
+	patched.ThreatModelId = threat.ThreatModelId
+	patched.Alias = threat.Alias
+	patched.AutoGenerated = threat.AutoGenerated
+	patched.CreatedAt = threat.CreatedAt
+	patched.ModifiedAt = threat.ModifiedAt
+	patched.DeletedAt = threat.DeletedAt
+	patched.Version = threat.Version
+	return patched, nil
 }
 
 // BulkCreate creates multiple threats in a single transaction using GORM

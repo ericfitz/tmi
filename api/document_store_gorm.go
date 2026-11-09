@@ -587,7 +587,7 @@ func (s *GormDocumentRepository) PatchWithVersion(ctx context.Context, id string
 
 // patch runs patch-operation application then the content write, CAS-guarded
 // first when expectedVersion is non-nil (#594).
-// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: apply JSON patch operations to a document, optionally CAS-guarded, and persist the result (mutates shared state)
+// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON patch operations to a document, optionally CAS-guarded, and persist the result (mutates shared state)
 func (s *GormDocumentRepository) patch(ctx context.Context, id string, operations []PatchOperation, expectedVersion *int) (*Document, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching document %s with %d operations", id, len(operations))
@@ -598,25 +598,15 @@ func (s *GormDocumentRepository) patch(ctx context.Context, id string, operation
 		return nil, 0, err
 	}
 
-	// Apply patch operations
-	for _, op := range operations {
-		if err := s.applyPatchOperation(document, op); err != nil {
-			logger.Error("Failed to apply patch operation %s to document %s: %v", op.Op, id, err)
-			// A malformed or inapplicable JSON Patch is client input, so it
-			// must surface as 400, not 500 (#611). fmt.Errorf here produced an
-			// untyped error that StoreErrorToRequestError could only classify
-			// as a server fault — a `remove` on a path the document does not
-			// have returned "Failed to patch {kind}" with a 500. RequestError
-			// passes through StoreErrorToRequestError untouched, and matches
-			// the invalid_patch code ApplyPatchOperations already returns for
-			// the entities that go through it.
-			return nil, 0, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    errcode.InvalidPatch,
-				Message: "Failed to apply patch: " + err.Error(),
-			}
-		}
+	// Apply the operations with the generic RFC 6902 applier (#1143). A
+	// malformed or inapplicable patch is client input and surfaces as a 400
+	// RequestError (#611).
+	patched, err := applyDocumentPatch(*document, operations)
+	if err != nil {
+		logger.Error("Failed to apply patch to document %s: %v", id, err)
+		return nil, 0, err
 	}
+	*document = patched
 
 	// Get threat model ID for update
 	threatModelID, err := s.getDocumentThreatModelID(ctx, id)
@@ -1027,54 +1017,45 @@ func (s *GormDocumentRepository) updateMetadata(ctx context.Context, documentID 
 	})
 }
 
-// applyPatchOperation applies a single patch operation to a document
-// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: validate and apply a single JSON patch operation to a document's mutable fields (pure)
-func (s *GormDocumentRepository) applyPatchOperation(document *Document, op PatchOperation) error {
-	switch op.Path {
-	case PatchPathName:
-		if op.Op == string(Replace) {
-			if name, ok := op.Value.(string); ok {
-				// Re-checked here because Update() runs with SkipHooks, which
-				// disables Document.BeforeSave and with it this check. NAME is
-				// VARCHAR2(256) NOT NULL on Oracle, which binds '' as NULL and
-				// raises ORA-01407, while PostgreSQL stores '' happily.
-				if err := validation.ValidateNonEmpty("name", name); err != nil {
-					return err
-				}
-				document.Name = name
-			} else {
-				return fmt.Errorf("invalid value type for name: expected string")
-			}
-		}
-	case PatchPathURI:
-		if op.Op == string(Replace) {
-			if uri, ok := op.Value.(string); ok {
-				// Same reason: ValidateURIPatchOperations skips empty strings,
-				// so `replace /uri ""` would otherwise reach a CLOB NOT NULL
-				// column and diverge between the two dialects.
-				if err := validation.ValidateURI("uri", uri); err != nil {
-					return err
-				}
-				document.Uri = uri
-			} else {
-				return fmt.Errorf("invalid value type for uri: expected string")
-			}
-		}
-	case PatchPathDescription:
-		switch op.Op {
-		case string(Replace), string(Add):
-			if desc, ok := op.Value.(string); ok {
-				document.Description = &desc
-			} else {
-				return fmt.Errorf("invalid value type for description: expected string")
-			}
-		case string(Remove):
-			document.Description = nil
-		}
-	default:
-		return fmt.Errorf("unsupported patch path: %s", op.Path)
+// documentPatchablePaths are the document fields a JSON Patch may change:
+// exactly the columns update writes. Anything else (metadata, access status,
+// alias, timestamps, ...) is rejected rather than silently dropped on save.
+var documentPatchablePaths = map[string]bool{
+	PatchPathName:        true,
+	PatchPathURI:         true,
+	PatchPathDescription: true,
+	"/include_in_report": true,
+	"/timmy_enabled":     true,
+}
+
+// applyDocumentPatch applies RFC 6902 operations to a document via the generic
+// applier, then re-checks what the per-field code used to, because update runs
+// with SkipHooks and so skips Document.BeforeSave: name and uri must be
+// non-empty (NOT NULL columns; PostgreSQL stores ” but Oracle raises
+// ORA-01407, #614). Unset flags get the schema default (true). Only the
+// patchable fields are taken from the patched value; every other field is kept
+// from the loaded row. Errors are 400 RequestErrors.
+// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON Patch operations to a document, keeping name and uri non-empty, flags defaulted and all other fields pinned (pure)
+func applyDocumentPatch(document Document, operations []PatchOperation) (Document, error) {
+	patched, err := applyEntityPatch(document, operations, "document", documentPatchablePaths, "document_update")
+	if err != nil {
+		return Document{}, err
 	}
-	return nil
+	if err := validation.ValidateNonEmpty("name", patched.Name); err != nil {
+		return Document{}, InvalidInputError(err.Error())
+	}
+	if err := validation.ValidateURI("uri", patched.Uri); err != nil {
+		return Document{}, InvalidInputError(err.Error())
+	}
+	result := document
+	result.Name = patched.Name
+	result.Uri = patched.Uri
+	result.Description = patched.Description
+	result.IncludeInReport = patched.IncludeInReport
+	result.TimmyEnabled = patched.TimmyEnabled
+	defaultTrue(&result.IncludeInReport)
+	defaultTrue(&result.TimmyEnabled)
+	return result, nil
 }
 
 // getDocumentThreatModelID retrieves the threat model ID for a document

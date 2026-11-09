@@ -21,26 +21,24 @@ import (
 // only, so the check has to happen before the write on both.
 
 func TestRepositoryPatch_RejectsEmptyURI(t *testing.T) {
-	s := &GormRepositoryRepository{}
 	repo := &Repository{Uri: "https://example.com/repo.git"}
 
-	err := s.applyPatchOperation(repo, PatchOperation{
+	err := patchRepositoryInPlace(repo, PatchOperation{
 		Op:    string(Replace),
 		Path:  PatchPathURI,
 		Value: "",
 	})
 
 	require.Error(t, err, "an empty URI must be rejected before it reaches the DB")
-	assert.Contains(t, err.Error(), "uri")
+	assert.Contains(t, strings.ToLower(err.Error()), "uri")
 	assert.Equal(t, "https://example.com/repo.git", repo.Uri,
 		"the rejected value must not be applied to the struct")
 }
 
 func TestRepositoryPatch_RejectsWhitespaceOnlyURI(t *testing.T) {
-	s := &GormRepositoryRepository{}
 	repo := &Repository{Uri: "https://example.com/repo.git"}
 
-	err := s.applyPatchOperation(repo, PatchOperation{
+	err := patchRepositoryInPlace(repo, PatchOperation{
 		Op:    string(Replace),
 		Path:  PatchPathURI,
 		Value: "   ",
@@ -50,10 +48,9 @@ func TestRepositoryPatch_RejectsWhitespaceOnlyURI(t *testing.T) {
 }
 
 func TestRepositoryPatch_AcceptsValidURI(t *testing.T) {
-	s := &GormRepositoryRepository{}
 	repo := &Repository{Uri: "https://example.com/old.git"}
 
-	err := s.applyPatchOperation(repo, PatchOperation{
+	err := patchRepositoryInPlace(repo, PatchOperation{
 		Op:    string(Replace),
 		Path:  PatchPathURI,
 		Value: "https://example.com/new.git",
@@ -64,10 +61,9 @@ func TestRepositoryPatch_AcceptsValidURI(t *testing.T) {
 }
 
 func TestRepositoryPatch_RejectsOffEnumType(t *testing.T) {
-	s := &GormRepositoryRepository{}
 	repo := &Repository{Uri: "https://example.com/repo.git"}
 
-	err := s.applyPatchOperation(repo, PatchOperation{
+	err := patchRepositoryInPlace(repo, PatchOperation{
 		Op:    string(Replace),
 		Path:  PatchPathType,
 		Value: "bogus",
@@ -78,11 +74,10 @@ func TestRepositoryPatch_RejectsOffEnumType(t *testing.T) {
 }
 
 func TestRepositoryPatch_AcceptsValidType(t *testing.T) {
-	s := &GormRepositoryRepository{}
 	repo := &Repository{Uri: "https://example.com/repo.git"}
 
 	for _, valid := range []string{"git", "svn", "mercurial", "other"} {
-		err := s.applyPatchOperation(repo, PatchOperation{
+		err := patchRepositoryInPlace(repo, PatchOperation{
 			Op:    string(Replace),
 			Path:  PatchPathType,
 			Value: valid,
@@ -94,10 +89,9 @@ func TestRepositoryPatch_AcceptsValidType(t *testing.T) {
 }
 
 func TestDocumentPatch_RejectsEmptyURI(t *testing.T) {
-	s := &GormDocumentRepository{}
 	doc := &Document{Name: "spec", Uri: "https://example.com/spec.pdf"}
 
-	err := s.applyPatchOperation(doc, PatchOperation{
+	err := patchDocumentInPlace(doc, PatchOperation{
 		Op:    string(Replace),
 		Path:  PatchPathURI,
 		Value: "",
@@ -109,10 +103,9 @@ func TestDocumentPatch_RejectsEmptyURI(t *testing.T) {
 }
 
 func TestDocumentPatch_RejectsEmptyName(t *testing.T) {
-	s := &GormDocumentRepository{}
 	doc := &Document{Name: "spec", Uri: "https://example.com/spec.pdf"}
 
-	err := s.applyPatchOperation(doc, PatchOperation{
+	err := patchDocumentInPlace(doc, PatchOperation{
 		Op:    string(Replace),
 		Path:  PatchPathName,
 		Value: "",
@@ -124,13 +117,12 @@ func TestDocumentPatch_RejectsEmptyName(t *testing.T) {
 }
 
 func TestDocumentPatch_AcceptsValidNameAndURI(t *testing.T) {
-	s := &GormDocumentRepository{}
 	doc := &Document{Name: "old", Uri: "https://example.com/old.pdf"}
 
-	require.NoError(t, s.applyPatchOperation(doc, PatchOperation{
+	require.NoError(t, patchDocumentInPlace(doc, PatchOperation{
 		Op: string(Replace), Path: PatchPathName, Value: "new",
 	}))
-	require.NoError(t, s.applyPatchOperation(doc, PatchOperation{
+	require.NoError(t, patchDocumentInPlace(doc, PatchOperation{
 		Op: string(Replace), Path: PatchPathURI, Value: "https://example.com/new.pdf",
 	}))
 
@@ -148,10 +140,9 @@ func TestDocumentPatch_AcceptsValidNameAndURI(t *testing.T) {
 // same request stores '' on PostgreSQL and 400s on Oracle.
 
 func TestAssetPatch_RejectsEmptyName(t *testing.T) {
-	s := &GormAssetRepository{}
 	a := &Asset{Name: "original"}
 
-	err := s.applyPatchOperation(a, PatchOperation{
+	err := patchAssetInPlace(a, PatchOperation{
 		Op: string(Replace), Path: PatchPathName, Value: "",
 	})
 
@@ -160,10 +151,9 @@ func TestAssetPatch_RejectsEmptyName(t *testing.T) {
 }
 
 func TestAssetPatch_RejectsEmptyType(t *testing.T) {
-	s := &GormAssetRepository{}
 	a := &Asset{Type: AssetType("data")}
 
-	err := s.applyPatchOperation(a, PatchOperation{
+	err := patchAssetInPlace(a, PatchOperation{
 		Op: string(Replace), Path: PatchPathType, Value: "",
 	})
 
@@ -174,10 +164,9 @@ func TestAssetPatch_RejectsEmptyType(t *testing.T) {
 // Assets had no enum check at all on this path — the exact defect
 // ValidateRepositoryType was re-added to close on repositories.
 func TestAssetPatch_RejectsOffEnumType(t *testing.T) {
-	s := &GormAssetRepository{}
 	a := &Asset{Type: AssetType("data")}
 
-	err := s.applyPatchOperation(a, PatchOperation{
+	err := patchAssetInPlace(a, PatchOperation{
 		Op: string(Replace), Path: PatchPathType, Value: "not-a-real-asset-type",
 	})
 
@@ -186,10 +175,9 @@ func TestAssetPatch_RejectsOffEnumType(t *testing.T) {
 }
 
 func TestAssetPatch_AcceptsValidNameAndType(t *testing.T) {
-	s := &GormAssetRepository{}
 	a := &Asset{Name: "original", Type: AssetType("data")}
 
-	require.NoError(t, s.applyPatchOperation(a, PatchOperation{
+	require.NoError(t, patchAssetInPlace(a, PatchOperation{
 		Op: string(Replace), Path: PatchPathName, Value: "renamed",
 	}))
 	assert.Equal(t, "renamed", a.Name)
@@ -221,10 +209,9 @@ func TestNotePatch_RejectsEmptyContent(t *testing.T) {
 }
 
 func TestThreatPatch_RejectsEmptyName(t *testing.T) {
-	s := &GormThreatRepository{}
 	th := &Threat{Name: "original"}
 
-	err := s.applyPatchOperation(th, PatchOperation{
+	err := patchThreatInPlace(th, PatchOperation{
 		Op: string(Replace), Path: PatchPathName, Value: "",
 	})
 
@@ -233,10 +220,9 @@ func TestThreatPatch_RejectsEmptyName(t *testing.T) {
 }
 
 func TestThreatPatch_AcceptsValidName(t *testing.T) {
-	s := &GormThreatRepository{}
 	th := &Threat{Name: "original"}
 
-	require.NoError(t, s.applyPatchOperation(th, PatchOperation{
+	require.NoError(t, patchThreatInPlace(th, PatchOperation{
 		Op: string(Replace), Path: PatchPathName, Value: "renamed",
 	}))
 	assert.Equal(t, "renamed", th.Name)
@@ -320,4 +306,39 @@ func TestNotePatch_RemovedFlagsGetSchemaDefault(t *testing.T) {
 	if assert.NotNil(t, got.TimmyEnabled) {
 		assert.True(t, *got.TimmyEnabled)
 	}
+}
+
+// The in-place helpers adapt the pure apply*Patch functions to the
+// mutate-and-report shape these older tests assert on: the entity changes only
+// when the patch is accepted.
+func patchRepositoryInPlace(r *Repository, op PatchOperation) error {
+	got, err := applyRepositoryPatch(*r, []PatchOperation{op})
+	if err == nil {
+		*r = got
+	}
+	return err
+}
+
+func patchDocumentInPlace(d *Document, op PatchOperation) error {
+	got, err := applyDocumentPatch(*d, []PatchOperation{op})
+	if err == nil {
+		*d = got
+	}
+	return err
+}
+
+func patchAssetInPlace(a *Asset, op PatchOperation) error {
+	got, err := applyAssetPatch(*a, []PatchOperation{op})
+	if err == nil {
+		*a = got
+	}
+	return err
+}
+
+func patchThreatInPlace(th *Threat, op PatchOperation) error {
+	got, err := applyThreatPatch(*th, []PatchOperation{op})
+	if err == nil {
+		*th = got
+	}
+	return err
 }
