@@ -584,7 +584,7 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 }
 
 // Patch applies JSON patch operations to a repository
-// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON Patch operations to a repository and persist the result (reads DB)
+// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON Patch operations to a repository and persist the result (reads DB)
 func (s *GormRepositoryRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Repository, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching repository %s with %d operations", id, len(operations))
@@ -595,25 +595,15 @@ func (s *GormRepositoryRepository) Patch(ctx context.Context, id string, operati
 		return nil, err
 	}
 
-	// Apply patch operations
-	for _, op := range operations {
-		if err := s.applyPatchOperation(repository, op); err != nil {
-			logger.Error("Failed to apply patch operation %s to repository %s: %v", op.Op, id, err)
-			// A malformed or inapplicable JSON Patch is client input, so it
-			// must surface as 400, not 500 (#611). fmt.Errorf here produced an
-			// untyped error that StoreErrorToRequestError could only classify
-			// as a server fault — a `remove` on a path the document does not
-			// have returned "Failed to patch {kind}" with a 500. RequestError
-			// passes through StoreErrorToRequestError untouched, and matches
-			// the invalid_patch code ApplyPatchOperations already returns for
-			// the entities that go through it.
-			return nil, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    errcode.InvalidPatch,
-				Message: "Failed to apply patch: " + err.Error(),
-			}
-		}
+	// Apply the operations with the generic RFC 6902 applier (#1143). A
+	// malformed or inapplicable patch is client input and surfaces as a 400
+	// RequestError (#611).
+	patched, err := applyRepositoryPatch(*repository, operations)
+	if err != nil {
+		logger.Error("Failed to apply patch to repository %s: %v", id, err)
+		return nil, err
 	}
+	*repository = patched
 
 	// Get threat model ID for update
 	threatModelID, err := s.getRepositoryThreatModelID(ctx, id)
@@ -754,65 +744,62 @@ func (s *GormRepositoryRepository) updateMetadata(ctx context.Context, repositor
 	})
 }
 
-// applyPatchOperation applies a single patch operation to a repository
-// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: validate and apply a single JSON Patch operation to a repository's mutable fields (pure)
-func (s *GormRepositoryRepository) applyPatchOperation(repository *Repository, op PatchOperation) error {
-	switch op.Path {
-	case PatchPathName:
-		if op.Op == string(Replace) {
-			if name, ok := op.Value.(string); ok {
-				repository.Name = &name
-			} else {
-				return fmt.Errorf("invalid value type for name: expected string")
-			}
-		}
-	case PatchPathType:
-		if op.Op == string(Replace) {
-			if repoType, ok := op.Value.(string); ok {
-				// Re-checked here because Update() runs with SkipHooks, which
-				// disables Repository.BeforeSave and with it this enum check.
-				// Without it an off-enum type persists on both dialects.
-				if err := validation.ValidateRepositoryType(repoType); err != nil {
-					return err
-				}
-				rt := RepositoryType(repoType)
-				repository.Type = &rt
-			} else {
-				return fmt.Errorf("invalid value type for type: expected string")
-			}
-		}
-	case PatchPathURI:
-		if op.Op == string(Replace) {
-			if uri, ok := op.Value.(string); ok {
-				// Re-checked here for the same reason, and this one is a
-				// dialect-divergence bug rather than just bad data:
-				// ValidateURIPatchOperations deliberately skips empty strings,
-				// so `replace /uri ""` reaches the store. PostgreSQL stores ''
-				// in a NOT NULL text column; Oracle binds '' as NULL and raises
-				// ORA-01407. Rejecting it here keeps both dialects on 400.
-				if err := validation.ValidateURI("uri", uri); err != nil {
-					return err
-				}
-				repository.Uri = uri
-			} else {
-				return fmt.Errorf("invalid value type for uri: expected string")
-			}
-		}
-	case PatchPathDescription:
-		switch op.Op {
-		case string(Replace), string(Add):
-			if desc, ok := op.Value.(string); ok {
-				repository.Description = &desc
-			} else {
-				return fmt.Errorf("invalid value type for description: expected string")
-			}
-		case string(Remove):
-			repository.Description = nil
-		}
-	default:
-		return fmt.Errorf("unsupported patch path: %s", op.Path)
+// repositoryPatchablePaths are the repository fields a JSON Patch may change:
+// exactly the columns Update writes. Anything else (metadata, alias,
+// timestamps, ...) is rejected rather than silently dropped on save.
+var repositoryPatchablePaths = map[string]bool{
+	PatchPathName:        true,
+	PatchPathType:        true,
+	PatchPathURI:         true,
+	PatchPathDescription: true,
+	"/parameters":        true,
+	"/include_in_report": true,
+	"/timmy_enabled":     true,
+}
+
+// applyRepositoryPatch applies RFC 6902 operations to a repository via the
+// generic applier, then re-checks what the per-field code used to, because
+// Update runs with SkipHooks and so skips Repository.BeforeSave: the type must
+// be a valid enum value when set, parameters must be well-formed, and uri must be non-empty (NOT NULL column;
+// PostgreSQL stores ” but Oracle raises ORA-01407). Unset flags get the
+// schema default (true). Only the patchable fields are taken from the patched
+// value; every other field is kept from the loaded row. Errors are 400
+// RequestErrors.
+// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON Patch operations to a repository, keeping type valid, uri non-empty, flags defaulted and all other fields pinned (pure)
+func applyRepositoryPatch(repository Repository, operations []PatchOperation) (Repository, error) {
+	patched, err := applyEntityPatch(repository, operations, "repository", repositoryPatchablePaths, "repository_update")
+	if err != nil {
+		return Repository{}, err
 	}
-	return nil
+	if patched.Type != nil {
+		if err := validation.ValidateRepositoryType(string(*patched.Type)); err != nil {
+			return Repository{}, InvalidInputError(err.Error())
+		}
+	}
+	if err := validation.ValidateURI("uri", patched.Uri); err != nil {
+		return Repository{}, InvalidInputError(err.Error())
+	}
+	// parameters.refType is an enum the OpenAPI middleware checks on PUT but a
+	// patch value never passes through it, so check it here.
+	if patched.Parameters != nil {
+		if !patched.Parameters.RefType.Valid() {
+			return Repository{}, InvalidInputError(fmt.Sprintf("parameters.refType %q is not one of branch, commit, tag", patched.Parameters.RefType))
+		}
+		if err := validation.ValidateNonEmpty("parameters.refValue", patched.Parameters.RefValue); err != nil {
+			return Repository{}, InvalidInputError(err.Error())
+		}
+	}
+	result := repository
+	result.Name = patched.Name
+	result.Type = patched.Type
+	result.Uri = patched.Uri
+	result.Description = patched.Description
+	result.Parameters = patched.Parameters
+	result.IncludeInReport = patched.IncludeInReport
+	result.TimmyEnabled = patched.TimmyEnabled
+	defaultTrue(&result.IncludeInReport)
+	defaultTrue(&result.TimmyEnabled)
+	return result, nil
 }
 
 // getRepositoryThreatModelID retrieves the threat model ID for a repository

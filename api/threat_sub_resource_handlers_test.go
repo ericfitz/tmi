@@ -904,10 +904,18 @@ func TestBulkPatchThreats_ErrorClassification(t *testing.T) {
 		return body
 	}
 
+	// The bulk handler dry-runs each entry against the loaded threat before
+	// writing, so the mocked store must serve the threat it will patch.
+	existing := func() *Threat {
+		tmID := uuid.MustParse(threatModelID)
+		return &Threat{Name: "orig", ThreatType: []string{}, ThreatModelId: &tmID}
+	}
+
 	// A client error from the store must reach the client as that error, not
 	// as a server fault.
 	t.Run("client error from the store is not reported as 500", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
+		mockStore.On("Get", mock.Anything, threatID).Return(existing(), nil)
 		mockStore.On("Patch", mock.Anything, threatModelID, threatID, mock.Anything).
 			Return(nil, &RequestError{
 				Status:  http.StatusBadRequest,
@@ -933,6 +941,7 @@ func TestBulkPatchThreats_ErrorClassification(t *testing.T) {
 	// failure into a client error.
 	t.Run("untyped store failure is still 500", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
+		mockStore.On("Get", mock.Anything, threatID).Return(existing(), nil)
 		mockStore.On("Patch", mock.Anything, threatModelID, threatID, mock.Anything).
 			Return(nil, fmt.Errorf("connection reset by peer"))
 
