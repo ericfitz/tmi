@@ -184,7 +184,7 @@ func (s *GormNoteRepository) Get(ctx context.Context, id string) (*Note, error) 
 }
 
 // Update updates an existing note
-// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: update a note's fields, return stored timestamps, refresh cache (mutates DB, cache)
+// SEM@b06a99cfa0afc92abb27a2a404901c65dd60e896: update a note's fields, return stored timestamps, refresh cache (mutates DB, cache)
 func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
