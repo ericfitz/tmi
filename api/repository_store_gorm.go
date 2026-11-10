@@ -39,7 +39,7 @@ func NewGormRepositoryRepository(db *gorm.DB, cache *CacheService, invalidator *
 }
 
 // Create creates a new repository
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new repository under a threat model, allocating an alias and caching it (mutates DB, cache)
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: store a new repository under a threat model with alias and return stored timestamps (mutates DB, cache)
 func (s *GormRepositoryRepository) Create(ctx context.Context, repository *Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -204,7 +204,7 @@ func (s *GormRepositoryRepository) Get(ctx context.Context, id string) (*Reposit
 }
 
 // Update updates an existing repository
-// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: update a repository's fields and refresh its cache entry (mutates DB, cache)
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: update a repository's fields and return stored timestamps (mutates DB, cache)
 func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -517,7 +517,7 @@ func (s *GormRepositoryRepository) List(ctx context.Context, threatModelID strin
 }
 
 // BulkCreate creates multiple repositories in a single transaction
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store multiple repositories under a threat model in one retryable transaction (mutates DB)
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: store multiple repositories in one retryable transaction with stored timestamps (mutates DB)
 func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories []Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -603,7 +603,7 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 }
 
 // Patch applies JSON patch operations to a repository
-// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON Patch operations to a repository and persist the result (reads DB)
+// SEM@613ebe97f78c5077e359f82acf1e421339025693: apply JSON Patch operations to a resource, optionally CAS-guarded, and persist it (mutates DB)
 func (s *GormRepositoryRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Repository, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching repository %s with %d operations", id, len(operations))
@@ -784,7 +784,7 @@ var repositoryPatchablePaths = map[string]bool{
 // schema default (true). Only the patchable fields are taken from the patched
 // value; every other field is kept from the loaded row. Errors are 400
 // RequestErrors.
-// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON Patch operations to a repository, keeping type valid, uri non-empty, flags defaulted and all other fields pinned (pure)
+// SEM@613ebe97f78c5077e359f82acf1e421339025693: apply JSON Patch operations to a repository, keeping type valid, uri non-empty, flags defaulted and all other fields pinned (pure)
 func applyRepositoryPatch(repository Repository, operations []PatchOperation) (Repository, error) {
 	patched, err := applyEntityPatch(repository, operations, "repository", repositoryPatchablePaths, "repository_update")
 	if err != nil {

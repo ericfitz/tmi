@@ -35,7 +35,7 @@ func NewGormAssetRepository(db *gorm.DB, cache *CacheService, invalidator *Cache
 }
 
 // Create creates a new asset with write-through caching using GORM
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new asset under a threat model, allocate its alias, and warm the cache (mutates shared state)
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: store a new asset under a threat model with alias and return stored timestamps (mutates DB, cache)
 func (s *GormAssetRepository) Create(ctx context.Context, asset *Asset, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Creating asset: %s in threat model: %s", asset.Name, threatModelID)
@@ -461,7 +461,7 @@ func (s *GormAssetRepository) List(ctx context.Context, threatModelID string, of
 }
 
 // BulkCreate creates multiple assets in a single transaction using GORM
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store multiple assets in a single transaction with alias allocation and cache warming (mutates shared state)
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: store multiple assets in one transaction with aliases and stored timestamps (mutates DB, cache)
 func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk creating %d assets", len(assets))
@@ -558,7 +558,7 @@ func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, th
 
 // patch runs patch-operation application then the content write, CAS-guarded
 // first when expectedVersion is non-nil (#594).
-// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON patch operations to an asset, optionally CAS-guarded, and persist the result (mutates shared state)
+// SEM@613ebe97f78c5077e359f82acf1e421339025693: apply JSON Patch operations to a resource, optionally CAS-guarded, and persist it (mutates DB)
 func (s *GormAssetRepository) patch(ctx context.Context, id string, operations []PatchOperation, expectedVersion *int) (*Asset, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching asset %s with %d operations", id, len(operations))
@@ -629,7 +629,7 @@ var assetPatchablePaths = map[string]bool{
 // flags get the schema default (true). Only the patchable fields are taken
 // from the patched value; every other field is kept from the loaded row.
 // Errors are 400 RequestErrors.
-// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON Patch operations to an asset, keeping name and type valid, flags defaulted and all other fields pinned (pure)
+// SEM@613ebe97f78c5077e359f82acf1e421339025693: apply JSON Patch operations to an asset, keeping name and type valid, flags defaulted and all other fields pinned (pure)
 func applyAssetPatch(asset Asset, operations []PatchOperation) (Asset, error) {
 	patched, err := applyEntityPatch(asset, operations, "asset", assetPatchablePaths, "asset_update")
 	if err != nil {

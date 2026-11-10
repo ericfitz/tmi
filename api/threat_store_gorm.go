@@ -164,7 +164,7 @@ func (s *GormThreatRepository) Get(ctx context.Context, id string) (*Threat, err
 
 // update runs the threat content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: update threat fields and metadata, optionally CAS-guarded, in one transaction (reads DB)
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: update threat fields and metadata, optionally CAS-guarded, in one transaction (reads DB)
 func (s *GormThreatRepository) update(ctx context.Context, threat *Threat, expectedVersion *int) (int, error) {
 	logger := slogging.Get()
 	logger.Debug("Updating threat: %s", threat.Id)
@@ -698,7 +698,7 @@ func (s *GormThreatRepository) PatchWithVersion(ctx context.Context, threatModel
 
 // patch runs patch-operation application then the content write, CAS-guarded
 // first when expectedVersion is non-nil (#594).
-// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON patch operations to a threat, optionally CAS-guarded, and persist the result (mutates shared state)
+// SEM@613ebe97f78c5077e359f82acf1e421339025693: apply JSON patch operations to a threat, optionally CAS-guarded, and persist the result (mutates shared state)
 func (s *GormThreatRepository) patch(ctx context.Context, threatModelID string, id string, operations []PatchOperation, expectedVersion *int) (*Threat, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching threat %s with %d operations", id, len(operations))
@@ -773,7 +773,7 @@ var threatPatchablePaths = map[string]bool{
 // #614), metadata keys and values, and unset flags getting the schema default
 // (true). Identity and server-managed fields are re-pinned to the loaded row
 // as defense in depth. Errors are 400 RequestErrors.
-// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON Patch operations to a threat, keeping name non-empty, metadata valid, flags defaulted and identity fields pinned (pure)
+// SEM@613ebe97f78c5077e359f82acf1e421339025693: apply JSON Patch operations to a threat, keeping name non-empty, metadata valid, flags defaulted and identity fields pinned (pure)
 func applyThreatPatch(threat Threat, operations []PatchOperation) (Threat, error) {
 	patched, err := applyEntityPatch(threat, operations, "threat", threatPatchablePaths, "threat_update")
 	if err != nil {
@@ -912,7 +912,7 @@ func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat)
 }
 
 // BulkUpdate updates multiple threats in a single transaction using GORM
-// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: atomically update multiple threats and their metadata in one transaction (reads DB)
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: atomically update multiple threats and their metadata in one transaction (reads DB)
 func (s *GormThreatRepository) BulkUpdate(ctx context.Context, threats []Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk updating %d threats", len(threats))
@@ -1213,7 +1213,7 @@ func (s *GormThreatRepository) buildThreatUpdateMap(threat *Threat, now time.Tim
 
 // toGormModelForCreate converts an API Threat to a GORM model for CREATE operations.
 // Timestamps are set explicitly to ensure compatibility across all database backends.
-// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: convert an API threat to a GORM model for DB insert, canonicalizing legacy values (mutates input)
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: convert an API threat to a GORM model for DB insert, canonicalizing legacy values (mutates input)
 func (s *GormThreatRepository) toGormModelForCreate(threat *Threat) *models.Threat {
 	canonicalizeThreatValues(threat)
 	var id string

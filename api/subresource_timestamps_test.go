@@ -17,6 +17,7 @@ import (
 
 // setupSubResourceTimestampDB extends the note test DB with the tables the
 // repository, document and asset stores write.
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: build an in-memory test database with sub-resource tables migrated
 func setupSubResourceTimestampDB(t *testing.T) (*gorm.DB, string) {
 	t.Helper()
 	db, _, tm := setupNoteTestDB(t)
@@ -25,6 +26,7 @@ func setupSubResourceTimestampDB(t *testing.T) (*gorm.DB, string) {
 }
 
 // storedTimes reads the timestamps the database holds for one row.
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: fetch the created and modified timestamps a stored row holds (reads DB)
 func storedTimes(t *testing.T, db *gorm.DB, model any, id string) (time.Time, time.Time) {
 	t.Helper()
 	var row struct {
@@ -37,6 +39,7 @@ func storedTimes(t *testing.T, db *gorm.DB, model any, id string) (time.Time, ti
 }
 
 // backdate rewrites a row's timestamps so an update visibly moves modified_at.
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: update a stored row's timestamps to a past time in the DB (mutates DB)
 func backdate(t *testing.T, db *gorm.DB, model any, id string, at time.Time) {
 	t.Helper()
 	require.NoError(t, db.Model(model).Where("id = ?", id).
@@ -44,6 +47,7 @@ func backdate(t *testing.T, db *gorm.DB, model any, id string, at time.Time) {
 }
 
 // assertStoredTimes checks a returned entity's timestamps against the row.
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: validate that returned timestamps match those stored in the DB (reads DB)
 func assertStoredTimes(t *testing.T, db *gorm.DB, model any, id string, gotCreated, gotModified *time.Time) {
 	t.Helper()
 	created, modified := storedTimes(t, db, model, id)
@@ -57,6 +61,7 @@ func assertStoredTimes(t *testing.T, db *gorm.DB, model any, id string, gotCreat
 
 var tsOld = time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
 
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: test that repository create and update return the stored timestamps (reads DB)
 func TestGormRepositoryRepository_ReturnsStoredTimestamps(t *testing.T) {
 	ctx := context.Background()
 	newRepo := func(id uuid.UUID) *Repository {
@@ -96,6 +101,7 @@ func TestGormRepositoryRepository_ReturnsStoredTimestamps(t *testing.T) {
 	})
 }
 
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: test that document create and update return the stored timestamps (reads DB)
 func TestGormDocumentRepository_ReturnsStoredTimestamps(t *testing.T) {
 	ctx := context.Background()
 	newDoc := func(id uuid.UUID) *Document {
@@ -135,6 +141,7 @@ func TestGormDocumentRepository_ReturnsStoredTimestamps(t *testing.T) {
 	})
 }
 
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: test that asset create and update return the stored timestamps (reads DB)
 func TestGormAssetRepository_ReturnsStoredTimestamps(t *testing.T) {
 	ctx := context.Background()
 	newAsset := func(id uuid.UUID) *Asset {
