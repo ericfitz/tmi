@@ -710,6 +710,14 @@ func (s *GormRepositoryRepository) modelToAPI(model *models.Repository) *Reposit
 		TimmyEnabled:    &timmyEnabled,
 		Alias:           &alias,
 	}
+	// Timestamps, as the document and asset stores map them: without these
+	// every DB-served GET and list omitted created_at/modified_at (#1150).
+	if !model.CreatedAt.IsZero() {
+		repo.CreatedAt = &model.CreatedAt
+	}
+	if !model.ModifiedAt.IsZero() {
+		repo.ModifiedAt = &model.ModifiedAt
+	}
 
 	// Convert type
 	if model.Type.Valid {

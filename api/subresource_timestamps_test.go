@@ -90,6 +90,16 @@ func TestGormRepositoryRepository_ReturnsStoredTimestamps(t *testing.T) {
 		assertStoredTimes(t, db, &models.Repository{}, id.String(), update.CreatedAt, update.ModifiedAt)
 	})
 
+	t.Run("Get", func(t *testing.T) {
+		db, tm := setupSubResourceTimestampDB(t)
+		store := NewGormRepositoryRepository(db, nil, nil)
+		id := uuid.New()
+		require.NoError(t, store.Create(ctx, newRepo(id), tm))
+		got, err := store.Get(ctx, id.String())
+		require.NoError(t, err)
+		assertStoredTimes(t, db, &models.Repository{}, id.String(), got.CreatedAt, got.ModifiedAt)
+	})
+
 	t.Run("BulkCreate", func(t *testing.T) {
 		db, tm := setupSubResourceTimestampDB(t)
 		store := NewGormRepositoryRepository(db, nil, nil)
