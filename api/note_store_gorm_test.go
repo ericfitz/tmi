@@ -131,3 +131,22 @@ func TestGormNoteRepository_PatchReturnsNewModifiedAt(t *testing.T) {
 	require.NotNil(t, patched.ModifiedAt)
 	assert.True(t, modified.Equal(*patched.ModifiedAt), "modified_at: got %v, stored %v", *patched.ModifiedAt, modified)
 }
+
+// #1149: Create must return the timestamps it stored, at the resolution the
+// database keeps, so the response matches a later GET.
+func TestGormNoteRepository_CreateReturnsStoredTimestamps(t *testing.T) {
+	db, _, tm := setupNoteTestDB(t)
+	repo := NewGormNoteRepository(db, nil, nil)
+	ctx := context.Background()
+
+	noteID := uuid.New()
+	note := &Note{Id: &noteID, Name: "n", Content: "c"}
+	require.NoError(t, repo.Create(ctx, note, string(tm.ID)))
+
+	created, modified := storedNoteTimes(t, db, noteID.String())
+	require.NotNil(t, note.CreatedAt)
+	require.NotNil(t, note.ModifiedAt)
+	assert.True(t, created.Equal(*note.CreatedAt), "created_at: got %v, stored %v", *note.CreatedAt, created)
+	assert.True(t, modified.Equal(*note.ModifiedAt), "modified_at: got %v, stored %v", *note.ModifiedAt, modified)
+	assert.Zero(t, note.CreatedAt.Nanosecond()%1000, "created_at must carry microsecond resolution")
+}

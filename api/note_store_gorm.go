@@ -55,7 +55,9 @@ func (s *GormNoteRepository) Create(ctx context.Context, note *Note, threatModel
 		note.Id = &id
 	}
 
-	now := time.Now().UTC()
+	// Microseconds: the resolution TIMESTAMP(6) and timestamptz store, so the
+	// value mirrored onto the response matches a later GET (#1149).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	model := models.Note{
 		ID:            models.DBVarchar(note.Id.String()),
@@ -95,6 +97,8 @@ func (s *GormNoteRepository) Create(ctx context.Context, note *Note, threatModel
 		logger.Error("Failed to create note in database: %v", err)
 		return err
 	}
+	note.CreatedAt = &model.CreatedAt
+	note.ModifiedAt = &model.ModifiedAt
 
 	// Save metadata if present
 	if note.Metadata != nil && len(*note.Metadata) > 0 {

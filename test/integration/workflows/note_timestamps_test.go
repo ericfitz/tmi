@@ -9,7 +9,7 @@ import (
 	"github.com/ericfitz/tmi/test/integration/framework"
 )
 
-// TestNoteUpdateReturnsStoredTimestampsIntegration verifies that PUT and PATCH
+// TestNoteUpdateReturnsStoredTimestampsIntegration verifies that POST, PUT and PATCH
 // on a note return the created_at and modified_at the database holds, matching
 // a subsequent GET (#1149: the update response echoed the pre-update value).
 func TestNoteUpdateReturnsStoredTimestampsIntegration(t *testing.T) {
@@ -52,6 +52,18 @@ func TestNoteUpdateReturnsStoredTimestampsIntegration(t *testing.T) {
 	notePath := "/threat_models/" + tmID + "/notes/" + created["id"].(string)
 	createdAt := parseTimestamp(t, created, "created_at")
 	lastModified := parseTimestamp(t, created, "modified_at")
+
+	// The create response must carry what was stored (no sub-microsecond
+	// residue the database would round away).
+	resp, err = client.Do(framework.Request{Method: "GET", Path: notePath})
+	framework.AssertNoError(t, err, "GET after create failed")
+	framework.AssertStatusCode(t, resp, 200)
+	fetched := decodeObject(t, resp.Body)
+	for field, got := range map[string]time.Time{"created_at": createdAt, "modified_at": lastModified} {
+		if want := parseTimestamp(t, fetched, field); !got.Equal(want) {
+			t.Fatalf("POST: response %s %v, GET returns %v", field, got, want)
+		}
+	}
 
 	updates := []struct {
 		name string
