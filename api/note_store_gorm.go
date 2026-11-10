@@ -41,7 +41,7 @@ func NewGormNoteRepository(db *gorm.DB, cache *CacheService, invalidator *CacheI
 }
 
 // Create creates a new note
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new note under a threat model and cache it (mutates DB, cache)
+// SEM@2c1e041243340bff247d87a50cd3727a3e4e91e7: store a new note under a threat model, return stored timestamps, cache it (mutates DB, cache)
 func (s *GormNoteRepository) Create(ctx context.Context, note *Note, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -444,7 +444,7 @@ func (s *GormNoteRepository) List(ctx context.Context, threatModelID string, off
 
 // Patch applies JSON patch operations to a note, runs check on the result,
 // and persists it.
-// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: apply JSON patch operations to a note, validate the result with a caller check, and persist it (mutates shared state)
+// SEM@ee0ece1ee20c37f275761cfcb8382849a8d481d0: apply JSON patch operations to a note, validate the result with a caller check, and persist it (mutates shared state)
 func (s *GormNoteRepository) Patch(ctx context.Context, id string, operations []PatchOperation, check func(before, after *Note) error) (*Note, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching note %s with %d operations", id, len(operations))
@@ -607,7 +607,7 @@ const maxNoteNameLength = 256
 // NOT NULL, and Oracle binds an empty string as NULL (#614); name must also fit
 // its column. Removed or null flags get the schema default (true). Errors are
 // 400 RequestErrors.
-// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: apply JSON Patch operations to a note, restricted to persisted fields and keeping name and content non-empty, name within its column, and unset flags at their default (pure)
+// SEM@ee0ece1ee20c37f275761cfcb8382849a8d481d0: apply JSON Patch operations to a note, restricted to persisted fields and keeping name and content non-empty, name within its column, and unset flags at their default (pure)
 func applyNotePatch(note Note, operations []PatchOperation) (Note, error) {
 	for _, op := range operations {
 		var writes []string
@@ -659,7 +659,7 @@ func applyNotePatch(note Note, operations []PatchOperation) (Note, error) {
 
 // topLevelPatchPath returns the first segment of a JSON Pointer as a path
 // ("/metadata/0/value" -> "/metadata").
-// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: extract the top-level member of a JSON Pointer path (pure)
+// SEM@ee0ece1ee20c37f275761cfcb8382849a8d481d0: extract the top-level member of a JSON Pointer path (pure)
 func topLevelPatchPath(path string) string {
 	if i := strings.IndexByte(strings.TrimPrefix(path, "/"), '/'); i >= 0 {
 		return path[:i+1]
