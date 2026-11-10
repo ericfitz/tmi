@@ -184,7 +184,7 @@ func (s *GormNoteRepository) Get(ctx context.Context, id string) (*Note, error) 
 }
 
 // Update updates an existing note
-// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: update a note's fields and refresh its cache entry (mutates DB, cache)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: update a note's fields, return stored timestamps, refresh cache (mutates DB, cache)
 func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -224,6 +224,7 @@ func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModel
 		updates["timmy_enabled"] = models.DBBool(false)
 	}
 
+	var stored models.Note
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.Note{}).
 			Where("id = ? AND threat_model_id = ?", note.Id.String(), threatModelID).
@@ -240,6 +241,14 @@ func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModel
 		if result.RowsAffected == 0 {
 			return ErrNoteNotFound
 		}
+		// Read back the timestamps the row now holds. autoUpdateTime moves
+		// modified_at in the database only; the caller's struct keeps whatever
+		// it arrived with (nil on PUT, the pre-update value on PATCH), and that
+		// struct is both the response body and the cached copy (#1149).
+		if err := tx.Select("created_at", "modified_at").
+			First(&stored, "id = ?", note.Id.String()).Error; err != nil {
+			return dberrors.Classify(err)
+		}
 		return nil
 	})
 	if err != nil {
@@ -248,6 +257,8 @@ func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModel
 		}
 		return err
 	}
+	note.CreatedAt = &stored.CreatedAt
+	note.ModifiedAt = &stored.ModifiedAt
 
 	// Update metadata if present
 	if note.Metadata != nil {
