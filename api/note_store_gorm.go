@@ -41,7 +41,7 @@ func NewGormNoteRepository(db *gorm.DB, cache *CacheService, invalidator *CacheI
 }
 
 // Create creates a new note
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new note under a threat model and cache it (mutates DB, cache)
+// SEM@2c1e041243340bff247d87a50cd3727a3e4e91e7: store a new note under a threat model, return stored timestamps, cache it (mutates DB, cache)
 func (s *GormNoteRepository) Create(ctx context.Context, note *Note, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -55,7 +55,9 @@ func (s *GormNoteRepository) Create(ctx context.Context, note *Note, threatModel
 		note.Id = &id
 	}
 
-	now := time.Now().UTC()
+	// Microseconds: the resolution TIMESTAMP(6) and timestamptz store, so the
+	// value mirrored onto the response matches a later GET (#1149).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	model := models.Note{
 		ID:            models.DBVarchar(note.Id.String()),
@@ -95,6 +97,8 @@ func (s *GormNoteRepository) Create(ctx context.Context, note *Note, threatModel
 		logger.Error("Failed to create note in database: %v", err)
 		return err
 	}
+	note.CreatedAt = &model.CreatedAt
+	note.ModifiedAt = &model.ModifiedAt
 
 	// Save metadata if present
 	if note.Metadata != nil && len(*note.Metadata) > 0 {
@@ -184,7 +188,7 @@ func (s *GormNoteRepository) Get(ctx context.Context, id string) (*Note, error) 
 }
 
 // Update updates an existing note
-// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: update a note's fields and refresh its cache entry (mutates DB, cache)
+// SEM@b06a99cfa0afc92abb27a2a404901c65dd60e896: update a note's fields, return stored timestamps, refresh cache (mutates DB, cache)
 func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -224,6 +228,7 @@ func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModel
 		updates["timmy_enabled"] = models.DBBool(false)
 	}
 
+	var stored models.Note
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.Note{}).
 			Where("id = ? AND threat_model_id = ?", note.Id.String(), threatModelID).
@@ -240,6 +245,14 @@ func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModel
 		if result.RowsAffected == 0 {
 			return ErrNoteNotFound
 		}
+		// Read back the timestamps the row now holds. autoUpdateTime moves
+		// modified_at in the database only; the caller's struct keeps whatever
+		// it arrived with (nil on PUT, the pre-update value on PATCH), and that
+		// struct is both the response body and the cached copy (#1149).
+		if err := tx.Select("created_at", "modified_at").
+			First(&stored, "id = ?", note.Id.String()).Error; err != nil {
+			return dberrors.Classify(err)
+		}
 		return nil
 	})
 	if err != nil {
@@ -248,6 +261,8 @@ func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModel
 		}
 		return err
 	}
+	note.CreatedAt = &stored.CreatedAt
+	note.ModifiedAt = &stored.ModifiedAt
 
 	// Update metadata if present
 	if note.Metadata != nil {
@@ -429,7 +444,7 @@ func (s *GormNoteRepository) List(ctx context.Context, threatModelID string, off
 
 // Patch applies JSON patch operations to a note, runs check on the result,
 // and persists it.
-// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: apply JSON patch operations to a note, validate the result with a caller check, and persist it (mutates shared state)
+// SEM@ee0ece1ee20c37f275761cfcb8382849a8d481d0: apply JSON patch operations to a note, validate the result with a caller check, and persist it (mutates shared state)
 func (s *GormNoteRepository) Patch(ctx context.Context, id string, operations []PatchOperation, check func(before, after *Note) error) (*Note, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching note %s with %d operations", id, len(operations))
@@ -592,7 +607,7 @@ const maxNoteNameLength = 256
 // NOT NULL, and Oracle binds an empty string as NULL (#614); name must also fit
 // its column. Removed or null flags get the schema default (true). Errors are
 // 400 RequestErrors.
-// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: apply JSON Patch operations to a note, restricted to persisted fields and keeping name and content non-empty, name within its column, and unset flags at their default (pure)
+// SEM@ee0ece1ee20c37f275761cfcb8382849a8d481d0: apply JSON Patch operations to a note, restricted to persisted fields and keeping name and content non-empty, name within its column, and unset flags at their default (pure)
 func applyNotePatch(note Note, operations []PatchOperation) (Note, error) {
 	for _, op := range operations {
 		var writes []string
@@ -644,7 +659,7 @@ func applyNotePatch(note Note, operations []PatchOperation) (Note, error) {
 
 // topLevelPatchPath returns the first segment of a JSON Pointer as a path
 // ("/metadata/0/value" -> "/metadata").
-// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: extract the top-level member of a JSON Pointer path (pure)
+// SEM@ee0ece1ee20c37f275761cfcb8382849a8d481d0: extract the top-level member of a JSON Pointer path (pure)
 func topLevelPatchPath(path string) string {
 	if i := strings.IndexByte(strings.TrimPrefix(path, "/"), '/'); i >= 0 {
 		return path[:i+1]
