@@ -61,7 +61,7 @@ func assertStoredTimes(t *testing.T, db *gorm.DB, model any, id string, gotCreat
 
 var tsOld = time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
 
-// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: test that repository create and update return the stored timestamps (reads DB)
+// SEM@140f08d0fa45fdf16e0f8893f995f7ed65b8ec7d: test that repository create, update, get and bulk create return stored timestamps (reads DB)
 func TestGormRepositoryRepository_ReturnsStoredTimestamps(t *testing.T) {
 	ctx := context.Background()
 	newRepo := func(id uuid.UUID) *Repository {

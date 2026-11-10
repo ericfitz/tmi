@@ -694,7 +694,7 @@ func (s *GormRepositoryRepository) WarmCache(ctx context.Context, threatModelID 
 }
 
 // modelToAPI converts a GORM Repository model to the API Repository type
-// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: convert a GORM Repository model to its API DTO (pure)
+// SEM@140f08d0fa45fdf16e0f8893f995f7ed65b8ec7d: convert a GORM Repository model to its API DTO, including timestamps (pure)
 func (s *GormRepositoryRepository) modelToAPI(model *models.Repository) *Repository {
 	id, _ := uuid.Parse(string(model.ID))
 
