@@ -158,8 +158,8 @@ require (
 	github.com/uptrace/opentelemetry-go-extra/otelgorm v0.4.0 // indirect
 	github.com/uptrace/opentelemetry-go-extra/otelsql v0.4.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	github.com/xuri/efp v0.0.2 // indirect
-	github.com/xuri/excelize/v2 v2.11.1-0.20261011032807-402e3bdd9eae // indirect
+	github.com/xuri/efp v0.0.3-0.20260924042702-217b81952dec // indirect
+	github.com/xuri/excelize/v2 v2.11.1 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	github.com/yuin/goldmark v1.8.7 // indirect
 	github.com/yuin/gopher-lua v1.1.2 // indirect

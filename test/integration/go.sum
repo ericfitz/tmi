@@ -390,10 +390,10 @@ github.com/uptrace/opentelemetry-go-extra/otelsql v0.4.0 h1:ogBkT6xk6ruB2rPCQvJC
 github.com/uptrace/opentelemetry-go-extra/otelsql v0.4.0/go.mod h1:2W+3XKCmxD/+Yxh7NZbO/jTT007ODSOo9xhIWxO75r8=
 github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=
 github.com/x448/float16 v0.8.4/go.mod h1:14CWIYCyZA/cWjXOioeEpHeN/83MdbZDRQHoFcYsOfg=
-github.com/xuri/efp v0.0.2 h1:74yhBh0nfIWLOrN76wtShYVse94pADGYS0/c86jOp8Q=
-github.com/xuri/efp v0.0.2/go.mod h1:ybY/Jr0T0GTCnYjKqmdwxyxn2BQf2RcQIIvex5QldPI=
-github.com/xuri/excelize/v2 v2.11.1-0.20261011032807-402e3bdd9eae h1:Ns6fHJwwEvk0MhjEPNyA6YfzZupZHhPtGU26rGQfvnk=
-github.com/xuri/excelize/v2 v2.11.1-0.20261011032807-402e3bdd9eae/go.mod h1:d2KG/tW81cIhSeC3S7wENv3qRnOC3MDcrjDicKuZa6U=
+github.com/xuri/efp v0.0.3-0.20260924042702-217b81952dec h1:sZZokRLgr8nyrzkDDCQcvEYBsTrZr6eqXa/R9qALoQA=
+github.com/xuri/efp v0.0.3-0.20260924042702-217b81952dec/go.mod h1:ybY/Jr0T0GTCnYjKqmdwxyxn2BQf2RcQIIvex5QldPI=
+github.com/xuri/excelize/v2 v2.11.1 h1:tm/FVufArvfUiJXJtGv8jna/zZS1t9Uji2ImsnS9iBo=
+github.com/xuri/excelize/v2 v2.11.1/go.mod h1:NQLBThVu4BB7tYM8wJIBj2dZsptXbDW4WyrFlL8YLZQ=
 github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 h1:+C0TIdyyYmzadGaL/HBLbf3WdLgC29pgyhTjAT/0nuE=
 github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9/go.mod h1:WwHg+CVyzlv/TX9xqBFXEZAuxOPxn2k1GNHwG41IIUQ=
 github.com/yosida95/uritemplate/v3 v3.0.2 h1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zIM+UJPGz4=
