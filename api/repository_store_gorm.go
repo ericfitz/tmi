@@ -53,7 +53,9 @@ func (s *GormRepositoryRepository) Create(ctx context.Context, repository *Repos
 		repository.Id = &id
 	}
 
-	now := time.Now().UTC()
+	// Microseconds: the resolution TIMESTAMP(6) and timestamptz store, so the
+	// value mirrored onto the response matches a later GET (#1150).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	// Convert type to NullableDBVarchar
 	var repoType models.NullableDBVarchar
@@ -111,6 +113,8 @@ func (s *GormRepositoryRepository) Create(ctx context.Context, repository *Repos
 		logger.Error("Failed to create repository in database: %v", err)
 		return err
 	}
+	repository.CreatedAt = &model.CreatedAt
+	repository.ModifiedAt = &model.ModifiedAt
 
 	// Save metadata if present
 	if repository.Metadata != nil && len(*repository.Metadata) > 0 {
@@ -293,6 +297,7 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 	// so it carries no dialect risk, and it keeps GORM's schema — which the
 	// autoUpdateTime tag on modified_at depends on. Table() would silently
 	// stop that column updating.
+	var stored models.Repository
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Session(&gorm.Session{SkipHooks: true}).Model(&models.Repository{}).
 			Where("id = ? AND threat_model_id = ?", repository.Id.String(), threatModelID).
@@ -309,6 +314,14 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 		if result.RowsAffected == 0 {
 			return ErrRepositoryNotFound
 		}
+		// Read back the timestamps the row now holds: the caller's struct has
+		// no created_at (nil on PUT), and it is both the response body and the
+		// cached copy (#1150). A plain tx (no SkipHooks session) with a
+		// two-column Select, as in the note and asset stores.
+		if err := tx.Select("created_at", "modified_at").
+			First(&stored, "id = ?", repository.Id.String()).Error; err != nil {
+			return dberrors.Classify(err)
+		}
 		return nil
 	})
 	if err != nil {
@@ -318,11 +331,12 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 		return err
 	}
 
-	// Mirror the new timestamp onto the struct before it is cached. Without
-	// this the row advances while the cached copy keeps the caller-supplied
-	// (older) value, so a cache-served GET reports a modified_at behind the
-	// database — a divergence that did not exist while the column was frozen.
-	repository.ModifiedAt = &now
+	// Mirror the stored timestamps onto the struct before it is cached.
+	// Without this the row advances while the cached copy keeps the
+	// caller-supplied values, so a cache-served GET reports a missing
+	// created_at or a modified_at behind the database.
+	repository.CreatedAt = &stored.CreatedAt
+	repository.ModifiedAt = &stored.ModifiedAt
 
 	// Update metadata if present
 	if repository.Metadata != nil {
@@ -515,7 +529,9 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 		return nil
 	}
 
-	now := time.Now().UTC()
+	// Microseconds: the resolution TIMESTAMP(6) and timestamptz store, so the
+	// value mirrored onto the response matches a later GET (#1150).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
@@ -575,8 +591,11 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 				logger.Error("Failed to bulk create repository %d: %v", i, err)
 				return dberrors.Classify(err)
 			}
-			// Mirror the allocated alias back into the API-level slice.
+			// Mirror the allocated alias and stored timestamps back into the
+			// API-level slice.
 			repository.Alias = &alias
+			repository.CreatedAt = &model.CreatedAt
+			repository.ModifiedAt = &model.ModifiedAt
 		}
 
 		return nil

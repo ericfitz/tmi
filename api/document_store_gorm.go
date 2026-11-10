@@ -53,7 +53,9 @@ func (s *GormDocumentRepository) Create(ctx context.Context, document *Document,
 		document.Id = &id
 	}
 
-	now := time.Now().UTC()
+	// Microseconds: the resolution TIMESTAMP(6) and timestamptz store, so the
+	// value mirrored onto the response matches a later GET (#1150).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	model := models.Document{
 		ID:            models.DBVarchar(document.Id.String()),
@@ -259,6 +261,7 @@ func (s *GormDocumentRepository) update(ctx context.Context, document *Document,
 	// Skip hooks to avoid validation errors on empty model struct.
 	// Document fields are already validated via OpenAPI middleware before reaching here.
 	var newVersion int
+	var stored models.Document
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if expectedVersion != nil {
 			v, casErr := CheckAndBumpVersion(ctx, tx, models.Document{}.TableName(), document.Id.String(), *expectedVersion)
@@ -283,6 +286,14 @@ func (s *GormDocumentRepository) update(ctx context.Context, document *Document,
 		if result.RowsAffected == 0 {
 			return ErrDocumentNotFound
 		}
+		// Read back the timestamps the row now holds: the caller's struct has
+		// no created_at (nil on PUT), and it is both the response body and the
+		// cached copy (#1150). A plain tx (no SkipHooks session) with a
+		// two-column Select, as in the note and asset stores.
+		if err := tx.Select("created_at", "modified_at").
+			First(&stored, "id = ?", document.Id.String()).Error; err != nil {
+			return dberrors.Classify(err)
+		}
 		return nil
 	})
 	if err != nil {
@@ -292,9 +303,10 @@ func (s *GormDocumentRepository) update(ctx context.Context, document *Document,
 		return 0, err
 	}
 
-	// Mirror the new timestamp onto the struct before it is cached — see the
-	// matching note in repository_store_gorm.go.
-	document.ModifiedAt = &now
+	// Mirror the stored timestamps onto the struct before it is cached — see
+	// the matching note in repository_store_gorm.go.
+	document.CreatedAt = &stored.CreatedAt
+	document.ModifiedAt = &stored.ModifiedAt
 
 	// Update metadata if present
 	if document.Metadata != nil {
@@ -524,7 +536,9 @@ func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Doc
 		return nil
 	}
 
-	now := time.Now().UTC()
+	// Microseconds: the resolution TIMESTAMP(6) and timestamptz store, so the
+	// value mirrored onto the response matches a later GET (#1150).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
@@ -563,8 +577,11 @@ func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Doc
 				logger.Error("Failed to bulk create document %d: %v", i, err)
 				return dberrors.Classify(err)
 			}
-			// Mirror the allocated alias back into the API-level slice.
+			// Mirror the allocated alias and stored timestamps back into the
+			// API-level slice (#1150).
 			document.Alias = &alias
+			document.CreatedAt = &model.CreatedAt
+			document.ModifiedAt = &model.ModifiedAt
 		}
 
 		return nil

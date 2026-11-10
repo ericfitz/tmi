@@ -177,7 +177,8 @@ func (s *GormThreatRepository) update(ctx context.Context, threat *Threat, expec
 	}
 
 	// Update modified timestamp
-	now := time.Now().UTC()
+	// Microseconds: the stored resolution, so the mirrored value matches a later GET (#1150).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	threat.ModifiedAt = &now
 
 	// Build update map with ALL fields included unconditionally.
@@ -920,7 +921,8 @@ func (s *GormThreatRepository) BulkUpdate(ctx context.Context, threats []Threat)
 		return nil
 	}
 
-	now := time.Now().UTC()
+	// Microseconds: the stored resolution, so the mirrored value matches a later GET (#1150).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	var parentThreatModelID string
 
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
@@ -1224,7 +1226,8 @@ func (s *GormThreatRepository) toGormModelForCreate(threat *Threat) *models.Thre
 	}
 
 	// Set timestamps explicitly to avoid Oracle RETURNING INTO clause issues
-	now := time.Now().UTC()
+	// Microseconds: the stored resolution, so the mirrored value matches a later GET (#1150).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	gm := &models.Threat{
 		ID:            models.DBVarchar(id),

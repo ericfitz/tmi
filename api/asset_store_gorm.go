@@ -53,7 +53,9 @@ func (s *GormAssetRepository) Create(ctx context.Context, asset *Asset, threatMo
 	}
 
 	// Set timestamps
-	now := time.Now().UTC()
+	// Microseconds: the resolution TIMESTAMP(6) and timestamptz store, so the
+	// value mirrored onto the response matches a later GET (#1150).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	// Convert to GORM model
 	gormAsset := s.toGormModel(asset, threatModelID)
@@ -474,7 +476,9 @@ func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, th
 		return fmt.Errorf("invalid threat model ID: %w", err)
 	}
 
-	now := time.Now().UTC()
+	// Microseconds: the resolution TIMESTAMP(6) and timestamptz store, so the
+	// value mirrored onto the response matches a later GET (#1150).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	gormAssets := make([]models.Asset, 0, len(assets))
 
 	for i := range assets {
@@ -507,10 +511,13 @@ func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, th
 		if err := tx.Create(&gormAssets).Error; err != nil {
 			return dberrors.Classify(err)
 		}
-		// Mirror the allocated aliases back into the API-level slice.
+		// Mirror the allocated aliases and stored timestamps back into the
+		// API-level slice (#1150).
 		for i := range assets {
 			alias := gormAssets[i].Alias
 			assets[i].Alias = &alias
+			assets[i].CreatedAt = &gormAssets[i].CreatedAt
+			assets[i].ModifiedAt = &gormAssets[i].ModifiedAt
 		}
 		return nil
 	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})

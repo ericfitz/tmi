@@ -31,7 +31,8 @@ func (s *GormTriageNoteStore) Create(ctx context.Context, note *TriageNote, surv
 	logger := slogging.Get()
 	logger.Debug("Creating triage note in survey response: %s", surveyResponseID)
 
-	now := time.Now().UTC()
+	// Microseconds: the stored resolution, so the mirrored value matches a later GET (#1150).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	model := models.TriageNote{
 		SurveyResponseID:       models.DBVarchar(surveyResponseID),
