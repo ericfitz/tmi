@@ -16,11 +16,17 @@ import (
 )
 
 // setupNoteTestDB creates an in-memory SQLite DB with all tables needed for NoteRepository tests.
+// SEM@5cad12a346cfa1d9fe080a6273953ebc72bfb2e3: build an in-memory test database with a nanosecond clock, user and threat model
 func setupNoteTestDB(t *testing.T) (*gorm.DB, *models.User, *models.ThreatModel) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
 		Logger:                                   gormlogger.Discard,
 		DisableForeignKeyConstraintWhenMigrating: true,
+		// Linux clocks carry nanoseconds, macOS clocks stop at microseconds;
+		// that hid an untruncated GORM-generated timestamp locally while CI
+		// failed (#1150). Force sub-microsecond digits so any write path that
+		// leans on autoCreateTime/autoUpdateTime fails on every OS.
+		NowFunc: func() time.Time { return time.Now().UTC().Add(761 * time.Nanosecond) },
 	})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(
@@ -51,6 +57,7 @@ func setupNoteTestDB(t *testing.T) (*gorm.DB, *models.User, *models.ThreatModel)
 	return db, user, tm
 }
 
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: test that note create assigns a sequential alias (reads DB)
 func TestGormNoteRepository_CreateAssignsAlias(t *testing.T) {
 	db, _, tm := setupNoteTestDB(t)
 	repo := NewGormNoteRepository(db, nil, nil)
@@ -73,6 +80,7 @@ func TestGormNoteRepository_CreateAssignsAlias(t *testing.T) {
 
 // backdateNote forces a note's stored timestamps into the past so a later
 // update must visibly move modified_at.
+// SEM@a9e499e2bd22a8433aac683d21880ad31f077e38: update a stored note's timestamps to a past time in the DB (mutates DB)
 func backdateNote(t *testing.T, db *gorm.DB, noteID string, at time.Time) {
 	t.Helper()
 	require.NoError(t, db.Model(&models.Note{}).Where("id = ?", noteID).
@@ -80,6 +88,7 @@ func backdateNote(t *testing.T, db *gorm.DB, noteID string, at time.Time) {
 }
 
 // storedNoteTimes reads the timestamps the database holds for a note.
+// SEM@a9e499e2bd22a8433aac683d21880ad31f077e38: fetch the created and modified timestamps a stored note holds (reads DB)
 func storedNoteTimes(t *testing.T, db *gorm.DB, noteID string) (time.Time, time.Time) {
 	t.Helper()
 	var row models.Note
@@ -89,6 +98,7 @@ func storedNoteTimes(t *testing.T, db *gorm.DB, noteID string) (time.Time, time.
 
 // #1149: a PUT-style update (timestamps absent from the body) must return the
 // stored created_at and the new modified_at.
+// SEM@a9e499e2bd22a8433aac683d21880ad31f077e38: test that note update returns the stored timestamps (reads DB)
 func TestGormNoteRepository_UpdateReturnsStoredTimestamps(t *testing.T) {
 	db, _, tm := setupNoteTestDB(t)
 	repo := NewGormNoteRepository(db, nil, nil)
@@ -112,6 +122,7 @@ func TestGormNoteRepository_UpdateReturnsStoredTimestamps(t *testing.T) {
 
 // #1149: a PATCH returns the note loaded before the write; its modified_at
 // must be the new stored value, not the pre-update one.
+// SEM@a9e499e2bd22a8433aac683d21880ad31f077e38: test that note patch returns the newly stored modified_at (reads DB)
 func TestGormNoteRepository_PatchReturnsNewModifiedAt(t *testing.T) {
 	db, _, tm := setupNoteTestDB(t)
 	repo := NewGormNoteRepository(db, nil, nil)
@@ -134,6 +145,7 @@ func TestGormNoteRepository_PatchReturnsNewModifiedAt(t *testing.T) {
 
 // #1149: Create must return the timestamps it stored, at the resolution the
 // database keeps, so the response matches a later GET.
+// SEM@a9e499e2bd22a8433aac683d21880ad31f077e38: test that note create returns microsecond-resolution stored timestamps (reads DB)
 func TestGormNoteRepository_CreateReturnsStoredTimestamps(t *testing.T) {
 	db, _, tm := setupNoteTestDB(t)
 	repo := NewGormNoteRepository(db, nil, nil)

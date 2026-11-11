@@ -39,7 +39,7 @@ func NewGormRepositoryRepository(db *gorm.DB, cache *CacheService, invalidator *
 }
 
 // Create creates a new repository
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new repository under a threat model, allocating an alias and caching it (mutates DB, cache)
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: store a new repository under a threat model with alias and return stored timestamps (mutates DB, cache)
 func (s *GormRepositoryRepository) Create(ctx context.Context, repository *Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -53,7 +53,9 @@ func (s *GormRepositoryRepository) Create(ctx context.Context, repository *Repos
 		repository.Id = &id
 	}
 
-	now := time.Now().UTC()
+	// Microseconds: the resolution TIMESTAMP(6) and timestamptz store, so the
+	// value mirrored onto the response matches a later GET (#1150).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	// Convert type to NullableDBVarchar
 	var repoType models.NullableDBVarchar
@@ -111,6 +113,8 @@ func (s *GormRepositoryRepository) Create(ctx context.Context, repository *Repos
 		logger.Error("Failed to create repository in database: %v", err)
 		return err
 	}
+	repository.CreatedAt = &model.CreatedAt
+	repository.ModifiedAt = &model.ModifiedAt
 
 	// Save metadata if present
 	if repository.Metadata != nil && len(*repository.Metadata) > 0 {
@@ -200,7 +204,7 @@ func (s *GormRepositoryRepository) Get(ctx context.Context, id string) (*Reposit
 }
 
 // Update updates an existing repository
-// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: update a repository's fields and refresh its cache entry (mutates DB, cache)
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: update a repository's fields and return stored timestamps (mutates DB, cache)
 func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -293,6 +297,7 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 	// so it carries no dialect risk, and it keeps GORM's schema — which the
 	// autoUpdateTime tag on modified_at depends on. Table() would silently
 	// stop that column updating.
+	var stored models.Repository
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Session(&gorm.Session{SkipHooks: true}).Model(&models.Repository{}).
 			Where("id = ? AND threat_model_id = ?", repository.Id.String(), threatModelID).
@@ -309,6 +314,14 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 		if result.RowsAffected == 0 {
 			return ErrRepositoryNotFound
 		}
+		// Read back the timestamps the row now holds: the caller's struct has
+		// no created_at (nil on PUT), and it is both the response body and the
+		// cached copy (#1150). A plain tx (no SkipHooks session) with a
+		// two-column Select, as in the note and asset stores.
+		if err := tx.Select("created_at", "modified_at").
+			First(&stored, "id = ?", repository.Id.String()).Error; err != nil {
+			return dberrors.Classify(err)
+		}
 		return nil
 	})
 	if err != nil {
@@ -318,11 +331,12 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 		return err
 	}
 
-	// Mirror the new timestamp onto the struct before it is cached. Without
-	// this the row advances while the cached copy keeps the caller-supplied
-	// (older) value, so a cache-served GET reports a modified_at behind the
-	// database — a divergence that did not exist while the column was frozen.
-	repository.ModifiedAt = &now
+	// Mirror the stored timestamps onto the struct before it is cached.
+	// Without this the row advances while the cached copy keeps the
+	// caller-supplied values, so a cache-served GET reports a missing
+	// created_at or a modified_at behind the database.
+	repository.CreatedAt = &stored.CreatedAt
+	repository.ModifiedAt = &stored.ModifiedAt
 
 	// Update metadata if present
 	if repository.Metadata != nil {
@@ -503,7 +517,7 @@ func (s *GormRepositoryRepository) List(ctx context.Context, threatModelID strin
 }
 
 // BulkCreate creates multiple repositories in a single transaction
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store multiple repositories under a threat model in one retryable transaction (mutates DB)
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: store multiple repositories in one retryable transaction with stored timestamps (mutates DB)
 func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories []Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -515,7 +529,9 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 		return nil
 	}
 
-	now := time.Now().UTC()
+	// Microseconds: the resolution TIMESTAMP(6) and timestamptz store, so the
+	// value mirrored onto the response matches a later GET (#1150).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
@@ -575,8 +591,11 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 				logger.Error("Failed to bulk create repository %d: %v", i, err)
 				return dberrors.Classify(err)
 			}
-			// Mirror the allocated alias back into the API-level slice.
+			// Mirror the allocated alias and stored timestamps back into the
+			// API-level slice.
 			repository.Alias = &alias
+			repository.CreatedAt = &model.CreatedAt
+			repository.ModifiedAt = &model.ModifiedAt
 		}
 
 		return nil
@@ -584,7 +603,7 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 }
 
 // Patch applies JSON patch operations to a repository
-// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON Patch operations to a repository and persist the result (reads DB)
+// SEM@613ebe97f78c5077e359f82acf1e421339025693: apply JSON Patch operations to a resource, optionally CAS-guarded, and persist it (mutates DB)
 func (s *GormRepositoryRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Repository, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching repository %s with %d operations", id, len(operations))
@@ -675,7 +694,7 @@ func (s *GormRepositoryRepository) WarmCache(ctx context.Context, threatModelID 
 }
 
 // modelToAPI converts a GORM Repository model to the API Repository type
-// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: convert a GORM Repository model to its API DTO (pure)
+// SEM@140f08d0fa45fdf16e0f8893f995f7ed65b8ec7d: convert a GORM Repository model to its API DTO, including timestamps (pure)
 func (s *GormRepositoryRepository) modelToAPI(model *models.Repository) *Repository {
 	id, _ := uuid.Parse(string(model.ID))
 
@@ -690,6 +709,14 @@ func (s *GormRepositoryRepository) modelToAPI(model *models.Repository) *Reposit
 		IncludeInReport: &includeInReport,
 		TimmyEnabled:    &timmyEnabled,
 		Alias:           &alias,
+	}
+	// Timestamps, as the document and asset stores map them: without these
+	// every DB-served GET and list omitted created_at/modified_at (#1150).
+	if !model.CreatedAt.IsZero() {
+		repo.CreatedAt = &model.CreatedAt
+	}
+	if !model.ModifiedAt.IsZero() {
+		repo.ModifiedAt = &model.ModifiedAt
 	}
 
 	// Convert type
@@ -765,7 +792,7 @@ var repositoryPatchablePaths = map[string]bool{
 // schema default (true). Only the patchable fields are taken from the patched
 // value; every other field is kept from the loaded row. Errors are 400
 // RequestErrors.
-// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON Patch operations to a repository, keeping type valid, uri non-empty, flags defaulted and all other fields pinned (pure)
+// SEM@613ebe97f78c5077e359f82acf1e421339025693: apply JSON Patch operations to a repository, keeping type valid, uri non-empty, flags defaulted and all other fields pinned (pure)
 func applyRepositoryPatch(repository Repository, operations []PatchOperation) (Repository, error) {
 	patched, err := applyEntityPatch(repository, operations, "repository", repositoryPatchablePaths, "repository_update")
 	if err != nil {

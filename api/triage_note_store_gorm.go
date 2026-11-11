@@ -26,12 +26,13 @@ func NewGormTriageNoteStore(db *gorm.DB) *GormTriageNoteStore {
 }
 
 // Create creates a new triage note with an auto-assigned sequential ID
-// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: store a new triage note with sequential ID and creator fields (writes DB)
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: store a new triage note with sequential ID and creator fields (writes DB)
 func (s *GormTriageNoteStore) Create(ctx context.Context, note *TriageNote, surveyResponseID string, creatorInternalUUID string) error {
 	logger := slogging.Get()
 	logger.Debug("Creating triage note in survey response: %s", surveyResponseID)
 
-	now := time.Now().UTC()
+	// Microseconds: the stored resolution, so the mirrored value matches a later GET (#1150).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	model := models.TriageNote{
 		SurveyResponseID:       models.DBVarchar(surveyResponseID),

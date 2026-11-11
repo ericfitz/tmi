@@ -35,7 +35,7 @@ func NewGormAssetRepository(db *gorm.DB, cache *CacheService, invalidator *Cache
 }
 
 // Create creates a new asset with write-through caching using GORM
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new asset under a threat model, allocate its alias, and warm the cache (mutates shared state)
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: store a new asset under a threat model with alias and return stored timestamps (mutates DB, cache)
 func (s *GormAssetRepository) Create(ctx context.Context, asset *Asset, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Creating asset: %s in threat model: %s", asset.Name, threatModelID)
@@ -53,7 +53,9 @@ func (s *GormAssetRepository) Create(ctx context.Context, asset *Asset, threatMo
 	}
 
 	// Set timestamps
-	now := time.Now().UTC()
+	// Microseconds: the resolution TIMESTAMP(6) and timestamptz store, so the
+	// value mirrored onto the response matches a later GET (#1150).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	// Convert to GORM model
 	gormAsset := s.toGormModel(asset, threatModelID)
@@ -172,7 +174,7 @@ func (s *GormAssetRepository) Get(ctx context.Context, id string) (*Asset, error
 
 // update runs the asset content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update asset fields and cache, optionally CAS-guarded, in one transaction (reads DB)
+// SEM@5cad12a346cfa1d9fe080a6273953ebc72bfb2e3: update an asset's fields with an explicit truncated modified_at, refresh cache (mutates DB)
 func (s *GormAssetRepository) update(ctx context.Context, asset *Asset, threatModelID string, expectedVersion *int) (int, error) {
 	logger := slogging.Get()
 	logger.Debug("Updating asset: %s", asset.Id)
@@ -184,7 +186,6 @@ func (s *GormAssetRepository) update(ctx context.Context, asset *Asset, threatMo
 	}
 
 	// Build update map with ALL fields unconditionally so nil values write NULL
-	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	var classificationValue any
 	if asset.Classification != nil {
 		classificationValue = models.StringArray(*asset.Classification)
@@ -206,7 +207,22 @@ func (s *GormAssetRepository) update(ctx context.Context, asset *Asset, threatMo
 	// constructor so Value() gets a chance to normalize empty string to NULL
 	// (#700); a raw *string in the map bypasses the Valuer and would persist
 	// "" verbatim.
+	//
+	// modified_at is set explicitly, truncated to microseconds (the resolution
+	// TIMESTAMP(6) and timestamptz store; see repository_store_gorm.go), rather
+	// than left to the autoUpdateTime tag: GORM's NowFunc carries nanoseconds
+	// on Linux, so the value it mirrors back would not match the next read
+	// (#1150).
+	//
+	// The key is the Go field name "ModifiedAt", NOT "modified_at": this
+	// Updates runs with hooks enabled, and the autoUpdateTime injector skips a
+	// field only when the map holds value[field.Name] or value[field.DBName].
+	// DBName is "MODIFIED_AT" on Oracle, so a lowercase key would match
+	// neither and GORM would append a second assignment (ORA-00957), while
+	// PostgreSQL stayed green. LookUpField resolves "ModifiedAt" by field name
+	// and the emitted SQL uses DBName on every dialect.
 	updates := map[string]any{
+		"ModifiedAt":        time.Now().UTC().Truncate(time.Microsecond),
 		"name":              asset.Name,
 		"type":              string(asset.Type),
 		"description":       models.NewNullableDBText(asset.Description),
@@ -459,7 +475,7 @@ func (s *GormAssetRepository) List(ctx context.Context, threatModelID string, of
 }
 
 // BulkCreate creates multiple assets in a single transaction using GORM
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store multiple assets in a single transaction with alias allocation and cache warming (mutates shared state)
+// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: store multiple assets in one transaction with aliases and stored timestamps (mutates DB, cache)
 func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk creating %d assets", len(assets))
@@ -474,7 +490,9 @@ func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, th
 		return fmt.Errorf("invalid threat model ID: %w", err)
 	}
 
-	now := time.Now().UTC()
+	// Microseconds: the resolution TIMESTAMP(6) and timestamptz store, so the
+	// value mirrored onto the response matches a later GET (#1150).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	gormAssets := make([]models.Asset, 0, len(assets))
 
 	for i := range assets {
@@ -507,10 +525,13 @@ func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, th
 		if err := tx.Create(&gormAssets).Error; err != nil {
 			return dberrors.Classify(err)
 		}
-		// Mirror the allocated aliases back into the API-level slice.
+		// Mirror the allocated aliases and stored timestamps back into the
+		// API-level slice (#1150).
 		for i := range assets {
 			alias := gormAssets[i].Alias
 			assets[i].Alias = &alias
+			assets[i].CreatedAt = &gormAssets[i].CreatedAt
+			assets[i].ModifiedAt = &gormAssets[i].ModifiedAt
 		}
 		return nil
 	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
@@ -551,7 +572,7 @@ func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, th
 
 // patch runs patch-operation application then the content write, CAS-guarded
 // first when expectedVersion is non-nil (#594).
-// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON patch operations to an asset, optionally CAS-guarded, and persist the result (mutates shared state)
+// SEM@613ebe97f78c5077e359f82acf1e421339025693: apply JSON Patch operations to a resource, optionally CAS-guarded, and persist it (mutates DB)
 func (s *GormAssetRepository) patch(ctx context.Context, id string, operations []PatchOperation, expectedVersion *int) (*Asset, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching asset %s with %d operations", id, len(operations))
@@ -622,7 +643,7 @@ var assetPatchablePaths = map[string]bool{
 // flags get the schema default (true). Only the patchable fields are taken
 // from the patched value; every other field is kept from the loaded row.
 // Errors are 400 RequestErrors.
-// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: apply JSON Patch operations to an asset, keeping name and type valid, flags defaulted and all other fields pinned (pure)
+// SEM@613ebe97f78c5077e359f82acf1e421339025693: apply JSON Patch operations to an asset, keeping name and type valid, flags defaulted and all other fields pinned (pure)
 func applyAssetPatch(asset Asset, operations []PatchOperation) (Asset, error) {
 	patched, err := applyEntityPatch(asset, operations, "asset", assetPatchablePaths, "asset_update")
 	if err != nil {
