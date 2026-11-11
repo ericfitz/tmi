@@ -17,11 +17,11 @@ Flags:
 import argparse
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from tmi_common import (  # noqa: E402
+from tmi_common import (
     add_verbosity_args,
     apply_verbosity,
     format_version,
@@ -152,6 +152,7 @@ def source_oci_env(project_root: Path) -> dict:
         ["/bin/bash", "-c", f'. "{oci_env}" && env'],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         log_error(f"Failed to source scripts/oci-env.sh: {result.stderr.strip()}")
@@ -230,7 +231,7 @@ def main() -> None:
     if cfg["ldflags"]:
         version = read_version()
         commit = get_git_commit(project_root)
-        build_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        build_date = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         ldflags_prefix = str(cfg.get("ldflags_prefix", "github.com/ericfitz/tmi/api"))
         ldflags = build_ldflags(version, commit, build_date, prefix=ldflags_prefix)
         log_info(f"Version: {format_version(version)}, commit: {commit}, date: {build_date}")

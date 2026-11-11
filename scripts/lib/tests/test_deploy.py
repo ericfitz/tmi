@@ -8,9 +8,8 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import deploy  # noqa: E402
-import cluster  # noqa: E402
-
+import cluster
+import deploy
 
 _patcher = None
 
@@ -451,9 +450,9 @@ class TestActiveContextPinning(_ActiveContextTestCase):
             deploy.set_active_context("kind")
 
     def test_pin_ambient_context_fails_loudly_with_no_context(self):
-        with mock.patch.object(deploy, "current_kube_context", return_value=""):
-            with self.assertRaises(RuntimeError):
-                deploy.pin_ambient_context()
+        with mock.patch.object(deploy, "current_kube_context", return_value=""), \
+             self.assertRaises(RuntimeError):
+            deploy.pin_ambient_context()
 
     def test_pin_ambient_context_pins_whatever_is_current(self):
         with mock.patch.object(deploy, "current_kube_context", return_value="some-ambient-ctx"):
@@ -647,9 +646,9 @@ class TestImportImageToNode(unittest.TestCase):
             raise FileNotFoundError("docker exec not found")
         popen_side_effect.calls = 0
 
-        with mock.patch.object(deploy.subprocess, "Popen", side_effect=popen_side_effect):
-            with self.assertRaises(FileNotFoundError):
-                deploy.import_image_to_node("tmi-server:dev", "desktop-control-plane")
+        with mock.patch.object(deploy.subprocess, "Popen", side_effect=popen_side_effect), \
+             self.assertRaises(FileNotFoundError):
+            deploy.import_image_to_node("tmi-server:dev", "desktop-control-plane")
 
         saver.stdout.close.assert_called_once()   # pipe read end released
         saver.kill.assert_called_once()           # saver stopped, can't block
@@ -719,9 +718,9 @@ class TestReusePreinstalledPlatform(unittest.TestCase):
     def test_webhook_outside_cert_manager_namespace_fails_fast(self):
         with mock.patch.object(deploy, "get_project_root", return_value=_REPO_ROOT), \
              mock.patch.object(deploy, "_find_cert_manager_webhook", return_value=("kube-system", "wh")), \
-             mock.patch.object(deploy, "kubectl") as k:
-            with self.assertRaises(SystemExit):
-                deploy.apply_platform_base()
+             mock.patch.object(deploy, "kubectl") as k, \
+             self.assertRaises(SystemExit):
+            deploy.apply_platform_base()
         k.assert_not_called()
 
 
@@ -789,7 +788,7 @@ class TestSeedTmiSecretKeys(unittest.TestCase):
                 key = args[-1].split(".data.")[1].rstrip("}")
                 return mock.Mock(returncode=0, stdout="x" if key in present else "")
             if "patch" in args:
-                path = [a for a in args if a.startswith("--patch-file=")][0].split("=", 1)[1]
+                path = next(a for a in args if a.startswith("--patch-file=")).split("=", 1)[1]
                 patches.append(json.loads(Path(path).read_text())["data"])
             return mock.Mock(returncode=0, stdout="")
 

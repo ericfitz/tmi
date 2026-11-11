@@ -24,8 +24,14 @@ from pathlib import Path
 import cluster
 import portfwd
 from tmi_common import (
-    check_tool, get_project_root,
-    log_error, log_info, log_success, log_warn, run_cmd, wait_for_port,
+    check_tool,
+    get_project_root,
+    log_error,
+    log_info,
+    log_success,
+    log_warn,
+    run_cmd,
+    wait_for_port,
 )
 
 # ---------------------------------------------------------------------------
@@ -1180,7 +1186,7 @@ def server_http_status() -> tuple[bool, str]:
     r = subprocess.run(
         ["curl", "-s", "--connect-timeout", "2", "--max-time", "5",
          "-o", "/dev/null", "-w", "%{http_code}", SERVER_URL],
-        capture_output=True, text=True,
+        capture_output=True, text=True, check=False,
     )
     code = r.stdout.strip() or "000"
     return (code in ("200", "429"), code)

@@ -29,6 +29,7 @@ Targets:
 from __future__ import annotations
 
 import argparse
+import http.client
 import os
 import shutil
 import subprocess
@@ -39,7 +40,7 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-import database  # noqa: E402
+import database
 from tmi_common import (
     add_verbosity_args,
     apply_verbosity,
@@ -84,7 +85,8 @@ def server_is_running(url: str) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=2) as resp:
             return resp.status < 500
-    except Exception:
+    except (OSError, http.client.HTTPException, ValueError):
+        # OSError covers URLError/HTTPError, refused connections and timeouts.
         return False
 
 
@@ -388,8 +390,10 @@ def start_test_server_container(
         # The OAuth flow drives the callback stub at localhost:8079; allowlist it
         # here (tracked runner) rather than in the gitignored config-test.yml, so
         # the harness is reproducible. Comma-separated; overrides the file value.
-        "-e", "TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST="
-        "http://localhost:8079/,http://localhost:8079/*,http://localhost:4200/*",
+        "-e", (
+            "TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST="
+            "http://localhost:8079/,http://localhost:8079/*,http://localhost:4200/*"
+        ),
     ]
     if disable_rate_limiting:
         cmd += ["-e", "TMI_DISABLE_RATE_LIMITING=true"]
@@ -527,7 +531,7 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
     # a clean pass.
     workflow_exit = 0
     workflows_skipped: str | None = None
-    server_log = str((project_root / "logs" / "tmi-test-server.log"))
+    server_log = str(project_root / "logs" / "tmi-test-server.log")
     (project_root / "logs").mkdir(exist_ok=True)
     oauth_running = ensure_oauth_stub(project_root)
     if not oauth_running:

@@ -24,8 +24,7 @@ from pathlib import Path
 
 # Import shared helpers from same directory
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import container_build_helpers as helpers  # noqa: E402
-
+import container_build_helpers as helpers
 
 VALID_TARGETS = ("local", "aws")
 VALID_COMPONENTS = ("server", "redis", "extractor", "chunkembed", "controller", "all")
@@ -287,12 +286,11 @@ def main() -> None:
             build_tags=args.build_tags,
         )
 
-        if args.scan:
-            if not scan_component(
-                component, config, project_root, version, git_commit,
-                from_registry=args.push, digest=digest,
-            ):
-                all_passed = False
+        if args.scan and not scan_component(
+            component, config, project_root, version, git_commit,
+            from_registry=args.push, digest=digest,
+        ):
+            all_passed = False
 
     # Generate security summary if scanning was done
     if args.scan:

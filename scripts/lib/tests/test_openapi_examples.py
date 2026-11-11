@@ -18,7 +18,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from openapi_examples import SpecWalker, iter_response_examples  # noqa: E402
+from openapi_examples import SpecWalker, iter_response_examples
 
 
 def spec_with(schemas, paths=None):
@@ -183,7 +183,7 @@ class TestIterResponseExamples(unittest.TestCase):
                 }
             },
         )
-        *_, example, source = list(iter_response_examples(spec))[0]
+        *_, example, source = next(iter(iter_response_examples(spec)))
         self.assertEqual(example, {"from": "schema"})
         self.assertEqual(source, "schema")
 

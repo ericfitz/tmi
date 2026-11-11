@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-import cluster  # noqa: E402
+import cluster
 
 NS = "tmi-platform"
 VALID = ("redis-password", "settings-key")
@@ -35,7 +35,8 @@ def resolve_context(cluster_target: str, context: str | None) -> str:
 
 
 def _kubectl(ctx: str, args: list[str], **kw) -> subprocess.CompletedProcess:
-    return subprocess.run(["kubectl", "--context", ctx, "-n", NS, *args], text=True, **kw)
+    check = kw.pop("check", False)
+    return subprocess.run(["kubectl", "--context", ctx, "-n", NS, *args], text=True, check=check, **kw)
 
 
 def active_rotator_jobs(jobs: dict) -> list[str]:
