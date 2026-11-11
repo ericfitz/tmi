@@ -121,19 +121,9 @@ func logRequestDetails(c *gin.Context, logger *ContextLogger, config RequestResp
 		slog.Int64("content_length", c.Request.ContentLength),
 	}
 
-	// Add headers (with potential redaction)
+	// Add headers; credential headers are always redacted
 	if len(c.Request.Header) > 0 {
-		headers := make(map[string]string)
-		for name, values := range c.Request.Header {
-			if len(values) > 0 {
-				value := values[0]
-				if config.RedactTokens {
-					value = RedactSensitiveInfo(value)
-				}
-				headers[name] = value
-			}
-		}
-		attrs = append(attrs, slog.Any("headers", headers))
+		attrs = append(attrs, slog.Any("headers", loggableHeaders(c.Request.Header, config.RedactTokens)))
 	}
 
 	// Add query parameters
@@ -178,19 +168,9 @@ func logResponseDetails(c *gin.Context, logger *ContextLogger, config RequestRes
 		slog.Duration("duration", duration),
 	}
 
-	// Add response headers
+	// Add response headers; credential headers (Set-Cookie) are always redacted
 	if len(c.Writer.Header()) > 0 {
-		headers := make(map[string]string)
-		for name, values := range c.Writer.Header() {
-			if len(values) > 0 {
-				value := values[0]
-				if config.RedactTokens {
-					value = RedactSensitiveInfo(value)
-				}
-				headers[name] = value
-			}
-		}
-		attrs = append(attrs, slog.Any("response_headers", headers))
+		attrs = append(attrs, slog.Any("response_headers", loggableHeaders(c.Writer.Header(), config.RedactTokens)))
 	}
 
 	// Add response body if captured and within size limits

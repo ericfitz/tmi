@@ -4,9 +4,48 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"regexp"
 	"strings"
 )
+
+// credentialHeaders lists, in lowercase, the headers whose values are
+// credentials and must never be logged in the clear.
+var credentialHeaders = map[string]bool{
+	"authorization":       true,
+	"proxy-authorization": true,
+	"cookie":              true,
+	"set-cookie":          true,
+	"x-auth-token":        true,
+	"x-api-key":           true,
+}
+
+// IsCredentialHeader reports whether a header's value is a credential.
+func IsCredentialHeader(name string) bool {
+	return credentialHeaders[strings.ToLower(name)]
+}
+
+// loggableHeaders returns the first value of each header for logging.
+// Credential headers are always replaced by a constant placeholder, whatever
+// scrubValues says; other values are pattern-scrubbed when scrubValues is set.
+func loggableHeaders(h http.Header, scrubValues bool) map[string]string {
+	out := make(map[string]string, len(h))
+	for name, values := range h {
+		if len(values) == 0 {
+			continue
+		}
+		if IsCredentialHeader(name) {
+			out[name] = redactedPlaceholder
+			continue
+		}
+		value := values[0]
+		if scrubValues {
+			value = RedactSensitiveInfo(value)
+		}
+		out[name] = value
+	}
+	return out
+}
 
 // RedactionAction defines how sensitive data should be handled
 type RedactionAction string
@@ -356,17 +395,8 @@ func RedactHeaders(headers map[string][]string) map[string][]string {
 	}
 
 	redacted := make(map[string][]string)
-	sensitiveHeaders := map[string]bool{
-		"authorization": true,
-		"x-auth-token":  true,
-		"x-api-key":     true,
-		"cookie":        true,
-		"set-cookie":    true,
-	}
-
 	for key, values := range headers {
-		lowerKey := strings.ToLower(key)
-		if sensitiveHeaders[lowerKey] {
+		if IsCredentialHeader(key) {
 			// Use partial redaction for sensitive headers to keep some identifying info
 			redactedValues := make([]string, len(values))
 			for i, value := range values {

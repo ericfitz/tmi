@@ -111,42 +111,6 @@ func Recoverer() gin.HandlerFunc {
 	}
 }
 
-// RequestTracingMiddleware adds detailed request tracing for debugging
-func RequestTracingMiddleware(enableBodyLogging bool) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		logger := Get().WithContext(c)
-
-		// Log detailed request information
-		if logger.logger.level <= LogLevelDebug {
-			attrs := []slog.Attr{
-				slog.String("method", c.Request.Method),
-				slog.String("url", c.Request.URL.String()),
-				slog.String("remote_addr", c.Request.RemoteAddr),
-				slog.String("user_agent", c.GetHeader("User-Agent")),
-				slog.Int64("content_length", c.Request.ContentLength),
-			}
-
-			// Add headers (with redaction)
-			headers := make(map[string]string)
-			for name, values := range c.Request.Header {
-				if len(values) > 0 {
-					headers[name] = values[0] // Log first value only
-				}
-			}
-			attrs = append(attrs, slog.Any("headers", headers))
-
-			// Log query parameters
-			if len(c.Request.URL.RawQuery) > 0 {
-				attrs = append(attrs, slog.String("query", c.Request.URL.RawQuery))
-			}
-
-			logger.DebugCtx("Detailed request trace", attrs...)
-		}
-
-		c.Next()
-	}
-}
-
 // PerformanceMiddleware logs performance metrics for requests
 func PerformanceMiddleware(slowRequestThreshold time.Duration) gin.HandlerFunc {
 	return func(c *gin.Context) {
