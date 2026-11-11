@@ -88,7 +88,6 @@ func TestGormThreatModelStore_CreateAssignsAlias(t *testing.T) {
 	assert.GreaterOrEqual(t, *stored.Alias, int32(1))
 }
 
-// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: validate a failed count or access query fails the threat model list instead of returning zeros
 func TestGormThreatModelStore_ListWithCountsSurfacesQueryErrors(t *testing.T) {
 	db, user := setupThreatModelAliasTestDB(t)
 	store := NewGormThreatModelStore(db)

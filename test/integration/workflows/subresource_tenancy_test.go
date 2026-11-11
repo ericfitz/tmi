@@ -14,7 +14,6 @@ import (
 // gates. childName is a distinct value written to the "name" field at create
 // time so the "PATCH left the victim's child unchanged" assertions have
 // something recognizable to check against.
-// SEM@ed746bcfee9dfd98ae3ba8f994298be78d36c276: describe a sub-resource family fixture used in tenancy tests
 type tenancyFamily struct {
 	segment    string // path segment, e.g. "threats"
 	childName  string
@@ -39,7 +38,6 @@ type tenancyFamily struct {
 // deleted child is invisible on its normal GET route but its audit_trail
 // stays readable (#664 fix-up, so audit history of a deleted child --
 // including the delete event itself -- doesn't vanish with it).
-// SEM@436c1840b3eef9687193078750dec3e22874f10e: test that cross-parent sub-resource access is blocked with 404
 func TestSubResourceTenancy_Integration(t *testing.T) {
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
 		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")

@@ -3,7 +3,6 @@ package config
 import "fmt"
 
 // TimmyConfig holds configuration for the Timmy AI assistant feature
-// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: hold configuration for the Timmy AI assistant feature (pure)
 type TimmyConfig struct {
 	Enabled     bool   `yaml:"enabled" env:"TMI_TIMMY_ENABLED"`
 	LLMProvider string `yaml:"llm_provider" env:"TMI_TIMMY_LLM_PROVIDER"`
@@ -55,7 +54,6 @@ type TimmyConfig struct {
 }
 
 // DefaultTimmyConfig returns configuration with sensible defaults
-// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build a TimmyConfig populated with sensible operational defaults (pure)
 func DefaultTimmyConfig() TimmyConfig {
 	return TimmyConfig{
 		Enabled:                         false,
@@ -79,20 +77,17 @@ func DefaultTimmyConfig() TimmyConfig {
 }
 
 // IsConfigured returns true if the required LLM and text embedding providers are configured
-// SEM@37a05c9c7bcde023781ade490d31e55313f5a793: validate that LLM and text embedding providers are configured (pure)
 func (tc TimmyConfig) IsConfigured() bool {
 	return tc.LLMProvider != "" && tc.LLMModel != "" &&
 		tc.TextEmbeddingProvider != "" && tc.TextEmbeddingModel != ""
 }
 
 // IsCodeIndexConfigured returns true if the code embedding provider and model are configured
-// SEM@37a05c9c7bcde023781ade490d31e55313f5a793: validate that code embedding provider and model are configured (pure)
 func (tc TimmyConfig) IsCodeIndexConfigured() bool {
 	return tc.CodeEmbeddingProvider != "" && tc.CodeEmbeddingModel != ""
 }
 
 // IsRerankConfigured returns true if the reranker provider and model are configured
-// SEM@cd3e5390e6efba1b5a645e4a00ef2a5b842d39ff: validate that reranker provider and model are configured (pure)
 func (tc TimmyConfig) IsRerankConfigured() bool {
 	return tc.RerankProvider != "" && tc.RerankModel != ""
 }
@@ -108,7 +103,6 @@ var validLLMProviders = map[string]bool{"openai": true, "anthropic": true}
 // IsConfigured's concern; this method only rejects an unrecognized non-empty
 // value, which deserves its own message rather than being folded into
 // "not configured."
-// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: validate that a non-empty LLMProvider is a recognized provider name (pure)
 func (tc TimmyConfig) ValidateLLMProvider() error {
 	if tc.LLMProvider == "" || validLLMProviders[tc.LLMProvider] {
 		return nil
@@ -120,7 +114,6 @@ func (tc TimmyConfig) ValidateLLMProvider() error {
 // is not an error — it means "use the backend's default" (see
 // DefaultTimmyConfig and internal/llm.anthropicDefaultMaxTokens) — only a
 // negative value is rejected.
-// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: validate that LLMMaxTokens is non-negative (pure)
 func (tc TimmyConfig) ValidateLLMMaxTokens() error {
 	if tc.LLMMaxTokens < 0 {
 		return fmt.Errorf("timmy.llm_max_tokens must be non-negative, got %d", tc.LLMMaxTokens)

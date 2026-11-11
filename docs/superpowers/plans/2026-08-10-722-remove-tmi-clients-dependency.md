@@ -16,7 +16,7 @@
 - Logging: `internal/slogging` only. Never the stdlib `log` package, never `fmt.Println`.
 - Array property names come from `api-schema/tmi-openapi.json` response schemas, verified in the spec — do not guess them.
 - `findExistingByNameHTTP(path, itemsKey, name string) string` MUST keep its exact signature; nine existing call sites depend on it.
-- SEM markers: any function whose body changes or is added needs its `SEM@<sha>` marker added/updated (`/sem-annotate --update <files>`).
+- SEM markers: any function whose body changes or is added needs its `SEM-<sha>` marker added/updated (`/sem-annotate --update <files>`).
 - No `.docker-deps` references may remain anywhere after Task 4.
 
 ---
@@ -687,7 +687,7 @@ Expected: a small diff containing only the embedded-spec version change. Anythin
 
 Run: `/sem-annotate --update cmd/dbtool/data_api.go`
 
-Expected: markers on the new and modified functions get real `SEM@<sha>` anchors replacing the bare `SEM:` placeholders written in Task 1.
+Expected: markers on the new and modified functions get real `SEM-<sha>` anchors replacing the bare `SEM:` placeholders written in Task 1.
 
 - [ ] **Step 6: Run the full local gate**
 

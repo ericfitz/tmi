@@ -61,8 +61,6 @@ var retiredSettingKeys = []string{
 
 // PruneRetiredSystemSettings deletes system_settings rows whose keys the
 // registry no longer declares, returning the number of rows removed.
-//
-// SEM@32d2fef5a48bbd2ea65b9aa7d5232510b52a4aca: delete system_settings rows for keys the registry no longer declares (writes DB)
 func PruneRetiredSystemSettings(db *gorm.DB) (int64, error) {
 	logger := slogging.Get()
 	settingsTable := (&models.SystemSetting{}).TableName()

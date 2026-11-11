@@ -29,7 +29,6 @@ var copyMovePatchBlockedTargets = map[string]bool{
 // dropped on save (#1143). The PUT validators registered under
 // validationConfig then run on the patched entity so a patch cannot store
 // what a PUT would reject. Errors are 400 RequestErrors.
-// SEM@0366350593b297b3143d1125e29982be617236ab: apply RFC 6902 operations to an entity restricted to well-formed persisted-field paths, rejecting copy/move into sanitized text and URI fields, then run the PUT validators, failing closed (pure)
 func applyEntityPatch[T any](entity T, operations []PatchOperation, noun string, patchable map[string]bool, validationConfig string) (T, error) {
 	var zero T
 	for _, op := range operations {
@@ -82,7 +81,6 @@ func applyEntityPatch[T any](entity T, operations []PatchOperation, noun string,
 }
 
 // patchablePathList renders the sorted patchable field names for error text.
-// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: build a sorted comma-separated list of patchable field names (pure)
 func patchablePathList(patchable map[string]bool) string {
 	names := make([]string, 0, len(patchable))
 	for p := range patchable {
@@ -95,7 +93,6 @@ func patchablePathList(patchable map[string]bool) string {
 // defaultTrue sets an unset (nil) flag to true, the schema default for
 // include_in_report and timmy_enabled, so a patch that removes the flag
 // restores the default instead of letting update write false.
-// SEM@4a5010eb1b18de9154f1d8440292237603753fd2: set a nil boolean flag to its schema default of true (pure)
 func defaultTrue(flag **bool) {
 	if *flag == nil {
 		t := true
@@ -107,7 +104,6 @@ func defaultTrue(flag **bool) {
 // no empty segments. topLevelPatchPath folds "/ssvc/" to "/ssvc", so without
 // this check a trailing-slash or "//" path passes the allowlist and addresses
 // the empty-named member, a silent no-op.
-// SEM@0366350593b297b3143d1125e29982be617236ab: check that a JSON Pointer is non-root and has no empty segments (pure)
 func wellFormedPatchPointer(path string) bool {
 	if len(path) < 2 || path[0] != '/' {
 		return false

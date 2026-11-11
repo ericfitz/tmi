@@ -19,7 +19,7 @@
 - Logging goes through `internal/slogging`; never `log` or `fmt.Println`.
 - Use American English. Conventional commits. Commit after every task.
 - Branch: `dev/<next>/1048-error-vocabulary` off `main`. Work in a worktree.
-- Every `SEM@` marker on a function whose behavior changed is refreshed with `/sem-annotate --update <files>` before the final commit.
+- Every `SEM-` marker on a function whose behavior changed is refreshed with `/sem-annotate --update <files>` before the final commit.
 
 ## Review Focus
 
@@ -107,7 +107,7 @@ func TestDetailsCodeExamplesAreSnakeCase(t *testing.T) { /* regexp over every de
 - Test: `api/request_utils_test.go`
 
 **Interfaces:**
-- Produces: existing constructors keep their names and now use constants. New: `InvalidPatchError(msg)`, `MethodNotAllowedError(msg)`, `GoneError(msg)`, `VersionMismatchError(msg)`, `PayloadTooLargeError(msg)`, `UnsupportedMediaTypeError(msg)`, `IfMatchRequiredError(msg)`, `UnprocessableEntityError(msg)`, `RateLimitExceededError(msg string, retryAfterSeconds int)` (sets `Details.Context["retry_after"]` so the existing 429 header logic fires), `QuotaExceededError(status int, msg string)`, `InsufficientUserAuthenticationError(msg)`; and `WithDetailCode(err *RequestError, code errcode.Code) *RequestError` which sets `Details.Code` (creating `Details` if nil) and returns the same error, for Tier 2 reasons. All new functions get a `SEM@` comment line like their neighbors.
+- Produces: existing constructors keep their names and now use constants. New: `InvalidPatchError(msg)`, `MethodNotAllowedError(msg)`, `GoneError(msg)`, `VersionMismatchError(msg)`, `PayloadTooLargeError(msg)`, `UnsupportedMediaTypeError(msg)`, `IfMatchRequiredError(msg)`, `UnprocessableEntityError(msg)`, `RateLimitExceededError(msg string, retryAfterSeconds int)` (sets `Details.Context["retry_after"]` so the existing 429 header logic fires), `QuotaExceededError(status int, msg string)`, `InsufficientUserAuthenticationError(msg)`; and `WithDetailCode(err *RequestError, code errcode.Code) *RequestError` which sets `Details.Code` (creating `Details` if nil) and returns the same error, for Tier 2 reasons. All new functions get a `SEM-` comment line like their neighbors.
 
 - [ ] **Step 1:** Add to `api/request_utils_test.go`:
 ```go

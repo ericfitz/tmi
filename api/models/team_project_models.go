@@ -10,7 +10,6 @@ import (
 )
 
 // TeamRecord represents a team in the system
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for a team with membership, audit timestamps, and versioning (reads DB)
 type TeamRecord struct {
 	ID                     DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	Name                   DBVarchar         `gorm:"size:256;not null;index:idx_team_name"`
@@ -34,13 +33,11 @@ type TeamRecord struct {
 }
 
 // TableName specifies the table name for TeamRecord
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: return the database table name for TeamRecord (pure)
 func (TeamRecord) TableName() string {
 	return tableName("teams")
 }
 
 // BeforeCreate generates a UUID if not set
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: generate a UUID for a TeamRecord if none is set before insert (mutates shared state)
 func (t *TeamRecord) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == "" {
 		t.ID = DBVarchar(uuid.New().String())
@@ -49,7 +46,6 @@ func (t *TeamRecord) BeforeCreate(tx *gorm.DB) error {
 }
 
 // TeamMemberRecord represents a user's membership in a team
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model representing a user's role membership in a team (reads DB)
 type TeamMemberRecord struct {
 	ID               DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	TeamID           DBVarchar         `gorm:"size:36;not null;index:idx_tmem_team;uniqueIndex:idx_tmem_team_user,priority:1"`
@@ -64,13 +60,11 @@ type TeamMemberRecord struct {
 }
 
 // TableName specifies the table name for TeamMemberRecord
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: return the DB table name for the team member entity (pure)
 func (TeamMemberRecord) TableName() string {
 	return tableName("team_members")
 }
 
 // BeforeCreate generates a UUID if not set
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: generate and assign a UUID to the team member record if absent (mutates shared state)
 func (t *TeamMemberRecord) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == "" {
 		t.ID = DBVarchar(uuid.New().String())
@@ -79,7 +73,6 @@ func (t *TeamMemberRecord) BeforeCreate(tx *gorm.DB) error {
 }
 
 // TeamResponsiblePartyRecord represents a responsible party for a team
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model mapping a responsible party user to a team with role
 type TeamResponsiblePartyRecord struct {
 	ID               DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	TeamID           DBVarchar         `gorm:"size:36;not null;index:idx_trp_team;uniqueIndex:idx_trp_team_user,priority:1"`
@@ -94,13 +87,11 @@ type TeamResponsiblePartyRecord struct {
 }
 
 // TableName specifies the table name for TeamResponsiblePartyRecord
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: return the DB table name for the team responsible party entity (pure)
 func (TeamResponsiblePartyRecord) TableName() string {
 	return tableName("team_responsible_parties")
 }
 
 // BeforeCreate generates a UUID if not set
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: generate and assign a UUID to the team responsible party record if absent (mutates shared state)
 func (t *TeamResponsiblePartyRecord) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == "" {
 		t.ID = DBVarchar(uuid.New().String())
@@ -109,7 +100,6 @@ func (t *TeamResponsiblePartyRecord) BeforeCreate(tx *gorm.DB) error {
 }
 
 // TeamRelationshipRecord represents a relationship between two teams
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model representing a typed directional relationship between two teams
 type TeamRelationshipRecord struct {
 	ID                 DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	TeamID             DBVarchar         `gorm:"size:36;not null;index:idx_trel_team;uniqueIndex:idx_trel_team_related,priority:1"`
@@ -124,13 +114,11 @@ type TeamRelationshipRecord struct {
 }
 
 // TableName specifies the table name for TeamRelationshipRecord
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: return the DB table name for the team relationship entity (pure)
 func (TeamRelationshipRecord) TableName() string {
 	return tableName("team_relationships")
 }
 
 // BeforeCreate generates a UUID if not set
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: generate and assign a UUID to the team relationship record if absent (mutates shared state)
 func (t *TeamRelationshipRecord) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == "" {
 		t.ID = DBVarchar(uuid.New().String())
@@ -139,7 +127,6 @@ func (t *TeamRelationshipRecord) BeforeCreate(tx *gorm.DB) error {
 }
 
 // ProjectRecord represents a project in the system
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for a project with ownership, status, review, and versioning metadata
 type ProjectRecord struct {
 	ID                     DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	Name                   DBVarchar         `gorm:"size:256;not null;index:idx_proj_name"`
@@ -164,13 +151,11 @@ type ProjectRecord struct {
 }
 
 // TableName specifies the table name for ProjectRecord
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: return the DB table name for the project entity (pure)
 func (ProjectRecord) TableName() string {
 	return tableName("projects")
 }
 
 // BeforeCreate generates a UUID if not set
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: generate and assign a UUID to the project record if absent (mutates shared state)
 func (p *ProjectRecord) BeforeCreate(tx *gorm.DB) error {
 	if p.ID == "" {
 		p.ID = DBVarchar(uuid.New().String())
@@ -179,7 +164,6 @@ func (p *ProjectRecord) BeforeCreate(tx *gorm.DB) error {
 }
 
 // ProjectResponsiblePartyRecord represents a responsible party for a project
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model mapping a responsible party user to a project with role
 type ProjectResponsiblePartyRecord struct {
 	ID               DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ProjectID        DBVarchar         `gorm:"size:36;not null;index:idx_prp_project;uniqueIndex:idx_prp_project_user,priority:1"`
@@ -194,13 +178,11 @@ type ProjectResponsiblePartyRecord struct {
 }
 
 // TableName specifies the table name for ProjectResponsiblePartyRecord
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: return the DB table name for the project responsible party entity (pure)
 func (ProjectResponsiblePartyRecord) TableName() string {
 	return tableName("project_responsible_parties")
 }
 
 // BeforeCreate generates a UUID if not set
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: generate and assign a UUID to the project responsible party record if absent (mutates shared state)
 func (p *ProjectResponsiblePartyRecord) BeforeCreate(tx *gorm.DB) error {
 	if p.ID == "" {
 		p.ID = DBVarchar(uuid.New().String())
@@ -209,7 +191,6 @@ func (p *ProjectResponsiblePartyRecord) BeforeCreate(tx *gorm.DB) error {
 }
 
 // ProjectRelationshipRecord represents a relationship between two projects
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model representing a typed directional relationship between two projects
 type ProjectRelationshipRecord struct {
 	ID                 DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ProjectID          DBVarchar         `gorm:"size:36;not null;index:idx_prel_project;uniqueIndex:idx_prel_project_related,priority:1"`
@@ -224,13 +205,11 @@ type ProjectRelationshipRecord struct {
 }
 
 // TableName specifies the table name for ProjectRelationshipRecord
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: return the DB table name for the project relationship entity (pure)
 func (ProjectRelationshipRecord) TableName() string {
 	return tableName("project_relationships")
 }
 
 // BeforeCreate generates a UUID if not set
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: generate and assign a UUID to the project relationship record if absent (mutates shared state)
 func (p *ProjectRelationshipRecord) BeforeCreate(tx *gorm.DB) error {
 	if p.ID == "" {
 		p.ID = DBVarchar(uuid.New().String())

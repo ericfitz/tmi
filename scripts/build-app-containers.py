@@ -115,7 +115,6 @@ def resolve_components(component: str, target: str) -> list[str]:
     return [component]
 
 
-# SEM@c161adfd8ba839441ccd825e818d342a09c63849: build one component's container image, returning its pushed digest if known
 def build_component(
     component: str,
     config: helpers.TargetConfig,
@@ -168,7 +167,6 @@ def build_component(
     )
 
 
-# SEM@c161adfd8ba839441ccd825e818d342a09c63849: scan the just-pushed image artifact, pinned by digest rather than mutable tag
 def scan_component(
     component: str,
     config: helpers.TargetConfig,

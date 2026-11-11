@@ -13,7 +13,6 @@ import (
 // PUT, PATCH and bulk POST on repositories, documents and assets return the
 // created_at and modified_at the database holds, matching a subsequent GET
 // (#1150: these responses omitted created_at, and bulk omitted both).
-// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: test that sub-resource write responses return timestamps matching a subsequent GET (integration)
 func TestSubResourceWritesReturnStoredTimestampsIntegration(t *testing.T) {
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
 		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")
@@ -137,7 +136,6 @@ func TestSubResourceWritesReturnStoredTimestampsIntegration(t *testing.T) {
 
 // assertMatchesGet fails unless a write response's created_at and modified_at
 // equal what a GET of the same item returns.
-// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: validate that a write response's timestamps match the fetched resource's timestamps
 func assertMatchesGet(t *testing.T, client *framework.IntegrationClient, op, itemPath string, written map[string]any) {
 	t.Helper()
 	resp, err := client.Do(framework.Request{Method: "GET", Path: itemPath})

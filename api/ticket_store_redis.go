@@ -13,24 +13,20 @@ import (
 )
 
 // RedisTicketStore implements TicketStore using Redis with atomic GETDEL for single-use semantics.
-// SEM@7118d848c0cc54f6062c586bb5adde9c5aa9ae4f: Redis-backed store implementing single-use WebSocket upgrade tickets (pure)
 type RedisTicketStore struct {
 	redis *db.RedisDB
 }
 
 // NewRedisTicketStore creates a new Redis-backed ticket store.
-// SEM@7118d848c0cc54f6062c586bb5adde9c5aa9ae4f: build a RedisTicketStore from a Redis connection (pure)
 func NewRedisTicketStore(redis *db.RedisDB) *RedisTicketStore {
 	return &RedisTicketStore{redis: redis}
 }
 
-// SEM@7118d848c0cc54f6062c586bb5adde9c5aa9ae4f: compute the Redis key for a WebSocket upgrade ticket (pure)
 func (s *RedisTicketStore) ticketKey(ticket string) string {
 	return fmt.Sprintf("ws_ticket:%s", ticket)
 }
 
 // IssueTicket creates a cryptographically random ticket and stores it in Redis with the given TTL.
-// SEM@c161adfd8ba839441ccd825e818d342a09c63849: generate a cryptographically random upgrade ticket and store it in Redis with a TTL (mutates shared state)
 func (s *RedisTicketStore) IssueTicket(ctx context.Context, claims TicketClaims, ttl time.Duration) (string, error) {
 	logger := slogging.Get()
 
@@ -54,7 +50,6 @@ func (s *RedisTicketStore) IssueTicket(ctx context.Context, claims TicketClaims,
 }
 
 // ValidateTicket atomically retrieves and deletes a ticket from Redis (single-use), returning its bound claims.
-// SEM@c161adfd8ba839441ccd825e818d342a09c63849: atomically consume and validate a single-use upgrade ticket from Redis (mutates shared state)
 func (s *RedisTicketStore) ValidateTicket(ctx context.Context, ticket string) (TicketClaims, error) {
 	logger := slogging.Get()
 	key := s.ticketKey(ticket)

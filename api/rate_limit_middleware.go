@@ -12,7 +12,6 @@ import (
 )
 
 // RateLimitMiddleware creates a middleware that enforces API rate limiting
-// SEM@198cb4aafd0f97decb9482d12ee2c915f8d3983c: enforce per-user API rate limits and set rate limit headers, skipping public endpoints
 func RateLimitMiddleware(server *Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
@@ -90,7 +89,6 @@ func RateLimitMiddleware(server *Server) gin.HandlerFunc {
 
 // rateLimitUserKey returns the per-user rate limit key from the JWT middleware's context
 // values: the internal UUID (the quota store key), else the provider user ID.
-// SEM@198cb4aafd0f97decb9482d12ee2c915f8d3983c: derive the rate limit bucket key for the authenticated user from request context (pure)
 func rateLimitUserKey(c *gin.Context) (string, bool) {
 	for _, key := range []string{"userInternalUUID", "userID"} {
 		if v, ok := c.Get(key); ok {
@@ -106,7 +104,6 @@ func rateLimitUserKey(c *gin.Context) (string, bool) {
 // Note: "/" (health/info) is intentionally excluded — it is hit by ALB health
 // checks, kubelet probes, and frontend status polls, so IP-based rate limiting
 // on it causes spurious 429s in cloud deployments.
-// SEM@ea92ee787f92d4cc95d248683abb5f294c035012: report whether a request path is a public discovery endpoint exempt from rate limiting (pure)
 func isPublicEndpoint(path string) bool {
 	// Prefix matches for public path prefixes
 	prefixes := []string{
@@ -122,7 +119,6 @@ func isPublicEndpoint(path string) bool {
 }
 
 // isAuthFlowEndpoint checks if the path is an OAuth or SAML auth flow endpoint
-// SEM@c0b50b4b57f4dcf67acd03dc8524fccfc907c40c: report whether a request path is an OAuth or SAML auth flow endpoint governed by the auth-flow limiter, not the per-user limiter (pure)
 func isAuthFlowEndpoint(path string) bool {
 	authPaths := []string{
 		"/oauth2/authorize",

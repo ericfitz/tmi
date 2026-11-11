@@ -16,7 +16,6 @@ import (
 // ContentToken is the domain representation of a per-user OAuth token used
 // by delegated content providers. Access/refresh tokens are plaintext here;
 // the repository handles encryption at rest.
-// SEM@400c5be318ff2723d5b2aaa9ef1c05111d4629c0: domain model for a per-user OAuth delegated-access token with plaintext credentials
 type ContentToken struct {
 	ID                   string
 	UserID               string
@@ -56,7 +55,6 @@ var (
 
 // ContentTokenRepository is the repository abstraction over user_content_tokens.
 // All methods return typed errors from internal/dberrors.
-// SEM@400c5be318ff2723d5b2aaa9ef1c05111d4629c0: repository interface for persisting and retrieving per-user OAuth content tokens
 type ContentTokenRepository interface {
 	// GetByUserAndProvider retrieves a token by user ID and provider ID.
 	// Returns ErrContentTokenNotFound if no matching token exists.
@@ -89,20 +87,17 @@ type ContentTokenRepository interface {
 
 // GormContentTokenRepository persists ContentToken records via GORM.
 // AccessToken and RefreshToken are AES-256-GCM encrypted at rest.
-// SEM@4db312947ac9ae7ecc1e04865be072705812c8a8: GORM-backed content token repository with AES-256-GCM encryption at rest
 type GormContentTokenRepository struct {
 	db  *gorm.DB
 	enc *ContentTokenEncryptor
 }
 
 // NewGormContentTokenRepository creates a new GORM-backed content-token repository.
-// SEM@4db312947ac9ae7ecc1e04865be072705812c8a8: build a GORM content token repository with the given DB and encryptor (pure)
 func NewGormContentTokenRepository(db *gorm.DB, enc *ContentTokenEncryptor) *GormContentTokenRepository {
 	return &GormContentTokenRepository{db: db, enc: enc}
 }
 
 // GetByUserAndProvider retrieves a token by user ID and provider ID.
-// SEM@4db312947ac9ae7ecc1e04865be072705812c8a8: fetch a content token by user and provider, decrypting credentials (reads DB)
 func (r *GormContentTokenRepository) GetByUserAndProvider(ctx context.Context, userID, providerID string) (*ContentToken, error) {
 	var row models.UserContentToken
 	err := r.db.WithContext(ctx).Where("user_id = ? AND provider_id = ?", userID, providerID).First(&row).Error
@@ -116,7 +111,6 @@ func (r *GormContentTokenRepository) GetByUserAndProvider(ctx context.Context, u
 }
 
 // ListByUser returns all tokens for the given user ID.
-// SEM@4db312947ac9ae7ecc1e04865be072705812c8a8: list all decrypted content tokens for a user (reads DB)
 func (r *GormContentTokenRepository) ListByUser(ctx context.Context, userID string) ([]ContentToken, error) {
 	var rows []models.UserContentToken
 	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).Find(&rows).Error; err != nil {
@@ -135,7 +129,6 @@ func (r *GormContentTokenRepository) ListByUser(ctx context.Context, userID stri
 
 // Upsert creates or updates the token for the (UserID, ProviderID) pair using
 // ON CONFLICT DO UPDATE so the operation is idempotent.
-// SEM@b7302144e81a755cfb12d83c8a03782feffcd848: upsert a content token, rejecting an unsafe empty-key read-back (mutates DB)
 func (r *GormContentTokenRepository) Upsert(ctx context.Context, token *ContentToken) error {
 	row, err := r.encode(token)
 	if err != nil {
@@ -190,7 +183,6 @@ func (r *GormContentTokenRepository) Upsert(ctx context.Context, token *ContentT
 }
 
 // UpdateStatus updates the status and last_error fields for the given token ID.
-// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: update status and last error of a content token (writes DB)
 func (r *GormContentTokenRepository) UpdateStatus(ctx context.Context, id, status, lastError string) error {
 	res := r.db.WithContext(ctx).Model(&models.UserContentToken{}).
 		Where("id = ?", id).
@@ -214,7 +206,6 @@ func (r *GormContentTokenRepository) UpdateStatus(ctx context.Context, id, statu
 }
 
 // Delete removes the token with the given ID.
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: delete a content token by ID (reads DB)
 func (r *GormContentTokenRepository) Delete(ctx context.Context, id string) error {
 	res := r.db.WithContext(ctx).Delete(&models.UserContentToken{ID: models.DBVarchar(id)})
 	if res.Error != nil {
@@ -228,7 +219,6 @@ func (r *GormContentTokenRepository) Delete(ctx context.Context, id string) erro
 
 // DeleteByUserAndProvider removes the token for the given user/provider pair and
 // returns the deleted token.
-// SEM@d0742bff5d3b93b3ab7b22df0377398a720a8d9c: delete and return the content token for a user/provider pair within a retryable transaction (reads DB)
 func (r *GormContentTokenRepository) DeleteByUserAndProvider(ctx context.Context, userID, providerID string) (*ContentToken, error) {
 	var deleted *ContentToken
 	err := authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
@@ -266,7 +256,6 @@ func (r *GormContentTokenRepository) DeleteByUserAndProvider(ctx context.Context
 // fn is ever invoked — fn therefore runs at most once per successful call and a
 // non-idempotent fn (e.g. a one-time OAuth refresh) is not double-fired on retry.
 // Do not reorder fn ahead of the locking read.
-// SEM@d0742bff5d3b93b3ab7b22df0377398a720a8d9c: lock a content token row, invoke a refresh callback, and persist the updated token atomically (reads DB)
 func (r *GormContentTokenRepository) RefreshWithLock(ctx context.Context, id string, fn func(current *ContentToken) (*ContentToken, error)) (*ContentToken, error) {
 	var updated *ContentToken
 	err := authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
@@ -305,7 +294,6 @@ func (r *GormContentTokenRepository) RefreshWithLock(ctx context.Context, id str
 }
 
 // encode converts a plaintext ContentToken to the GORM model with encrypted tokens.
-// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: convert a plaintext ContentToken to its encrypted GORM model representation (pure)
 func (r *GormContentTokenRepository) encode(t *ContentToken) (*models.UserContentToken, error) {
 	atCipher, err := r.enc.Encrypt([]byte(t.AccessToken))
 	if err != nil {
@@ -346,7 +334,6 @@ func (r *GormContentTokenRepository) encode(t *ContentToken) (*models.UserConten
 }
 
 // decode converts the GORM model (with encrypted tokens) to a plaintext ContentToken.
-// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: convert an encrypted GORM content token model to its plaintext domain struct (pure)
 func (r *GormContentTokenRepository) decode(row *models.UserContentToken) (*ContentToken, error) {
 	at, err := r.enc.Decrypt([]byte(row.AccessToken))
 	if err != nil {

@@ -19,7 +19,6 @@ import (
 
 // CreateCurrentUserClientCredential handles POST /me/client_credentials
 // Creates a new OAuth 2.0 client credential for machine-to-machine authentication
-// SEM@fd749f0ab4b11da6219ce6594a51301843131dc9: build a client credential for the authenticated user, enforcing quota and conflict rules (writes DB)
 func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -185,7 +184,6 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 }
 
 // respondClientCredentialCreateError maps a credential create failure to a documented response.
-// SEM@4f8575cbdd6a06b8391482229de6c8cb075359d3: map a client credential create error to its documented HTTP error response
 func respondClientCredentialCreateError(c *gin.Context, logger *slogging.ContextLogger, ownerUUID uuid.UUID, err error) {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		logger.Debug("Request canceled during credential create: %v", err)
@@ -217,7 +215,6 @@ func respondClientCredentialCreateError(c *gin.Context, logger *slogging.Context
 
 // ListCurrentUserClientCredentials handles GET /me/client_credentials
 // Retrieves all client credentials owned by the authenticated user (without secrets)
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: list the authenticated user's client credentials with pagination, omitting secrets (reads DB)
 func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCurrentUserClientCredentialsParams) {
 	logger := slogging.Get().WithContext(c)
 	userUUID := c.GetString("userInternalUUID")
@@ -323,7 +320,6 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 
 // DeleteCurrentUserClientCredential handles DELETE /me/client_credentials/{credential_id}
 // Permanently deletes a client credential
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: delete and revoke a client credential owned by the authenticated user (writes DB)
 func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 	userUUID := c.GetString("userInternalUUID")
@@ -396,14 +392,12 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId 
 const directWriteAdminOwnerMessage = "direct_write cannot be enabled on a credential owned by a member of the Administrators group"
 
 // boolFromPtr dereferences an optional boolean request field; absent means false.
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: convert an optional bool pointer to a bool, treating nil as false (pure)
 func boolFromPtr(b *bool) bool {
 	return b != nil && *b
 }
 
 // validateClientCredentialName validates the name field for security issues
 // Returns an error message if validation fails, empty string if valid
-// SEM@c3818ab211091946cfe831b51f278e1a29914219: validate a client credential name: non-empty, no whitespace-only, max 100 chars, safe unicode (pure)
 func validateClientCredentialName(name string) string {
 	// Additional check: whitespace-only names are also rejected
 	if strings.TrimSpace(name) == "" {
@@ -418,7 +412,6 @@ func validateClientCredentialName(name string) string {
 
 // validateClientCredentialDescription validates the description field
 // Returns an error message if validation fails, empty string if valid
-// SEM@c3818ab211091946cfe831b51f278e1a29914219: validate an optional client credential description: max 500 chars, safe unicode (pure)
 func validateClientCredentialDescription(description string) string {
 	if err := validateTextField(description, "description", 500, false); err != nil {
 		return err.Error()
@@ -428,7 +421,6 @@ func validateClientCredentialDescription(description string) string {
 
 // sanitizeForLogging removes potentially dangerous characters from strings before logging.
 // Delegates to the consolidated unicodecheck package.
-// SEM@99fb5e219721394dfd5b0ad63c85d3f01d469306: convert a string to a log-safe form by replacing control and zero-width chars (pure)
 func sanitizeForLogging(s string) string {
 	return unicodecheck.SanitizeForLogging(s)
 }
@@ -439,7 +431,6 @@ func sanitizeForLogging(s string) string {
 // webhook subscription). The link is an authorization grant (#913: it makes
 // the credential the owner of the addon's deliveries), so a plain user must
 // not be able to attach someone else's addon to their credential.
-// SEM@411a53c663401d55a0f66913e00979599a208c93: validate a credential's addon link: direct_write, addon exists, caller is admin or owns its webhook (reads DB)
 func resolveCredentialAddonID(c *gin.Context, addonID *openapi_types.UUID, directWrite bool) (string, error) {
 	if addonID == nil {
 		return "", nil
@@ -468,7 +459,6 @@ func resolveCredentialAddonID(c *gin.Context, addonID *openapi_types.UUID, direc
 	return addonID.String(), nil
 }
 
-// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: convert an optional UUID string to an OpenAPI UUID pointer (pure)
 func uuidPtrFromString(s string) *openapi_types.UUID {
 	if s == "" {
 		return nil

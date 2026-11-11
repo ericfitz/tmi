@@ -13,7 +13,6 @@ import (
 )
 
 // ClientCredential represents an OAuth 2.0 client credential for machine-to-machine authentication
-// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: domain model for an OAuth client credential with direct_write flag and addon link
 type ClientCredential struct {
 	ID               uuid.UUID
 	OwnerUUID        uuid.UUID
@@ -31,7 +30,6 @@ type ClientCredential struct {
 }
 
 // ClientCredentialCreateParams contains parameters for creating a new client credential
-// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: parameters for creating a client credential, including direct_write flag and addon link
 type ClientCredentialCreateParams struct {
 	OwnerUUID        uuid.UUID
 	ClientID         string
@@ -44,7 +42,6 @@ type ClientCredentialCreateParams struct {
 }
 
 // CreateClientCredential creates a new client credential in the database
-// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: store a new client credential and return the persisted entity (writes DB)
 func (s *Service) CreateClientCredential(ctx context.Context, params ClientCredentialCreateParams) (*ClientCredential, error) {
 	repoParams := repository.ClientCredentialCreateParams{
 		OwnerUUID:        params.OwnerUUID,
@@ -66,7 +63,6 @@ func (s *Service) CreateClientCredential(ctx context.Context, params ClientCrede
 }
 
 // GetClientCredentialByClientID retrieves a client credential by its client_id
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: fetch a client credential by its client_id string (reads DB)
 func (s *Service) GetClientCredentialByClientID(ctx context.Context, clientID string) (*ClientCredential, error) {
 	repoCred, err := s.credRepo.GetByClientID(ctx, clientID)
 	if err != nil {
@@ -80,7 +76,6 @@ func (s *Service) GetClientCredentialByClientID(ctx context.Context, clientID st
 }
 
 // ListClientCredentialsByOwner retrieves all client credentials for a given owner
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: list all client credentials belonging to a given owner (reads DB)
 func (s *Service) ListClientCredentialsByOwner(ctx context.Context, ownerUUID uuid.UUID) ([]*ClientCredential, error) {
 	repoCreds, err := s.credRepo.ListByOwner(ctx, ownerUUID)
 	if err != nil {
@@ -96,7 +91,6 @@ func (s *Service) ListClientCredentialsByOwner(ctx context.Context, ownerUUID uu
 }
 
 // UpdateClientCredentialLastUsed updates the last_used_at timestamp for a client credential
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: update the last-used timestamp for a client credential (reads DB)
 func (s *Service) UpdateClientCredentialLastUsed(ctx context.Context, id uuid.UUID) error {
 	err := s.credRepo.UpdateLastUsed(ctx, id)
 	if err != nil {
@@ -110,7 +104,6 @@ func (s *Service) UpdateClientCredentialLastUsed(ctx context.Context, id uuid.UU
 
 // DeactivateClientCredential deactivates a client credential (soft delete)
 // and revokes its outstanding service-account tokens.
-// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: soft-delete a client credential and revoke its issued tokens (mutates shared state)
 func (s *Service) DeactivateClientCredential(ctx context.Context, id uuid.UUID, ownerUUID uuid.UUID) error {
 	if err := s.credRepo.Deactivate(ctx, id, ownerUUID); err != nil {
 		return err // Repository already returns appropriate error message
@@ -124,7 +117,6 @@ func (s *Service) DeactivateClientCredential(ctx context.Context, id uuid.UUID, 
 // cannot be stored it returns ErrRevocationStorage with nothing deleted, so the
 // caller can retry. Ownership is checked before revoking so a caller cannot
 // blacklist another user's credential.
-// SEM@9750a568b8ffb60cfd241d61263b7e23f990899e: revoke a client credential's issued tokens then delete it, failing closed (mutates shared state)
 func (s *Service) DeleteClientCredential(ctx context.Context, id uuid.UUID, ownerUUID uuid.UUID) error {
 	owned, err := s.credRepo.ListByOwner(ctx, ownerUUID)
 	if err != nil {
@@ -141,7 +133,6 @@ func (s *Service) DeleteClientCredential(ctx context.Context, id uuid.UUID, owne
 
 // revokeCredentialTokens is the best-effort variant (deactivate and user-delete
 // sweeps): failures are logged, not returned.
-// SEM@9750a568b8ffb60cfd241d61263b7e23f990899e: revoke a client credential's service-account tokens, best-effort (writes DB)
 func (s *Service) revokeCredentialTokens(ctx context.Context, id uuid.UUID) {
 	if err := s.revokeCredentialTokensStrict(ctx, id); err != nil {
 		slogging.Get().Warn("Client credential token revocation failed credential_id=%v error=%v", id, err)
@@ -151,7 +142,6 @@ func (s *Service) revokeCredentialTokens(ctx context.Context, id uuid.UUID) {
 // revokeCredentialTokensStrict marks tokens already minted from a credential as
 // revoked (#862), returning ErrRevocationStorage if Redis is unavailable or the
 // write fails.
-// SEM@9750a568b8ffb60cfd241d61263b7e23f990899e: revoke a client credential's service-account tokens, returning storage errors (writes DB)
 func (s *Service) revokeCredentialTokensStrict(ctx context.Context, id uuid.UUID) error {
 	if s.dbManager == nil || s.dbManager.Redis() == nil {
 		return fmt.Errorf("%w: Redis not available", ErrRevocationStorage)
@@ -161,7 +151,6 @@ func (s *Service) revokeCredentialTokensStrict(ctx context.Context, id uuid.UUID
 }
 
 // convertRepoCredToServiceCred converts a repository ClientCredential to a service ClientCredential
-// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: convert a repository client credential to the service-layer credential type (pure)
 func convertRepoCredToServiceCred(rc *repository.ClientCredential) *ClientCredential {
 	return &ClientCredential{
 		ID:               rc.ID,

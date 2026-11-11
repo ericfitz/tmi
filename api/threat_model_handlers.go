@@ -16,7 +16,6 @@ import (
 )
 
 // ThreatModelHandler provides handlers for threat model operations
-// SEM@5eacb6f5fd0d2a1861dafb4d1fc5a18f97ee8e40: HTTP handler struct for threat model CRUD with WebSocket hub and URI validation
 type ThreatModelHandler struct {
 	// WebSocket hub for collaboration sessions
 	wsHub *WebSocketHub
@@ -25,13 +24,11 @@ type ThreatModelHandler struct {
 }
 
 // SetIssueURIValidator sets the URI validator for issue_uri fields
-// SEM@5eacb6f5fd0d2a1861dafb4d1fc5a18f97ee8e40: register the URI validator used to guard issue_uri fields (mutates shared state)
 func (h *ThreatModelHandler) SetIssueURIValidator(v *URIValidator) {
 	h.issueURIValidator = v
 }
 
 // NewThreatModelHandler creates a new threat model handler
-// SEM@8559837d482fde8e2f7e1a9ea5e99d2bb2414141: build a ThreatModelHandler wired to the given WebSocket hub (pure)
 func NewThreatModelHandler(wsHub *WebSocketHub) *ThreatModelHandler {
 	return &ThreatModelHandler{
 		wsHub: wsHub,
@@ -39,7 +36,6 @@ func NewThreatModelHandler(wsHub *WebSocketHub) *ThreatModelHandler {
 }
 
 // GetThreatModels returns a list of threat models
-// SEM@c91b16ea67b50cc273cb925b803aeb2cac07d517: list threat models accessible to the authenticated user with pagination and filters (reads DB)
 func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 	// Parse pagination parameters
 	limit := parseIntParam(c.DefaultQuery("limit", "20"), 20)
@@ -102,7 +98,6 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 }
 
 // GetThreatModelByID retrieves a specific threat model
-// SEM@533fc769067d317cc10f227729848688da16fba0: fetch a single threat model by ID for an authorized user (reads DB)
 func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 	// Parse ID from URL parameter
 	id := c.Param("threat_model_id")
@@ -125,9 +120,7 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 }
 
 // CreateThreatModel creates a new threat model
-// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: build a threat model owned by the caller with default authorization groups; classify FK errors as invalid input unless the caller's user row is confirmed gone (reads DB)
 func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
-	// SEM@0162974a02f0c8de928d89413890cd366741a5d8: request body shape for threat model creation (pure)
 	type CreateThreatModelRequest struct {
 		Name                 string          `json:"name" binding:"required"`
 		Description          *string         `json:"description,omitempty"`
@@ -365,13 +358,11 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 }
 
 // UpdateThreatModel fully updates a threat model
-// SEM@a37a0039279be689bb07be2113fe86024a410a4b: fully replace a threat model's mutable fields, enforcing owner-only auth changes (reads DB)
 // updateThreatModelInStore resolves the optimistic-lock expected version and
 // performs the versioned or plain content write; when a version is
 // supplied, the CAS runs in the same transaction as the write (#594).
 // lockErr is the version-resolution error (e.g. malformed If-Match, or 428
 // when required); err is the store-layer write error, still unmapped.
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: resolve optimistic lock and update a threat model, returning both error classes unmapped (reads DB)
 func updateThreatModelInStore(c *gin.Context, id string, tm ThreatModel, bodyVersion *int) (newVersion int, lockErr error, err error) {
 	expectedVersion, hasVersion, lockErr := ResolveOptimisticLock(c, bodyVersion)
 	if lockErr != nil {
@@ -385,11 +376,9 @@ func updateThreatModelInStore(c *gin.Context, id string, tm ThreatModel, bodyVer
 	return newVersion, nil, err
 }
 
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fully replace a threat model's mutable fields, enforcing owner-only auth changes (reads DB)
 func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	// Define allowed fields for PUT requests - excludes calculated and read-only fields
 	// Per OpenAPI spec (ThreatModelInput), only 'name' is required
-	// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: request body shape for threat model full replacement (pure)
 	type UpdateThreatModelRequest struct {
 		Name                 string          `json:"name" binding:"required"`
 		Description          *string         `json:"description,omitempty"`
@@ -621,7 +610,6 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 }
 
 // PatchThreatModel partially updates a threat model
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: apply JSON Patch operations to a threat model with allowlist and optimistic locking (reads DB)
 func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	id := c.Param("threat_model_id")
 	slogging.Get().WithContext(c).Debug("[HANDLER] PatchThreatModel called for ID: %s", id)
@@ -854,7 +842,6 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 }
 
 // DeleteThreatModel deletes a threat model
-// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: delete a threat model; reject if any diagram has active collaboration session (reads DB)
 func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	// Parse ID from URL parameter
 	id := c.Param("threat_model_id")
@@ -937,7 +924,6 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 
 // invalidateThreatModelCaches invalidates response and middleware auth caches for a threat model.
 // Cache failures are non-fatal and errors are discarded.
-// SEM@b226389b316426e5d229ed94aa3a29dff80e46b1: invalidate response and middleware auth caches for a threat model (mutates shared state)
 func invalidateThreatModelCaches(c *gin.Context, id string) {
 	if GlobalCacheService != nil {
 		_ = GlobalCacheService.InvalidateThreatModelResponse(c.Request.Context(), id)
@@ -946,7 +932,6 @@ func invalidateThreatModelCaches(c *gin.Context, id string) {
 }
 
 // Helper function to parse integer parameters with fallback
-// SEM@27d5e187c3b6448a05927c72d25d99fe0a23043a: parse an integer query parameter string, returning a fallback on error (pure)
 func parseIntParam(val string, fallback int) int {
 	if val == "" {
 		return fallback
@@ -961,7 +946,6 @@ func parseIntParam(val string, fallback int) int {
 }
 
 // parseThreatModelFilters parses filter query parameters from the request
-// SEM@cd5f8ed4949685a202f3e973e6cddb10850f0f15: parse and validate threat model list filter query parameters from the request (pure)
 func parseThreatModelFilters(c *gin.Context) (*ThreatModelFilters, error) {
 	filters := &ThreatModelFilters{}
 	hasFilters := false
@@ -1081,7 +1065,6 @@ func parseThreatModelFilters(c *gin.Context) (*ThreatModelFilters, error) {
 // Note: Using the PatchOperation type defined in types.go
 
 // getFieldErrorMessage returns a descriptive error message for prohibited fields
-// SEM@270f55053109ed75ccf6cdf123884b9edf831d15: map a prohibited field name to a human-readable error message (pure)
 func getFieldErrorMessage(field string) string {
 	switch field {
 	case "id":
@@ -1110,13 +1093,11 @@ func getFieldErrorMessage(field string) string {
 }
 
 // convertOperationsToJSONPatch converts our internal representation to RFC6902 format
-// SEM@386eea01f3b66c35027bf3ca762efbc291419e20: serialize patch operations to RFC 6902 JSON Patch bytes (pure)
 func convertOperationsToJSONPatch(operations []PatchOperation) ([]byte, error) {
 	return json.Marshal(operations)
 }
 
 // authorizationEqual checks if two authorization arrays are equal
-// SEM@e28c0cfc627a2162c9550e53fb320facb734179e: compare two authorization lists for subject/role equivalence regardless of order (pure)
 func authorizationEqual(a, b []Authorization) bool {
 	if len(a) != len(b) {
 		return false
@@ -1153,7 +1134,6 @@ func authorizationEqual(a, b []Authorization) bool {
 
 // validatePatchedThreatModel performs validation on the patched threat model.
 // The user parameter is a ResolvedUser; the wrapper closure adapts the ValidatePatchedEntity signature.
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: validate a patched threat model for immutable field violations and required values (pure)
 func validatePatchedThreatModel(original, patched ThreatModel, user ResolvedUser) error {
 	// Add debug logging
 	slogging.Get().Debug("Validating patched threat model: %+v", patched)
@@ -1211,7 +1191,6 @@ func validatePatchedThreatModel(original, patched ThreatModel, user ResolvedUser
 // Helper functions for threat model patching
 
 // getExistingThreatModel retrieves the existing threat model from context or store
-// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: fetch the current threat model from context or store (reads DB)
 func (h *ThreatModelHandler) getExistingThreatModel(c *gin.Context, id string) (ThreatModel, error) {
 	var zero ThreatModel
 
@@ -1237,7 +1216,6 @@ func (h *ThreatModelHandler) getExistingThreatModel(c *gin.Context, id string) (
 }
 
 // preserveThreatModelCriticalFields preserves critical fields that shouldn't change during patching
-// SEM@ccb5fb471d532a81e43e89c9c5f65e00683d2317: copy immutable fields from the original into the patched threat model (pure)
 func (h *ThreatModelHandler) preserveThreatModelCriticalFields(modified, original ThreatModel) ThreatModel {
 	// Preserve original timestamps and ID to avoid JSON marshaling precision issues
 	modified.CreatedAt = original.CreatedAt
@@ -1247,7 +1225,6 @@ func (h *ThreatModelHandler) preserveThreatModelCriticalFields(modified, origina
 }
 
 // applyThreatModelBusinessRules applies threat model-specific business rules
-// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: enforce ownership transfer and security reviewer authorization rules on a threat model (pure)
 func (h *ThreatModelHandler) applyThreatModelBusinessRules(modifiedTM *ThreatModel, existingTM ThreatModel, ownerChanging bool, securityReviewerChanging bool) error {
 	// Note: Post-enrichment duplicate detection removed.
 	// The database ON CONFLICT will handle duplicates gracefully after internal_uuid resolution.

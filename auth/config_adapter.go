@@ -14,7 +14,6 @@ import (
 )
 
 // ConfigFromUnified converts unified config to auth-specific config
-// SEM@6bac11e: convert the unified application config, including Redis TLS settings, to the auth-package Config (pure)
 func ConfigFromUnified(unified *config.Config) Config {
 	return Config{
 		Database: DatabaseConfig{
@@ -55,7 +54,6 @@ func ConfigFromUnified(unified *config.Config) Config {
 }
 
 // convertOAuthProviders converts unified OAuth providers to auth-specific format
-// SEM@93e972b21be4fbdf788d2884f25d14b33d41b98e: convert unified OAuth provider configs to auth-package OAuthProviderConfig map (pure)
 func convertOAuthProviders(unified map[string]config.OAuthProviderConfig) map[string]OAuthProviderConfig {
 	providers := make(map[string]OAuthProviderConfig)
 
@@ -92,7 +90,6 @@ func convertOAuthProviders(unified map[string]config.OAuthProviderConfig) map[st
 }
 
 // convertSAMLProviders converts unified SAML providers to auth-specific format
-// SEM@78155d54490599e00095eb72b817575bb1e8da5b: convert unified SAML provider configs to auth-package SAMLProviderConfig map (pure)
 func convertSAMLProviders(unified map[string]config.SAMLProviderConfig) map[string]SAMLProviderConfig {
 	providers := make(map[string]SAMLProviderConfig)
 
@@ -131,7 +128,6 @@ func convertSAMLProviders(unified map[string]config.SAMLProviderConfig) map[stri
 // InitAuthWithDB initializes the auth system with an existing database manager.
 // This is the preferred initialization method for explicit dependency injection.
 // The caller is responsible for initializing the database connections before calling this function.
-// SEM@72ef5c64a4ca8965f90ee105cc73893284c60b1a: initialize the auth system using an injected database manager and unified config
 func InitAuthWithDB(dbManager *db.Manager, unified *config.Config) (*Handlers, error) {
 	if dbManager == nil {
 		return nil, fmt.Errorf("database manager is required")
@@ -178,7 +174,6 @@ func InitAuthWithDB(dbManager *db.Manager, unified *config.Config) (*Handlers, e
 // This function creates its own database manager internally, which can lead to
 // duplicate initialization and DRY violations. Prefer passing a pre-initialized
 // db.Manager to InitAuthWithDB instead.
-// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: build the auth service: connect DB and Redis, migrate schema, register handlers (deprecated) (mutates DB)
 func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, error) {
 	authConfig := ConfigFromUnified(unified)
 
@@ -268,14 +263,12 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 // invariant checks, AutoMigrate itself, and the two raw-DDL indexes
 // AutoMigrate cannot express. Always called with the cross-replica migration
 // advisory lock held (see InitAuthWithConfig, #737).
-// SEM@7ffca610d050b6fdbe2db2796298d3e746bb7491: run pre-migration checks, AutoMigrate, and raw-DDL indexes for schema evolution (mutates DB)
 // configAdapterMigrationTimeout bounds the whole lock-plus-migrate sequence in
 // InitAuthWithConfig, which has no caller-supplied context (#758). Generous:
 // a cold Oracle ADB AutoMigrate takes minutes, and the advisory lock alone may
 // wait up to 300s for another replica.
 const configAdapterMigrationTimeout = 20 * time.Minute
 
-// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: run the auth schema migration sequence: AutoMigrate, backfills, index upgrades (mutates DB)
 func migrateSchemaForConfigAdapter(ctx context.Context, gormDB *db.GormDB, allModels []any, desiredFP string) error {
 	logger := slogging.Get()
 
@@ -375,7 +368,6 @@ const (
 // validateOAuthProvidersAtStartup runs the OIDC-discovery-based classifier
 // against every enabled OAuth provider and refuses startup if any provider is
 // not safe to enable. (Issue #288)
-// SEM@6348e71f577bd1e4c952467c7bb6ffd800ab73c1: validate all enabled OAuth providers via OIDC discovery at startup, refusing startup on failure
 func validateOAuthProvidersAtStartup(providers map[string]OAuthProviderConfig) error {
 	logger := slogging.Get()
 	client := NewDiscoveryClient(oidcDiscoveryTimeout, oidcDiscoveryCacheTTL)

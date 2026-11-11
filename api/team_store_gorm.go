@@ -23,7 +23,6 @@ const maxTeamRelationshipDepth = 10
 const teamStatusDefault = "active"
 
 // teamStatusToString converts a *TeamStatus to NullableDBVarchar for GORM storage.
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: convert a TeamStatus pointer to a nullable DB varchar for storage (pure)
 func teamStatusToString(s *TeamStatus) models.NullableDBVarchar {
 	if s == nil {
 		return models.NullableDBVarchar{}
@@ -33,7 +32,6 @@ func teamStatusToString(s *TeamStatus) models.NullableDBVarchar {
 }
 
 // stringToTeamStatus converts a *string from a raw scan struct to *TeamStatus for the API.
-// SEM@3cdae0e23f6158aa17b9317f9b93cf7ddb759af0: convert a raw string pointer to a TeamStatus pointer for the API (pure)
 func stringToTeamStatus(s *string) *TeamStatus {
 	if s == nil {
 		return nil
@@ -43,7 +41,6 @@ func stringToTeamStatus(s *string) *TeamStatus {
 }
 
 // nullableDBVarcharToTeamStatus converts a NullableDBVarchar from a GORM model to *TeamStatus.
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: convert a nullable DB varchar to a TeamStatus pointer for the API (pure)
 func nullableDBVarcharToTeamStatus(s models.NullableDBVarchar) *TeamStatus {
 	if !s.Valid {
 		return nil
@@ -53,7 +50,6 @@ func nullableDBVarcharToTeamStatus(s models.NullableDBVarchar) *TeamStatus {
 }
 
 // TeamFilters defines filtering criteria for listing teams
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: filtering criteria for listing teams by name, status, member, or relationship (pure)
 type TeamFilters struct {
 	Name         *string
 	Status       []string
@@ -64,7 +60,6 @@ type TeamFilters struct {
 }
 
 // TeamStoreInterface defines the store interface for teams
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: CRUD and membership query contract for the team store (pure)
 type TeamStoreInterface interface {
 	Create(ctx context.Context, team *Team, userInternalUUID string) (*Team, error)
 	Get(ctx context.Context, id string) (*Team, error)
@@ -76,31 +71,26 @@ type TeamStoreInterface interface {
 }
 
 // GormTeamStore implements TeamStoreInterface using GORM for database persistence
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: GORM-backed implementation of TeamStoreInterface (pure)
 type GormTeamStore struct {
 	db *gorm.DB
 }
 
 // NewGormTeamStore creates a new GORM-backed team store
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: build a GormTeamStore from a GORM database connection (pure)
 func NewGormTeamStore(db *gorm.DB) *GormTeamStore {
 	return &GormTeamStore{db: db}
 }
 
 // uuidToString converts an openapi_types.UUID to its string representation
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: convert an openapi UUID to its string representation (pure)
 func uuidToString(id openapi_types.UUID) string {
 	return id.String()
 }
 
 // stringToUUID converts a string to an openapi_types.UUID
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: parse a string into an openapi UUID, panicking on failure (pure)
 func stringToUUID(s string) openapi_types.UUID {
 	return uuid.MustParse(s)
 }
 
 // Create creates a new team, auto-adding the creator as a member with engineering_lead role
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new team and auto-enroll the creator as engineering lead (mutates DB)
 func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID string) (*Team, error) {
 	logger := slogging.Get()
 	logger.Debug("Creating team: %s", team.Name)
@@ -248,7 +238,6 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 }
 
 // Get retrieves a team by ID with all associated data
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fetch a team with its members, responsible parties, relationships and metadata (reads DB)
 func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 	return s.getWith(s.db.WithContext(ctx), id)
 }
@@ -256,7 +245,6 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 // getWith loads a team through the given handle, so update can read back
 // inside its own transaction and return a body that matches the version it
 // committed instead of whatever a concurrent writer landed afterwards (#777).
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: load a full team with members, parties, relationships, and metadata through a given DB handle (reads DB)
 func (s *GormTeamStore) getWith(db *gorm.DB, id string) (*Team, error) {
 	logger := slogging.Get()
 	logger.Debug("Getting team: %s", id)
@@ -322,7 +310,6 @@ func (s *GormTeamStore) getWith(db *gorm.DB, id string) (*Team, error) {
 
 // update runs the team content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: replace a team's fields, members, responsible parties, relationships, and metadata, optionally CAS-guarded (mutates DB)
 func (s *GormTeamStore) update(ctx context.Context, id string, team *Team, userInternalUUID string, expectedVersion *int) (*Team, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Updating team: %s", id)
@@ -483,7 +470,6 @@ func (s *GormTeamStore) update(ctx context.Context, id string, team *Team, userI
 }
 
 // Update updates an existing team, replacing members, responsible parties, and relationships
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: replace a team's fields, members, responsible parties, relationships, and metadata (mutates DB)
 func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userInternalUUID string) (*Team, error) {
 	result, _, err := s.update(ctx, id, team, userInternalUUID, nil)
 	return result, err
@@ -491,13 +477,11 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 
 // UpdateWithVersion updates a team guarded by a same-transaction
 // optimistic-lock CAS (#594).
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update a team guarded by a same-transaction version CAS (mutates DB)
 func (s *GormTeamStore) UpdateWithVersion(ctx context.Context, id string, team *Team, userInternalUUID string, expectedVersion int) (*Team, int, error) {
 	return s.update(ctx, id, team, userInternalUUID, &expectedVersion)
 }
 
 // Delete removes a team and all associated data
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: delete a team and all associated records, blocking if projects exist (writes DB)
 func (s *GormTeamStore) Delete(ctx context.Context, id string) error {
 	logger := slogging.Get()
 	logger.Debug("Deleting team: %s", id)
@@ -568,7 +552,6 @@ func (s *GormTeamStore) Delete(ctx context.Context, id string) error {
 }
 
 // List retrieves teams with filtering, pagination, and access control
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: list teams with filters, access control, and pagination, including counts (reads DB)
 func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *TeamFilters, userInternalUUID string, isAdmin bool) ([]TeamListItem, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Listing teams (limit=%d, offset=%d, isAdmin=%t)", limit, offset, isAdmin)
@@ -701,7 +684,6 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 }
 
 // IsMember checks if a user is a member of a team
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: check whether a user is a member of a team (reads DB)
 func (s *GormTeamStore) IsMember(ctx context.Context, teamID string, userInternalUUID string) (bool, error) {
 	logger := slogging.Get()
 	logger.Debug("Checking membership: team=%s, user=%s", teamID, userInternalUUID)
@@ -720,7 +702,6 @@ func (s *GormTeamStore) IsMember(ctx context.Context, teamID string, userInterna
 }
 
 // HasProjects checks if a team has any associated projects
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: check whether a team has any associated projects (reads DB)
 func (s *GormTeamStore) HasProjects(ctx context.Context, teamID string) (bool, error) {
 	logger := slogging.Get()
 	logger.Debug("Checking projects for team: %s", teamID)
@@ -739,7 +720,6 @@ func (s *GormTeamStore) HasProjects(ctx context.Context, teamID string) (bool, e
 }
 
 // validateRelationship validates a relationship between two teams
-// SEM@a73016493971c9f00c5012a42c1385586f489aa0: validate a proposed team relationship for self-reference and cycles (reads DB)
 func (s *GormTeamStore) validateRelationship(ctx context.Context, teamID, relatedTeamID, relationship string) error {
 	// Self-reference check
 	if teamID != "" && teamID == relatedTeamID {
@@ -774,7 +754,6 @@ func (s *GormTeamStore) validateRelationship(ctx context.Context, teamID, relate
 // For "child": adding A->child->B means B is A's child. Check if B is already an ancestor of A.
 // For "supersedes": adding A->supersedes->B. Check if B already supersedes A (directly or transitively).
 // For "superseded_by": adding A->superseded_by->B. Check if A already supersedes B.
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: detect whether adding a directional team relationship would create a cycle (reads DB)
 func (s *GormTeamStore) detectCycle(ctx context.Context, teamID, relatedTeamID, relationship string) error {
 	logger := slogging.Get()
 
@@ -834,7 +813,6 @@ func (s *GormTeamStore) detectCycle(ctx context.Context, teamID, relatedTeamID, 
 
 // resolveRelatedTeamIDs resolves the set of team IDs matching a related_to + relationship filter,
 // optionally following transitive relationships.
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: resolve team IDs matching a related_to/relationship filter, optionally transitive (reads DB)
 func (s *GormTeamStore) resolveRelatedTeamIDs(ctx context.Context, filters *TeamFilters) ([]string, error) {
 	if filters.RelatedTo == nil || *filters.RelatedTo == "" {
 		return nil, nil
@@ -935,7 +913,6 @@ func (s *GormTeamStore) resolveRelatedTeamIDs(ctx context.Context, filters *Team
 }
 
 // resolveTransitiveRelatedTeams follows a directional relationship chain iteratively up to maxTeamRelationshipDepth
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: follow a directional relationship chain to collect all transitive related team IDs (reads DB)
 func (s *GormTeamStore) resolveTransitiveRelatedTeams(ctx context.Context, startTeamID string, relationship string) ([]string, error) {
 	logger := slogging.Get()
 	logger.Debug("Resolving transitive %s relationships from team %s", relationship, startTeamID)
@@ -973,7 +950,6 @@ func (s *GormTeamStore) resolveTransitiveRelatedTeams(ctx context.Context, start
 }
 
 // recordToAPI converts database records to the API Team type
-// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: convert GORM team records to the API Team response type (pure)
 func (s *GormTeamStore) recordToAPI(
 	record *models.TeamRecord,
 	members []models.TeamMemberRecord,

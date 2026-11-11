@@ -49,7 +49,6 @@ const MigrationLockName = "tmi_schema_migration"
 // Any other acquisition failure is returned without running fn: proceeding
 // unserialized is exactly the concurrent-DDL exposure the lock exists to
 // prevent.
-// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: acquire the schema-migration advisory lock, run a callback, then release it (mutates DB)
 func WithMigrationLock(ctx context.Context, db *gorm.DB, name string, fn func() error) error {
 	release, err := AcquireMigrationLock(ctx, db, name)
 	if err != nil {
@@ -74,7 +73,6 @@ func WithMigrationLock(ctx context.Context, db *gorm.DB, name string, fn func() 
 // DBMS_LOCK.REQUEST. Other dialects return an error.
 //
 // The release function is idempotent and safe to defer.
-// SEM@dea6869d1be777f8e297ccf30db5f7c272b226f9: lock a named schema-migration advisory lock, dispatching to the correct dialect implementation (reads DB)
 func AcquireMigrationLock(ctx context.Context, db *gorm.DB, name string) (release func(), err error) {
 	logger := slogging.Get()
 	dialect := db.Name()
@@ -109,7 +107,6 @@ func AcquireMigrationLock(ctx context.Context, db *gorm.DB, name string) (releas
 // so — mirroring acquireOracleLock's dropConn — the connection is discarded
 // via driver.ErrBadConn rather than returned to the pool: a plain Close()
 // would hand a possibly-still-locked backend back to an unrelated query.
-// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: acquire a PostgreSQL advisory lock on a pinned session connection and return a release function (reads DB)
 func acquirePGLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slogging.Logger) (func(), error) {
 	key := nameToInt64(name)
 
@@ -193,7 +190,6 @@ func acquirePGLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slog
 //
 // All binds are positional (:1, :2, ...). Mixing ? and named binds (:h, :s)
 // is unreliable on godror.
-// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: acquire an Oracle exclusive lock on a pinned session and return a release function (reads DB)
 func acquireOracleLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slogging.Logger) (func(), error) {
 	// A pool sized to exactly one connection (TMI_DB_MAX_OPEN_CONNS=1) cannot
 	// survive pinning a connection for the lock's lifetime: sqlDB.Conn below
@@ -348,7 +344,6 @@ func acquireOracleLock(ctx context.Context, sqlDB *sql.DB, name string, logger *
 // nameToInt64 hashes a name string to a deterministic int64 for use as a
 // pg_advisory_lock key. Two different names will produce different keys
 // with overwhelming probability.
-// SEM@73235c4c5e292c1a307c5bb6d625a4cb06eb57f2: convert a lock name to a stable int64 key via SHA-256 for use with pg_advisory_lock (pure)
 func nameToInt64(name string) int64 {
 	h := sha256.Sum256([]byte(name))
 	return int64(binary.BigEndian.Uint64(h[:8])) // #nosec G115 -- deterministic hash; signed wrap is fine

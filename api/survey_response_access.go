@@ -30,7 +30,6 @@ import (
 // existence check and unifies the response shape so handlers do not
 // duplicate the load + check + 403/404 dance and do not accidentally diverge
 // on the disclosure question.
-// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: authorize a caller's access to a survey response and return it, emitting 404 on denial to avoid existence disclosure (reads DB)
 func RequireSurveyResponseAccess(
 	c *gin.Context,
 	surveyResponseID SurveyResponseId,

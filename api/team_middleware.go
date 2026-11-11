@@ -18,14 +18,12 @@ import (
 var teamAuthDB *gorm.DB
 
 // SetTeamAuthDB sets the GORM database handle for team authorization.
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: register the GORM database handle for team authorization queries (mutates shared state)
 func SetTeamAuthDB(db *gorm.DB) {
 	teamAuthDB = db
 }
 
 // IsTeamMemberOrAdmin checks if a user is a member of the specified team OR an administrator.
 // Returns true if the user is authorized to access the team's resources.
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: authorize whether a user is a team member or administrator (reads DB)
 func IsTeamMemberOrAdmin(ctx context.Context, teamID string, userInternalUUID string, c *gin.Context) (bool, error) {
 	logger := slogging.Get()
 
@@ -59,7 +57,6 @@ func IsTeamMemberOrAdmin(ctx context.Context, teamID string, userInternalUUID st
 
 // IsTeamOwnerOrAdmin checks if a user is the creator/owner of a team or an administrator.
 // Used for operations that require owner-level access (e.g., delete).
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: authorize whether a user is the team creator or administrator (reads DB)
 func IsTeamOwnerOrAdmin(ctx context.Context, teamID string, userInternalUUID string, c *gin.Context) (bool, error) {
 	logger := slogging.Get()
 
@@ -95,7 +92,6 @@ func IsTeamOwnerOrAdmin(ctx context.Context, teamID string, userInternalUUID str
 }
 
 // IsProjectTeamMemberOrAdmin checks if a user is a member of the team that owns the project, or an administrator.
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: authorize whether a user belongs to the team that owns a project, or is an administrator (reads DB)
 func IsProjectTeamMemberOrAdmin(ctx context.Context, projectID string, userInternalUUID string, c *gin.Context) (bool, error) {
 	logger := slogging.Get()
 
@@ -138,7 +134,6 @@ func IsProjectTeamMemberOrAdmin(ctx context.Context, projectID string, userInter
 // looking the parent up, so an admin listing a sub-resource of a nonexistent
 // team got 200 with an empty list while a regular user got 404 for the same
 // URL (#609). Callers check existence first so both answers agree.
-// SEM@bfe3f043180e288dc7f18690340fbdd493d5813c: validate whether a team row exists (reads DB)
 func TeamExists(ctx context.Context, teamID string) (bool, error) {
 	if teamAuthDB == nil {
 		return false, fmt.Errorf("database not initialized") //nolint:goerr113
@@ -163,7 +158,6 @@ func TeamExists(ctx context.Context, teamID string) (bool, error) {
 }
 
 // GetProjectTeamID retrieves the team_id for a given project.
-// SEM@bfe3f043180e288dc7f18690340fbdd493d5813c: fetch the team ID that owns a given project (reads DB)
 func GetProjectTeamID(ctx context.Context, projectID string) (string, error) {
 	if teamAuthDB == nil {
 		return "", fmt.Errorf("database not initialized") //nolint:goerr113

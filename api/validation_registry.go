@@ -12,13 +12,11 @@ import (
 )
 
 // CommonValidatorRegistry provides a centralized registry of reusable validators
-// SEM@4fa1d37f07fd36467dea01526b97410523474271: named registry mapping validator keys to reusable ValidatorFunc instances (pure)
 type CommonValidatorRegistry struct {
 	validators map[string]ValidatorFunc
 }
 
 // NewValidatorRegistry creates a new validator registry with common validators
-// SEM@869fcafe6842b187f8cfe8e7cf65ca47021b8418: build a validator registry pre-loaded with all standard domain validators (pure)
 func NewValidatorRegistry() *CommonValidatorRegistry {
 	registry := &CommonValidatorRegistry{
 		validators: make(map[string]ValidatorFunc),
@@ -44,20 +42,17 @@ func NewValidatorRegistry() *CommonValidatorRegistry {
 }
 
 // Register adds a validator to the registry
-// SEM@4fa1d37f07fd36467dea01526b97410523474271: store a named validator function in the registry (mutates shared state)
 func (r *CommonValidatorRegistry) Register(name string, validator ValidatorFunc) {
 	r.validators[name] = validator
 }
 
 // Get retrieves a validator by name
-// SEM@4fa1d37f07fd36467dea01526b97410523474271: fetch a named validator function from the registry (pure)
 func (r *CommonValidatorRegistry) Get(name string) (ValidatorFunc, bool) {
 	validator, exists := r.validators[name]
 	return validator, exists
 }
 
 // GetValidators returns multiple validators by names
-// SEM@4fa1d37f07fd36467dea01526b97410523474271: fetch multiple validator functions by name from the registry (pure)
 func (r *CommonValidatorRegistry) GetValidators(names []string) []ValidatorFunc {
 	var validators []ValidatorFunc
 	for _, name := range names {
@@ -74,7 +69,6 @@ var CommonValidators = NewValidatorRegistry()
 // Common Validator Implementations
 
 // ValidateEmailFields validates email format in struct fields
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate email format in all email-tagged struct fields via reflection (pure)
 func ValidateEmailFields(data any) error {
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 
@@ -92,7 +86,6 @@ func ValidateEmailFields(data any) error {
 }
 
 // ValidateURLFields validates URL format in struct fields
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate HTTP/HTTPS URL format in all url-tagged struct fields via reflection (pure)
 func ValidateURLFields(data any) error {
 	urlRegex := regexp.MustCompile(`^https?://[a-zA-Z0-9.-]+(\.[a-zA-Z]{2,})?(:\d+)?(/.*)?$`)
 
@@ -111,14 +104,12 @@ func ValidateURLFields(data any) error {
 
 // ValidateThreatSeverity is a no-op validator that accepts any severity value
 // Severity is now a free-form string field per the OpenAPI schema
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: no-op validator; severity is a free-form string requiring no constraint (pure)
 func ValidateThreatSeverity(data any) error {
 	// No validation needed - severity is a free-form string field
 	return nil
 }
 
 // ValidateRoleFields validates role format in struct fields
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate role fields are one of the allowed role values via reflection (pure)
 func ValidateRoleFields(data any) error {
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Pointer {
@@ -135,7 +126,6 @@ func ValidateRoleFields(data any) error {
 }
 
 // ValidateMetadataKey validates metadata key format against validation.MetadataKeyPattern
-// SEM@a7cac3f9cd8e77b1dc209e5a213cb6c7f7e40a29: validate metadata key fields against the spec character set (pure)
 func ValidateMetadataKey(data any) error {
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Pointer {
@@ -152,7 +142,6 @@ func ValidateMetadataKey(data any) error {
 
 // ValidateNoHTMLInjection prevents HTML/script injection in text fields.
 // Uses the unified CheckHTMLInjection checker for consistent pattern coverage.
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: reject struct string fields containing HTML or script injection patterns (pure)
 func ValidateNoHTMLInjection(data any) error {
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Pointer {
@@ -191,14 +180,12 @@ func ValidateNoHTMLInjection(data any) error {
 // markdown content because these fields store free-text data that may legitimately
 // contain such syntax (e.g., Terraform references, shell variables, code examples).
 // TMI does not evaluate templates in stored content, so SSTI is not a concern here.
-// SEM@bb3f5b6b781f2930614631116234cf58a7ee562f: no-op validator; markdown content is sanitized at the handler layer, not here (pure)
 func ValidateMarkdownContent(_ string) error {
 	return nil
 }
 
 // ValidateNoteMarkdown validates Note.Content field for dangerous HTML.
 // This validator is specifically designed for Note objects that contain Markdown content.
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate a Note's content field as markdown; delegates to shared markdown validator (pure)
 func ValidateNoteMarkdown(data any) error {
 	note, ok := data.(*Note)
 	if !ok {
@@ -209,7 +196,6 @@ func ValidateNoteMarkdown(data any) error {
 
 // ValidateTriageNoteMarkdown validates TriageNote.Content field for dangerous HTML.
 // This validator uses the same shared markdown validation as Note objects.
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate a TriageNote's content field as markdown; delegates to shared markdown validator (pure)
 func ValidateTriageNoteMarkdown(data any) error {
 	triageNote, ok := data.(*TriageNote)
 	if !ok {
@@ -219,7 +205,6 @@ func ValidateTriageNoteMarkdown(data any) error {
 }
 
 // ValidateStringLengths validates string field lengths based on struct tags
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate struct string fields against maxlength struct tags via reflection (pure)
 func ValidateStringLengths(data any) error {
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Pointer {
@@ -260,7 +245,6 @@ func ValidateStringLengths(data any) error {
 }
 
 // ValidateNoDuplicateEntries validates that slice fields don't contain duplicates
-// SEM@24dcbaf59ea6bfe4e66c3f1fbc4863c809cfdc0e: validate that slice fields tagged unique contain no duplicate entries (pure)
 func ValidateNoDuplicateEntries(data any) error {
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Pointer {
@@ -285,7 +269,6 @@ func ValidateNoDuplicateEntries(data any) error {
 
 // ValidateScorePrecision validates that score fields have at most 1 decimal place
 // This matches the OpenAPI spec constraint: multipleOf: 0.1
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate that the score field has at most one decimal place (pure)
 func ValidateScorePrecision(data any) error {
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Pointer {
@@ -332,7 +315,6 @@ func ValidateScorePrecision(data any) error {
 // Helper Functions
 
 // validateFieldsByPattern applies a validation function to fields matching a pattern
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: apply a validation function to all struct fields whose name or JSON tag matches a pattern (pure)
 func validateFieldsByPattern(v reflect.Value, fieldPattern string, validationFunc func(string) error) error {
 	t := v.Type()
 	for i := 0; i < v.NumField(); i++ {
@@ -365,7 +347,6 @@ func validateFieldsByPattern(v reflect.Value, fieldPattern string, validationFun
 }
 
 // validateUniqueSlice checks for duplicates in a slice
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate that a slice reflected value contains no duplicate elements (pure)
 func validateUniqueSlice(sliceValue reflect.Value, field reflect.StructField) error {
 	if sliceValue.Len() <= 1 {
 		return nil
@@ -394,7 +375,6 @@ func validateUniqueSlice(sliceValue reflect.Value, field reflect.StructField) er
 }
 
 // Enhanced UUID validation with better error messages
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate UUID string and pointer fields in a struct are non-nil and well-formed (pure)
 func ValidateUUIDFieldsFromStruct(data any) error {
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Pointer {

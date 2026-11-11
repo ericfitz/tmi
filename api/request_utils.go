@@ -27,7 +27,6 @@ const (
 const WWWAuthenticateRealm = wwwauth.Realm
 
 // WWWAuthenticateError represents error types per RFC 6750 section 3.1
-// SEM@212287c6c02d99be7f8071b21a50666223646bec: define string type enumerating RFC 6750 WWW-Authenticate error codes (pure)
 type WWWAuthenticateError string
 
 const (
@@ -47,8 +46,6 @@ const (
 //   - c: Gin context
 //   - errType: Error type (invalid_request, invalid_token, insufficient_scope) or empty for basic challenge
 //   - description: Human-readable error description (optional, ignored if errType is empty)
-//
-// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: set the WWW-Authenticate response header for a given error type (pure)
 func SetWWWAuthenticateHeader(c *gin.Context, errType WWWAuthenticateError, description string) {
 	c.Header("WWW-Authenticate", wwwauth.BuildHeader(string(errType), description))
 }
@@ -56,7 +53,6 @@ func SetWWWAuthenticateHeader(c *gin.Context, errType WWWAuthenticateError, desc
 // sanitizeErrorMessage removes control characters (0x00-0x1F) from error messages
 // to comply with OpenAPI schema pattern "^[^\x00-\x1F]*$" for error_description.
 // Newlines and tabs are replaced with spaces; other control characters are removed.
-// SEM@30604730ee54403d31d30e94debd8c9646ab3356: strip control characters from an error string to comply with API schema (pure)
 func sanitizeErrorMessage(message string) string {
 	var result strings.Builder
 	result.Grow(len(message))
@@ -86,7 +82,6 @@ const (
 
 // ValidatePaginationParams validates limit and offset parameters
 // Returns a RequestError if validation fails, nil otherwise
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: validate limit and offset pagination parameters against allowed bounds (pure)
 func ValidatePaginationParams(limit, offset *int) *RequestError {
 	if limit != nil {
 		if *limit < 0 || *limit > MaxPaginationLimit {
@@ -102,7 +97,6 @@ func ValidatePaginationParams(limit, offset *int) *RequestError {
 }
 
 // ParsePatchRequest parses JSON Patch operations from the request body
-// SEM@40d527743ae56474b63b0a5f7d5f397c797e4d33: parse a JSON Patch operation array from the request body and validate its paths
 func ParsePatchRequest(c *gin.Context) ([]PatchOperation, error) {
 	bodyBytes, err := c.GetRawData()
 	if err != nil {
@@ -152,7 +146,6 @@ func ParsePatchRequest(c *gin.Context) ([]PatchOperation, error) {
 // root path ("") or any path or move/copy "from" that is not a JSON Pointer
 // starting with "/". Exact-path checks on prohibited fields cannot see a
 // root-path operation, so every PATCH handler must reject them up front.
-// SEM@40d527743ae56474b63b0a5f7d5f397c797e4d33: reject JSON Patch operations targeting the document root or invalid pointer paths (pure)
 func ValidatePatchOperationPaths(operations []PatchOperation) *RequestError {
 	for i, op := range operations {
 		if !strings.HasPrefix(op.Path, "/") {
@@ -166,7 +159,6 @@ func ValidatePatchOperationPaths(operations []PatchOperation) *RequestError {
 }
 
 // ParseRequestBody parses JSON request body into the specified type
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: parse, validate, and deserialize a JSON request body into a typed value
 func ParseRequestBody[T any](c *gin.Context) (T, error) {
 	var zero T
 
@@ -229,7 +221,6 @@ func ParseRequestBody[T any](c *gin.Context) (T, error) {
 }
 
 // sanitizeJSONForUUIDs cleans up JSON by converting invalid UUID values to null
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: null out invalid or empty UUID fields in a JSON object (pure)
 func sanitizeJSONForUUIDs(jsonBytes []byte) ([]byte, error) {
 	var rawData map[string]any
 	if err := json.Unmarshal(jsonBytes, &rawData); err != nil {
@@ -263,7 +254,6 @@ func sanitizeJSONForUUIDs(jsonBytes []byte) ([]byte, error) {
 // - Hyphens at positions 8, 13, 18, 23
 // - Only hexadecimal digits (0-9, a-f, A-F) in other positions
 // - Rejects Unicode characters, zero-width characters, and other non-ASCII
-// SEM@6b48405e24a141b1435b1254c823b48f10b2f676: validate a string against RFC 4122 UUID format (pure)
 func isValidUUIDString(s string) bool {
 	// First check byte length to reject multi-byte UTF-8 sequences early
 	if len(s) != 36 {
@@ -295,21 +285,18 @@ func isValidUUIDString(s string) bool {
 }
 
 // isHexDigit checks if a rune is a valid hexadecimal digit (0-9, a-f, A-F)
-// SEM@553b9943f20c84a0b6983adbf6a7099330bb94c2: check whether a rune is a valid hexadecimal digit (pure)
 func isHexDigit(r rune) bool {
 	return (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
 }
 
 // checkDuplicateJSONKeys checks for duplicate keys in a JSON object
 // RFC 8259 recommends unique keys, and duplicate keys can cause unexpected behavior
-// SEM@e890b588ef2cb844c92f6ddd0d56e797bb39b7e2: reject a JSON payload that contains duplicate object keys (pure)
 func checkDuplicateJSONKeys(jsonBytes []byte) error {
 	dec := json.NewDecoder(strings.NewReader(string(jsonBytes)))
 	return checkDuplicateKeysInDecoder(dec, "")
 }
 
 // checkDuplicateKeysInDecoder recursively checks for duplicate keys in JSON
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: detect duplicate object keys recursively in a streaming JSON decoder (pure)
 func checkDuplicateKeysInDecoder(dec *json.Decoder, path string) error {
 	// Read opening token
 	t, err := dec.Token()
@@ -373,7 +360,6 @@ func checkDuplicateKeysInDecoder(dec *json.Decoder, path string) error {
 
 // IsUserAdministrator checks if the authenticated user is an administrator
 // Returns (isAdmin bool, error). Returns false if there's any error or if administrator check is not available.
-// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: check whether the authenticated user belongs to the administrators group (reads DB)
 func IsUserAdministrator(c *gin.Context) (bool, error) {
 	logger := slogging.Get().WithContext(c)
 
@@ -387,7 +373,6 @@ func IsUserAdministrator(c *gin.Context) (bool, error) {
 }
 
 // RequestError represents an error that should be returned as an HTTP response
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: structured HTTP error carrying status code, machine code, and human message (pure)
 type RequestError struct {
 	Status  int
 	Code    errcode.Code
@@ -400,20 +385,17 @@ type RequestError struct {
 }
 
 // ErrorDetails provides structured context for errors
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: optional structured context attached to a request error (pure)
 type ErrorDetails struct {
 	Code       *string        `json:"code,omitempty"`
 	Context    map[string]any `json:"context,omitempty"`
 	Suggestion *string        `json:"suggestion,omitempty"`
 }
 
-// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: return the error message string for a RequestError (pure)
 func (e *RequestError) Error() string {
 	return e.Message
 }
 
 // HandleRequestError sends an appropriate HTTP error response
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: dispatch an HTTP error response for a request error with appropriate headers
 func HandleRequestError(c *gin.Context, err error) {
 	var reqErr *RequestError
 	if errors.As(err, &reqErr) {
@@ -501,7 +483,6 @@ func HandleRequestError(c *gin.Context, err error) {
 }
 
 // InvalidInputError creates a RequestError for validation failures
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 400 request error for input validation failures (pure)
 func InvalidInputError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusBadRequest,
@@ -511,7 +492,6 @@ func InvalidInputError(message string) *RequestError {
 }
 
 // InvalidIDError creates a RequestError for invalid ID formats
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 400 request error for an invalid resource ID format (pure)
 func InvalidIDError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusBadRequest,
@@ -521,7 +501,6 @@ func InvalidIDError(message string) *RequestError {
 }
 
 // NotFoundError creates a RequestError for resource not found
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 404 request error for a missing resource (pure)
 func NotFoundError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusNotFound,
@@ -531,7 +510,6 @@ func NotFoundError(message string) *RequestError {
 }
 
 // ServerError creates a RequestError for internal server errors
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 500 request error for an internal server failure (pure)
 func ServerError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusInternalServerError,
@@ -541,7 +519,6 @@ func ServerError(message string) *RequestError {
 }
 
 // ForbiddenError creates a RequestError for forbidden access
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 403 request error for forbidden access (pure)
 func ForbiddenError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusForbidden,
@@ -552,7 +529,6 @@ func ForbiddenError(message string) *RequestError {
 
 // NotAcceptableError creates a RequestError for content negotiation failures
 // (no offered response media type matches the request's Accept header).
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 406 request error for an unsatisfiable Accept header (pure)
 func NotAcceptableError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusNotAcceptable,
@@ -561,7 +537,6 @@ func NotAcceptableError(message string) *RequestError {
 	}
 }
 
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 401 request error for unauthenticated access (pure)
 func UnauthorizedError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusUnauthorized,
@@ -571,7 +546,6 @@ func UnauthorizedError(message string) *RequestError {
 }
 
 // ConflictError creates a RequestError for resource conflicts
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 409 request error for a resource conflict (pure)
 func ConflictError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusConflict,
@@ -583,7 +557,6 @@ func ConflictError(message string) *RequestError {
 // NotImplementedError creates a RequestError for features not implemented (501)
 // Use for features that are defined in the API but not yet implemented,
 // or when a particular provider doesn't support a feature.
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 501 request error for an unimplemented feature (pure)
 func NotImplementedError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusNotImplemented,
@@ -594,7 +567,6 @@ func NotImplementedError(message string) *RequestError {
 
 // ServiceUnavailableError creates a RequestError for temporarily unavailable services (503)
 // Use when a dependent service (database, Redis, external provider) is temporarily unavailable.
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 503 request error for a temporarily unavailable dependency (pure)
 func ServiceUnavailableError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusServiceUnavailable,
@@ -606,7 +578,6 @@ func ServiceUnavailableError(message string) *RequestError {
 // StoreErrorToRequestError converts a store error to an appropriate RequestError.
 // If the error is already a *RequestError, it is returned as-is (preserving its status code).
 // All store errors must use typed dberrors sentinels (#271 umbrella migration is complete).
-// SEM@a7cac3f9cd8e77b1dc209e5a213cb6c7f7e40a29: convert a store or dberrors error to the appropriate HTTP RequestError (pure)
 func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *RequestError {
 	// If already a RequestError, return it directly to preserve its status code
 	var reqErr *RequestError
@@ -654,14 +625,12 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 }
 
 // codeStr returns a pointer to the string form of a details.code reason.
-// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a pointer to the string form of a details code (pure)
 func codeStr(c errcode.Code) *string {
 	s := string(c)
 	return &s
 }
 
 // WithDetailCode attaches a domain-specific details.code reason to err and returns it.
-// SEM@074f3ca8790e600162273d06152aff41b7223b07: attach a domain reason code to a RequestError (pure)
 func WithDetailCode(err *RequestError, code errcode.Code) *RequestError {
 	if err.Details == nil {
 		err.Details = &ErrorDetails{}
@@ -671,7 +640,6 @@ func WithDetailCode(err *RequestError, code errcode.Code) *RequestError {
 }
 
 // WithDetailContext adds one key/value to err's details.context and returns it.
-// SEM@5e6e00bd650bd3fdec6654c4a7d0f26192c35f2d: attach a key/value pair to a RequestError's details context (pure)
 func WithDetailContext(err *RequestError, key string, value any) *RequestError {
 	if err.Details == nil {
 		err.Details = &ErrorDetails{}
@@ -683,61 +651,51 @@ func WithDetailContext(err *RequestError, key string, value any) *RequestError {
 	return err
 }
 
-// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a RequestError from status, code and message (pure)
 func newRequestError(status int, code errcode.Code, message string) *RequestError {
 	return &RequestError{Status: status, Code: code, Message: message}
 }
 
 // InvalidPatchError creates a RequestError for a malformed or inapplicable JSON Patch
-// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 400 RequestError for an invalid JSON Patch document (pure)
 func InvalidPatchError(message string) *RequestError {
 	return newRequestError(http.StatusBadRequest, errcode.InvalidPatch, message)
 }
 
 // InsufficientUserAuthenticationError creates a RequestError requiring step-up authentication
-// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 401 RequestError requiring step-up authentication (pure)
 func InsufficientUserAuthenticationError(message string) *RequestError {
 	return newRequestError(http.StatusUnauthorized, errcode.InsufficientUserAuthentication, message)
 }
 
 // MethodNotAllowedError creates a RequestError for an unsupported HTTP method
-// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 405 RequestError for an unsupported method (pure)
 func MethodNotAllowedError(message string) *RequestError {
 	return newRequestError(http.StatusMethodNotAllowed, errcode.MethodNotAllowed, message)
 }
 
 // GoneError creates a RequestError for a permanently removed resource
-// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 410 RequestError for a permanently removed resource (pure)
 func GoneError(message string) *RequestError {
 	return newRequestError(http.StatusGone, errcode.Gone, message)
 }
 
 // PayloadTooLargeError creates a RequestError for an oversized request body
-// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 413 RequestError for an oversized payload (pure)
 func PayloadTooLargeError(message string) *RequestError {
 	return newRequestError(http.StatusRequestEntityTooLarge, errcode.PayloadTooLarge, message)
 }
 
 // UnsupportedMediaTypeError creates a RequestError for an unaccepted Content-Type
-// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 415 RequestError for an unsupported content type (pure)
 func UnsupportedMediaTypeError(message string) *RequestError {
 	return newRequestError(http.StatusUnsupportedMediaType, errcode.UnsupportedMediaType, message)
 }
 
 // UnprocessableEntityError creates a RequestError for a well-formed request that cannot be processed
-// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 422 RequestError for an unprocessable request (pure)
 func UnprocessableEntityError(message string) *RequestError {
 	return newRequestError(http.StatusUnprocessableEntity, errcode.UnprocessableEntity, message)
 }
 
 // IfMatchRequiredError creates a RequestError for a missing If-Match header
-// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 428 RequestError for a missing If-Match header (pure)
 func IfMatchRequiredError(message string) *RequestError {
 	return newRequestError(http.StatusPreconditionRequired, errcode.IfMatchRequired, message)
 }
 
 // RateLimitExceededError creates a 429 RequestError; retryAfterSeconds feeds the Retry-After header
-// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 429 RequestError carrying a retry-after hint (pure)
 func RateLimitExceededError(message string, retryAfterSeconds int) *RequestError {
 	e := newRequestError(http.StatusTooManyRequests, errcode.RateLimitExceeded, message)
 	e.Details = &ErrorDetails{Context: map[string]any{"retry_after": retryAfterSeconds}}
@@ -745,7 +703,6 @@ func RateLimitExceededError(message string, retryAfterSeconds int) *RequestError
 }
 
 // QuotaExceededError creates a RequestError for a hard cap (status 403 or 429)
-// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a RequestError for an exhausted hard quota (pure)
 func QuotaExceededError(status int, message string) *RequestError {
 	return newRequestError(status, errcode.QuotaExceeded, message)
 }
@@ -759,7 +716,6 @@ func QuotaExceededError(status int, message string) *RequestError {
 // documents 503 (#665), so this is safe at any handler's fallback branch.
 // A GORM BeforeSave hook rejection is the caller's bad input, so it is a 400,
 // as in StoreErrorToRequestError (#921).
-// SEM@d8c2762cd09ad64046f317cab75b4bf7f53e48ba: classify a store write error into a RequestError: hook rejection 400, transient 503, else 500 (pure)
 func WriteErrorToRequestError(err error, serverErrorMsg string) *RequestError {
 	var valErr *validation.ValidationError
 	if errors.As(err, &valErr) {
@@ -772,7 +728,6 @@ func WriteErrorToRequestError(err error, serverErrorMsg string) *RequestError {
 }
 
 // NotFoundErrorWithDetails creates a RequestError for resource not found with additional context
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 404 request error with structured diagnostic context (pure)
 func NotFoundErrorWithDetails(message string, code errcode.Code, context map[string]any, suggestion string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusNotFound,
@@ -787,7 +742,6 @@ func NotFoundErrorWithDetails(message string, code errcode.Code, context map[str
 }
 
 // ServerErrorWithDetails creates a RequestError for internal server errors with additional context
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 500 request error with structured diagnostic context (pure)
 func ServerErrorWithDetails(message string, code errcode.Code, context map[string]any, suggestion string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusInternalServerError,
@@ -802,7 +756,6 @@ func ServerErrorWithDetails(message string, code errcode.Code, context map[strin
 }
 
 // InvalidInputErrorWithDetails creates a RequestError for validation failures with additional context
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 400 request error with structured diagnostic context (pure)
 func InvalidInputErrorWithDetails(message string, code errcode.Code, context map[string]any, suggestion string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusBadRequest,
@@ -819,7 +772,6 @@ func InvalidInputErrorWithDetails(message string, code errcode.Code, context map
 // isForeignKeyConstraintError checks if the error is a foreign key constraint violation.
 // Checks the typed dberrors.ErrForeignKey sentinel first, then falls back to string matching
 // for GORM stores not yet migrated to dberrors (#261).
-// SEM@6ef45a78cc6c226116a82e4595fc1dc3f88a8ff9: detect foreign key constraint violations across PostgreSQL, Oracle, MySQL, and SQLite (pure)
 func isForeignKeyConstraintError(err error) bool {
 	if err == nil {
 		return false
@@ -883,7 +835,6 @@ func isForeignKeyConstraintError(err error) bool {
 // happen to share that placeholder provider value. Reject both up front so
 // the caller lands on its generic 4xx path instead of a false 401 (1.8.3
 // oracle-db-admin review).
-// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: validate via direct lookup that a user's account no longer exists (reads DB)
 func isUserAccountConfirmedDeleted(ctx context.Context, provider, providerID string) bool {
 	if GlobalUserStore == nil {
 		return false
@@ -904,7 +855,6 @@ func isUserAccountConfirmedDeleted(ctx context.Context, provider, providerID str
 // - Error handling paths that use this function before sending responses
 // - Response logging that filters stack traces from captured data
 // This provides defense-in-depth against CWE-209 (Information Exposure Through Stack Traces).
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: remove stack trace content from an error string to prevent information disclosure (pure)
 func truncateBeforeStackTrace(errMsg string) string {
 	if errMsg == "" {
 		return "Unknown error"

@@ -7,7 +7,6 @@ import (
 
 // Get retrieves an environment variable with a fallback value.
 // Returns the environment variable value if set and non-empty, otherwise returns the fallback.
-// SEM@f7c112539bdb78e960d4a182be763184e41c531c: fetch an environment variable value with a fallback default (pure)
 func Get(key, fallback string) string {
 	if value, exists := os.LookupEnv(key); exists && value != "" {
 		return value
@@ -26,7 +25,6 @@ func Get(key, fallback string) string {
 // Returns a non-nil empty map when nothing matches. Used for OAuth userinfo
 // claim mappings and additional OAuth parameters, which are dynamic-cardinality
 // (the concrete keys are only known at runtime).
-// SEM@f622b659f3a1f536265633cbf9dc2ff0ec703170: scan environment variables under a prefix into a lowercase suffix-to-value map (reads env)
 func ScanPrefixedMap(prefix string) map[string]string {
 	out := make(map[string]string)
 	for _, env := range os.Environ() {
@@ -45,7 +43,6 @@ func ScanPrefixedMap(prefix string) map[string]string {
 // It looks for environment variables matching the pattern: <prefix><PROVIDER_ID><suffix>
 // For example, with prefix="SAML_PROVIDERS_" and suffix="_ENABLED",
 // it will find "ENTRA_TMIDEV_SAML" from "SAML_PROVIDERS_ENTRA_TMIDEV_SAML_ENABLED=true"
-// SEM@33c446dc529c7bbdd5753f7eb5d6fb76e8f6ae6c: scan environment variables to find provider IDs matching a prefix/suffix pattern (pure)
 func DiscoverProviders(prefix, suffix string) []string {
 	providerIDs := make([]string, 0)
 	seen := make(map[string]bool)
@@ -80,7 +77,6 @@ func DiscoverProviders(prefix, suffix string) []string {
 // ProviderIDToKey converts an environment variable provider ID to a provider key.
 // It converts to lowercase and replaces underscores with hyphens.
 // For example: "ENTRA_TMIDEV_SAML" -> "entra-tmidev-saml"
-// SEM@33c446dc529c7bbdd5753f7eb5d6fb76e8f6ae6c: convert an uppercase env-var provider ID to a lowercase hyphenated key (pure)
 func ProviderIDToKey(providerID string) string {
 	// Convert to lowercase
 	key := strings.ToLower(providerID)

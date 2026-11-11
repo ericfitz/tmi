@@ -14,7 +14,6 @@ import (
 
 // SafeParseInt safely parses an integer string with a fallback value
 // Does not return errors - uses fallback for any parsing failure
-// SEM@e7454256ce7abf612c8dc53c5b39f9f7ad67a011: parse a non-negative integer string with overflow protection, returning a fallback on failure (pure)
 func SafeParseInt(s string, fallback int) int {
 	if s == "" {
 		return fallback
@@ -39,7 +38,6 @@ func SafeParseInt(s string, fallback int) int {
 }
 
 // ValidateUUID validates that a string is a valid UUID format
-// SEM@e7454256ce7abf612c8dc53c5b39f9f7ad67a011: validate a string as a UUID and return the parsed value; reject empty or malformed input (pure)
 func ValidateUUID(s string, fieldName string) (uuid.UUID, error) {
 	if s == "" {
 		return uuid.Nil, &RequestError{
@@ -63,7 +61,6 @@ func ValidateUUID(s string, fieldName string) (uuid.UUID, error) {
 
 // ValidateNumericRange validates that a numeric value is within the specified range
 // Handles int, int32, int64, float32, float64
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate that a numeric value falls within a declared min/max range; reject NaN/infinity (pure)
 func ValidateNumericRange(value any, minVal, maxVal int64, fieldName string) error {
 	var numValue int64
 
@@ -155,7 +152,6 @@ func ValidateNumericRange(value any, minVal, maxVal int64, fieldName string) err
 // validateTextField validates a text field with a standard pipeline:
 // empty check, length check, Unicode validation, and HTML injection check.
 // If required is false, empty values are allowed without error.
-// SEM@c3818ab211091946cfe831b51f278e1a29914219: validate a text field for presence, length, control characters, Unicode safety, and HTML injection (pure)
 func validateTextField(value, fieldName string, maxLength int, required bool) error {
 	if value == "" {
 		if required {
@@ -208,7 +204,6 @@ func validateTextField(value, fieldName string, maxLength int, required bool) er
 var colorHexPattern = regexp.MustCompile(`^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$`)
 
 // expandShorthandHex expands a 3-digit hex color to 6 digits (e.g., "#f0c" -> "#ff00cc")
-// SEM@3178cfdb4d9b95cb34c34db7f16dc14e46867342: expand a 3-digit CSS hex color to its 6-digit canonical form (pure)
 func expandShorthandHex(color string) string {
 	if len(color) == 4 {
 		return "#" + string(color[1]) + string(color[1]) +
@@ -226,7 +221,6 @@ func expandShorthandHex(color string) string {
 // - Rejects more than 8 entries
 // - Sorts entries by position
 // - Returns nil for empty input (never returns an empty slice)
-// SEM@3178cfdb4d9b95cb34c34db7f16dc14e46867342: validate, deduplicate, expand, lowercase, and sort a color palette up to 8 entries (pure)
 func NormalizeColorPalette(palette *[]ColorPaletteEntry) (*[]ColorPaletteEntry, error) {
 	if palette == nil || len(*palette) == 0 {
 		return nil, nil

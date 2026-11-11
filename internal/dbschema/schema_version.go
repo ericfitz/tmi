@@ -52,7 +52,6 @@ const schemaVersionTable = "tmi_schema_versions"
 // concern (#379) because each byte is exactly one character. Keeping the model
 // local to this package (rather than reusing api/models types) avoids coupling
 // the low-level dbschema package to the model layer.
-// SEM@70c02e3f4b4dd833280d8f3ca9d152b483013ffe: store the schema fingerprint and timestamp for the migration fast-path (pure)
 type schemaVersion struct {
 	ID          string    `gorm:"column:id;primaryKey;size:32"`
 	Fingerprint string    `gorm:"column:fingerprint;size:64;not null"`
@@ -61,7 +60,6 @@ type schemaVersion struct {
 
 // TableName pins the table name so it is stable regardless of GORM's default
 // pluralization rules across versions.
-// SEM@70c02e3f4b4dd833280d8f3ca9d152b483013ffe: return the fixed table name for the schema version model (pure)
 func (schemaVersion) TableName() string { return schemaVersionTable }
 
 var (
@@ -77,7 +75,6 @@ var (
 // fingerprint equal to the freshly computed one means AutoMigrate would be a
 // no-op. Model and field ordering are normalized (sorted) so merely reordering
 // struct fields or the model slice does not change the result.
-// SEM@70c02e3f4b4dd833280d8f3ca9d152b483013ffe: compute a stable SHA-256 fingerprint over GORM model schemas (pure)
 func ComputeModelsFingerprint(models ...any) string {
 	parts := make([]string, 0, len(models))
 	for _, m := range models {
@@ -102,7 +99,6 @@ func ComputeModelsFingerprint(models ...any) string {
 // type, flattening anonymous embedded structs (which contribute their own
 // columns) but treating named column types (time.Time, anything implementing
 // driver.Valuer such as DBVarchar / NullableDBText) as leaf columns.
-// SEM@70c02e3f4b4dd833280d8f3ca9d152b483013ffe: build sorted field GORM tag signatures for a struct type (pure)
 func fieldSignatures(t reflect.Type) []string {
 	var sigs []string
 	for i := 0; i < t.NumField(); i++ {
@@ -133,7 +129,6 @@ func fieldSignatures(t reflect.Type) []string {
 
 // isColumnType reports whether a struct type maps to a single column (and so
 // must not be recursed into when encountered as an anonymous embed).
-// SEM@70c02e3f4b4dd833280d8f3ca9d152b483013ffe: report whether a struct type maps to a single DB column (pure)
 func isColumnType(t reflect.Type) bool {
 	if t == timeType {
 		return true
@@ -150,7 +145,6 @@ func isColumnType(t reflect.Type) bool {
 // current" so the caller falls back to running AutoMigrate. Such conditions are
 // logged at debug, never surfaced, because an unavailable fast path must never
 // turn into a failed boot.
-// SEM@70c02e3f4b4dd833280d8f3ca9d152b483013ffe: report whether the stored schema fingerprint matches the desired one (reads DB)
 func SchemaFingerprintCurrent(db *gorm.DB, desired string) bool {
 	stored, ok, err := readSchemaFingerprint(db)
 	if err != nil {
@@ -162,7 +156,6 @@ func SchemaFingerprintCurrent(db *gorm.DB, desired string) bool {
 
 // readSchemaFingerprint ensures the stamp table exists and returns the recorded
 // fingerprint, if any.
-// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: fetch the stored schema fingerprint from the DB stamp table (reads DB)
 func readSchemaFingerprint(db *gorm.DB) (string, bool, error) {
 	fp, _, found, err := ReadSchemaStamp(db)
 	return fp, found, err
@@ -174,7 +167,6 @@ func readSchemaFingerprint(db *gorm.DB) (string, bool, error) {
 // (a pre-#480 database, or one never migrated by a stamping binary). Ensures
 // the stamp table exists, so the one side effect is an empty table on a
 // database that never had one.
-// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: fetch the stored schema fingerprint stamp with its applied-at time (reads DB)
 func ReadSchemaStamp(db *gorm.DB) (fingerprint string, appliedAt time.Time, found bool, err error) {
 	if err := ensureSchemaVersionTable(db); err != nil {
 		return "", time.Time{}, false, err
@@ -194,7 +186,6 @@ func ReadSchemaStamp(db *gorm.DB) (fingerprint string, appliedAt time.Time, foun
 // already exist. This is a one-table AutoMigrate (no indexes, no foreign keys),
 // so even on a remote database it costs only a handful of round-trips — the
 // cheap price that buys skipping the full-schema pass.
-// SEM@70c02e3f4b4dd833280d8f3ca9d152b483013ffe: create the schema version stamp table if absent (writes DB)
 func ensureSchemaVersionTable(db *gorm.DB) error {
 	// Probe for the table directly before attempting AutoMigrate. gorm-oracle's
 	// Migrator().HasTable matches the literal lower-case name and misses the
@@ -234,7 +225,6 @@ func ensureSchemaVersionTable(db *gorm.DB) error {
 // dialects (update-then-insert rather than ON CONFLICT / MERGE); server callers
 // run it under the cross-replica migration advisory lock, so the update/insert
 // pair cannot race a second writer.
-// SEM@70c02e3f4b4dd833280d8f3ca9d152b483013ffe: store the schema fingerprint in the DB stamp table after migration (writes DB)
 func RecordSchemaFingerprint(db *gorm.DB, fp string) error {
 	if err := ensureSchemaVersionTable(db); err != nil {
 		return err

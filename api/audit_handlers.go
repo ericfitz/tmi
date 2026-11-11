@@ -13,13 +13,11 @@ import (
 )
 
 // AuditHandler provides handlers for audit trail and rollback operations.
-// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: handler struct holding the audit service for audit trail HTTP endpoints
 type AuditHandler struct {
 	auditService AuditServiceInterface
 }
 
 // NewAuditHandler creates a new audit handler.
-// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: build an AuditHandler wired to the given audit service (pure)
 func NewAuditHandler(auditService AuditServiceInterface) *AuditHandler {
 	return &AuditHandler{
 		auditService: auditService,
@@ -27,7 +25,6 @@ func NewAuditHandler(auditService AuditServiceInterface) *AuditHandler {
 }
 
 // GetThreatModelAuditTrail lists audit entries for a threat model and all sub-objects.
-// SEM@24454e2885191ae61007ef13d2194c563ebe6d37: list paginated audit entries for a threat model and its sub-objects (reads DB)
 func (h *AuditHandler) GetThreatModelAuditTrail(c *gin.Context, threatModelId ThreatModelId, params GetThreatModelAuditTrailParams) {
 	logger := slogging.Get().WithContext(c)
 	logger.Debug("[HANDLER] GetThreatModelAuditTrail called for TM: %s", threatModelId)
@@ -87,7 +84,6 @@ func (h *AuditHandler) GetThreatModelAuditTrail(c *gin.Context, threatModelId Th
 }
 
 // GetAuditEntry returns a single audit entry.
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: fetch a single audit entry by ID, validating it belongs to the given threat model (reads DB)
 func (h *AuditHandler) GetAuditEntry(c *gin.Context, threatModelId ThreatModelId, entryId AuditEntryId) {
 	slogging.Get().WithContext(c).Debug("[HANDLER] GetAuditEntry called for entry: %s", entryId)
 
@@ -123,7 +119,6 @@ func (h *AuditHandler) GetAuditEntry(c *gin.Context, threatModelId ThreatModelId
 }
 
 // RollbackToVersion restores an entity to a previous version.
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: restore a threat model entity to a prior version snapshot and record the rollback (mutates shared state)
 func (h *AuditHandler) RollbackToVersion(c *gin.Context, threatModelId ThreatModelId, entryId AuditEntryId) {
 	slogging.Get().WithContext(c).Debug("[HANDLER] RollbackToVersion called for entry: %s", entryId)
 
@@ -209,7 +204,6 @@ func (h *AuditHandler) RollbackToVersion(c *gin.Context, threatModelId ThreatMod
 }
 
 // performRollback restores an entity from a snapshot. Returns the restored entity as a generic map.
-// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: dispatch entity-type-specific rollback from a snapshot and return the restored entity map (mutates shared state)
 func (h *AuditHandler) performRollback(c *gin.Context, entry *AuditEntryResponse, snapshotData []byte) (map[string]interface{}, error) {
 	ctx := c.Request.Context()
 
@@ -239,7 +233,6 @@ func (h *AuditHandler) performRollback(c *gin.Context, entry *AuditEntryResponse
 	}
 }
 
-// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: restore a threat model from a snapshot, recreating it if deleted (writes DB)
 func (h *AuditHandler) rollbackThreatModel(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
 	var tm ThreatModel
 	if err := json.Unmarshal(snapshotData, &tm); err != nil {
@@ -257,7 +250,6 @@ func (h *AuditHandler) rollbackThreatModel(ctx context.Context, entry *AuditEntr
 	return ThreatModelStore.Update(ctx, entry.ObjectID, tm)
 }
 
-// SEM@c79f3cd129aecd7cd6562b875b7f02232594d3d1: restore a diagram from a snapshot, recreating it if previously deleted (mutates shared state)
 func (h *AuditHandler) rollbackDiagram(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
 	var diagram DfdDiagram
 	if err := json.Unmarshal(snapshotData, &diagram); err != nil {
@@ -274,7 +266,6 @@ func (h *AuditHandler) rollbackDiagram(ctx context.Context, entry *AuditEntryRes
 	return DiagramStore.Update(ctx, entry.ObjectID, diagram)
 }
 
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: restore a threat from a snapshot, recreating it if previously deleted (mutates shared state)
 func (h *AuditHandler) rollbackThreat(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
 	var threat Threat
 	if err := json.Unmarshal(snapshotData, &threat); err != nil {
@@ -290,7 +281,6 @@ func (h *AuditHandler) rollbackThreat(ctx context.Context, entry *AuditEntryResp
 	return GlobalThreatRepository.Update(ctx, &threat)
 }
 
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: restore an asset from a snapshot, recreating it if previously deleted (mutates shared state)
 func (h *AuditHandler) rollbackAsset(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
 	var asset Asset
 	if err := json.Unmarshal(snapshotData, &asset); err != nil {
@@ -306,7 +296,6 @@ func (h *AuditHandler) rollbackAsset(ctx context.Context, entry *AuditEntryRespo
 	return GlobalAssetRepository.Update(ctx, &asset, entry.ThreatModelID)
 }
 
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: restore a document from a snapshot, recreating it if previously deleted (mutates shared state)
 func (h *AuditHandler) rollbackDocument(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
 	var doc Document
 	if err := json.Unmarshal(snapshotData, &doc); err != nil {
@@ -322,7 +311,6 @@ func (h *AuditHandler) rollbackDocument(ctx context.Context, entry *AuditEntryRe
 	return GlobalDocumentRepository.Update(ctx, &doc, entry.ThreatModelID)
 }
 
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: restore a note from a snapshot, recreating it if previously deleted (mutates shared state)
 func (h *AuditHandler) rollbackNote(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
 	var note Note
 	if err := json.Unmarshal(snapshotData, &note); err != nil {
@@ -338,7 +326,6 @@ func (h *AuditHandler) rollbackNote(ctx context.Context, entry *AuditEntryRespon
 	return GlobalNoteRepository.Update(ctx, &note, entry.ThreatModelID)
 }
 
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: restore a repository from a snapshot, recreating it if previously deleted (mutates shared state)
 func (h *AuditHandler) rollbackRepository(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
 	var repo Repository
 	if err := json.Unmarshal(snapshotData, &repo); err != nil {
@@ -357,43 +344,36 @@ func (h *AuditHandler) rollbackRepository(ctx context.Context, entry *AuditEntry
 // Sub-resource audit trail handlers - delegate to TM-level query with object type filter
 
 // GetDiagramAuditTrail lists audit entries for a specific diagram.
-// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: list audit entries for a specific diagram, delegating to the sub-resource audit handler (reads DB)
 func (h *AuditHandler) GetDiagramAuditTrail(c *gin.Context, threatModelId ThreatModelId, diagramId DiagramId, params GetDiagramAuditTrailParams) {
 	h.getSubResourceAuditTrail(c, threatModelId, models.ObjectTypeDiagram, diagramId.String(), params.Limit, params.Offset)
 }
 
 // GetThreatAuditTrail lists audit entries for a specific threat.
-// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: list audit entries for a specific threat, delegating to the sub-resource audit handler (reads DB)
 func (h *AuditHandler) GetThreatAuditTrail(c *gin.Context, threatModelId ThreatModelId, threatId ThreatId, params GetThreatAuditTrailParams) {
 	h.getSubResourceAuditTrail(c, threatModelId, models.ObjectTypeThreat, threatId.String(), params.Limit, params.Offset)
 }
 
 // GetAssetAuditTrail lists audit entries for a specific asset.
-// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: list audit entries for a specific asset, delegating to the sub-resource audit handler (reads DB)
 func (h *AuditHandler) GetAssetAuditTrail(c *gin.Context, threatModelId ThreatModelId, assetId AssetId, params GetAssetAuditTrailParams) {
 	h.getSubResourceAuditTrail(c, threatModelId, models.ObjectTypeAsset, assetId.String(), params.Limit, params.Offset)
 }
 
 // GetDocumentAuditTrail lists audit entries for a specific document.
-// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: list audit entries for a specific document, delegating to the sub-resource audit handler (reads DB)
 func (h *AuditHandler) GetDocumentAuditTrail(c *gin.Context, threatModelId ThreatModelId, documentId DocumentId, params GetDocumentAuditTrailParams) {
 	h.getSubResourceAuditTrail(c, threatModelId, models.ObjectTypeDocument, documentId.String(), params.Limit, params.Offset)
 }
 
 // GetNoteAuditTrail lists audit entries for a specific note.
-// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: list audit entries for a specific note, delegating to the sub-resource audit handler (reads DB)
 func (h *AuditHandler) GetNoteAuditTrail(c *gin.Context, threatModelId ThreatModelId, noteId NoteId, params GetNoteAuditTrailParams) {
 	h.getSubResourceAuditTrail(c, threatModelId, models.ObjectTypeNote, noteId.String(), params.Limit, params.Offset)
 }
 
 // GetRepositoryAuditTrail lists audit entries for a specific repository.
-// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: list audit entries for a specific repository, delegating to the sub-resource audit handler (reads DB)
 func (h *AuditHandler) GetRepositoryAuditTrail(c *gin.Context, threatModelId ThreatModelId, repositoryId RepositoryId, params GetRepositoryAuditTrailParams) {
 	h.getSubResourceAuditTrail(c, threatModelId, models.ObjectTypeRepository, repositoryId.String(), params.Limit, params.Offset)
 }
 
 // getSubResourceAuditTrail is the shared implementation for sub-resource audit trails.
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: shared handler: list paginated audit entries for one sub-resource object type (reads DB)
 func (h *AuditHandler) getSubResourceAuditTrail(c *gin.Context, threatModelId ThreatModelId, objectType string, objectID string, limitParam *PaginationLimit, offsetParam *PaginationOffset) {
 	logger := slogging.Get().WithContext(c)
 	logger.Debug("[HANDLER] getSubResourceAuditTrail called for %s: %s (TM: %s)", objectType, objectID, threatModelId)
@@ -443,7 +423,6 @@ func (h *AuditHandler) getSubResourceAuditTrail(c *gin.Context, threatModelId Th
 // validateThreatModelAccess and validateThreatModelWriteAccess kept their
 // names so that callers don't need a churn rebase — the real check moved
 // to the middleware.
-// SEM@533fc769067d317cc10f227729848688da16fba0: fetch the threat model to confirm it exists; route-level authz is handled by middleware (reads DB)
 func (h *AuditHandler) validateThreatModelAccess(_ *gin.Context, threatModelID string) (*ThreatModel, error) {
 	tm, err := ThreatModelStore.Get(threatModelID)
 	if err != nil {
@@ -456,13 +435,11 @@ func (h *AuditHandler) validateThreatModelAccess(_ *gin.Context, threatModelID s
 // the route-level writer gate is enforced by AuthzMiddleware. Kept as a
 // distinct symbol to preserve the call-site documentation at the audit
 // rollback handler.
-// SEM@533fc769067d317cc10f227729848688da16fba0: confirm the threat model exists before a write; route-level writer gate enforced by middleware (reads DB)
 func (h *AuditHandler) validateThreatModelWriteAccess(c *gin.Context, threatModelID string) (*ThreatModel, error) {
 	return h.validateThreatModelAccess(c, threatModelID)
 }
 
 // parsePaginationParams extracts limit and offset with defaults.
-// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: extract limit and offset from query params with safe defaults and bounds (pure)
 func parsePaginationParams(limitParam *PaginationLimit, offsetParam *PaginationOffset) (int, int) {
 	limit := 20
 	offset := 0
@@ -486,7 +463,6 @@ func parsePaginationParams(limitParam *PaginationLimit, offsetParam *PaginationO
 // returns an empty filter struct (all fields nil), which means "no filtering" — the
 // audit trail query returns all entries for the threat model. Empty string values from
 // query parameters are treated as absent (no filter for that field).
-// SEM@24454e2885191ae61007ef13d2194c563ebe6d37: convert optional query parameters into an AuditFilters struct for audit trail queries (pure)
 func buildAuditFilters(objectType *GetThreatModelAuditTrailParamsObjectType, changeType *GetThreatModelAuditTrailParamsChangeType, actorEmail *AuditActorEmail, after *CreatedAfterQueryParam, before *CreatedBeforeQueryParam) *AuditFilters {
 	filters := &AuditFilters{}
 
@@ -521,7 +497,6 @@ func buildAuditFilters(objectType *GetThreatModelAuditTrailParamsObjectType, cha
 }
 
 // toAPIAuditEntry converts an AuditEntryResponse to the generated API type.
-// SEM@3256ece0f5730b6c910aa6e61025555c7726a4a5: convert an internal audit entry response to its API DTO (pure)
 func toAPIAuditEntry(entry AuditEntryResponse) AuditEntry {
 	return AuditEntry{
 		Id:            parseUUID(entry.ID),
@@ -542,7 +517,6 @@ func toAPIAuditEntry(entry AuditEntryResponse) AuditEntry {
 }
 
 // toAPIAuditEntries converts a slice of AuditEntryResponse to generated API types.
-// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: convert a slice of internal audit entries to API DTOs (pure)
 func toAPIAuditEntries(entries []AuditEntryResponse) []AuditEntry {
 	result := make([]AuditEntry, len(entries))
 	for i, e := range entries {
@@ -552,7 +526,6 @@ func toAPIAuditEntries(entries []AuditEntryResponse) []AuditEntry {
 }
 
 // parseUUID parses a UUID string, returning a zero UUID on error.
-// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: parse a UUID string, returning a zero UUID on failure (pure)
 func parseUUID(s string) openapi_types.UUID {
 	return ParseUUIDOrNil(s)
 }

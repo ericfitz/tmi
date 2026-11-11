@@ -15,7 +15,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: seed one metadata row for an entity (mutates DB)
 func seedMetadata(t *testing.T, db *gorm.DB, entityType, entityID string) {
 	t.Helper()
 	require.NoError(t, db.Create(&models.Metadata{
@@ -27,7 +26,6 @@ func seedMetadata(t *testing.T, db *gorm.DB, entityType, entityID string) {
 	}).Error)
 }
 
-// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: count metadata rows for an entity (reads DB)
 func countMetadata(t *testing.T, db *gorm.DB, entityType, entityID string) int64 {
 	t.Helper()
 	var n int64
@@ -36,7 +34,6 @@ func countMetadata(t *testing.T, db *gorm.DB, entityType, entityID string) int64
 	return n
 }
 
-// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: validate each sub-resource hard delete removes only its own metadata (#947)
 func TestHardDelete_RemovesOwnMetadata(t *testing.T) {
 	ctx := context.Background()
 	// Each case creates an entity with the given ID and returns the store's hard delete.
@@ -96,7 +93,6 @@ func TestHardDelete_RemovesOwnMetadata(t *testing.T) {
 	}
 }
 
-// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: validate a hard delete of a missing entity leaves unrelated metadata alone (#947)
 func TestHardDelete_NotFoundKeepsMetadata(t *testing.T) {
 	db, _ := setupThreatAliasTestDB(t)
 	repo := NewGormThreatRepository(db, nil, nil)
@@ -107,7 +103,6 @@ func TestHardDelete_NotFoundKeepsMetadata(t *testing.T) {
 	assert.Equal(t, int64(1), countMetadata(t, db, "threat", orphan))
 }
 
-// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: validate bulk create rejects client-supplied IDs with 400 for every sub-resource (#947)
 func TestBulkCreate_RejectsClientID(t *testing.T) {
 	id := uuid.New().String()
 	threatR, _ := setupThreatSubResourceHandler()

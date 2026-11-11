@@ -14,7 +14,6 @@ var jsonUnmarshalerType = reflect.TypeFor[json.Unmarshaler]()
 // would silently decode such a key into that field, so a PATCH to "/Owner"
 // could change owner past checks that compare paths exactly. Keys under
 // map-typed fields are data and are not checked.
-// SEM@95fbc20511ce80f464d07e7723483035dbf87346: find a patched JSON key that case-aliases a struct field name (pure)
 func findCaseAliasedKey(doc any, t reflect.Type, ptr string) (string, bool) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -65,7 +64,6 @@ func findCaseAliasedKey(doc any, t reflect.Type, ptr string) (string, bool) {
 // jsonFieldTypes maps each JSON field name of struct t to its type, following
 // encoding/json rules (tag name, else Go name; "-" skipped; untagged
 // embedded structs flattened).
-// SEM@95fbc20511ce80f464d07e7723483035dbf87346: map a struct's JSON field names to their Go types per encoding/json rules (pure)
 func jsonFieldTypes(t reflect.Type) map[string]reflect.Type {
 	out := map[string]reflect.Type{}
 	for i := range t.NumField() {

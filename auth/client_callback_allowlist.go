@@ -27,14 +27,12 @@ import (
 // closes the open-redirect / OAuth phishing surface (T16) by ensuring an
 // attacker cannot smuggle a malicious client_callback through the
 // authorize endpoint.
-// SEM@72ef5c64a4ca8965f90ee105cc73893284c60b1a: allowlist for validating OAuth client_callback URLs against configured patterns (pure)
 type ClientCallbackAllowList struct {
 	patterns []string
 }
 
 // NewClientCallbackAllowList creates an allow-list from the given URL
 // patterns. Empty entries are dropped.
-// SEM@72ef5c64a4ca8965f90ee105cc73893284c60b1a: build a ClientCallbackAllowList from URL patterns, dropping empty entries (pure)
 func NewClientCallbackAllowList(patterns []string) *ClientCallbackAllowList {
 	cleaned := make([]string, 0, len(patterns))
 	for _, p := range patterns {
@@ -48,7 +46,6 @@ func NewClientCallbackAllowList(patterns []string) *ClientCallbackAllowList {
 
 // Allowed returns true if rawURL matches at least one configured pattern.
 // An empty allowlist always returns false (fail-closed).
-// SEM@8ca5b826b2afb7199c5784087940df39d67cbaeb: check whether a callback URL matches an allowlist pattern; reject userinfo, fail closed (pure)
 func (a *ClientCallbackAllowList) Allowed(rawURL string) bool {
 	if a == nil || len(a.patterns) == 0 {
 		return false
@@ -76,7 +73,6 @@ func (a *ClientCallbackAllowList) Allowed(rawURL string) bool {
 // matchLoopbackAnyPort matches patterns of the form "scheme://host:*[path]"
 // where host is a loopback address. An empty path matches any path; a path
 // ending in "*" is a prefix match; otherwise the path must match exactly.
-// SEM@8ca5b826b2afb7199c5784087940df39d67cbaeb: match a parsed URL against a loopback any-port allowlist pattern (pure)
 func matchLoopbackAnyPort(pattern string, u *url.URL) bool {
 	scheme, rest, ok := strings.Cut(pattern, "://")
 	if !ok {
@@ -107,7 +103,6 @@ func matchLoopbackAnyPort(pattern string, u *url.URL) bool {
 // pattern has no "scheme://"). Requiring the candidate's host to equal it
 // stops a pattern like "https://app.example.com*" from admitting
 // "https://app.example.com.evil.net/", and "https://*" from admitting any host.
-// SEM@8ca5b826b2afb7199c5784087940df39d67cbaeb: extract the host:port authority from an allowlist prefix pattern (pure)
 func patternHost(prefix string) string {
 	_, rest, ok := strings.Cut(prefix, "://")
 	if !ok {
@@ -119,7 +114,6 @@ func patternHost(prefix string) string {
 
 // isLoopbackHost reports whether an allowlist pattern host names a loopback
 // interface.
-// SEM@8ca5b826b2afb7199c5784087940df39d67cbaeb: report whether a pattern host is a loopback address or localhost (pure)
 func isLoopbackHost(host string) bool {
 	host = strings.Trim(host, "[]")
 	if host == "localhost" {
@@ -132,7 +126,6 @@ func isLoopbackHost(host string) bool {
 // Configured returns true if the allowlist has at least one pattern.
 // Used by /oauth2/authorize to surface a startup warning when the
 // allowlist is empty.
-// SEM@72ef5c64a4ca8965f90ee105cc73893284c60b1a: report whether the allowlist has at least one configured pattern (pure)
 func (a *ClientCallbackAllowList) Configured() bool {
 	return a != nil && len(a.patterns) > 0
 }

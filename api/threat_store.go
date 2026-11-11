@@ -8,7 +8,6 @@ import (
 )
 
 // ThreatFilter defines filtering criteria for threats
-// SEM@cd9bd2528bd9cff1ec072491f5cbcbe1cb9219ac: filter criteria for threat list queries including scores, dates, and pagination (pure)
 type ThreatFilter struct {
 	// Basic filters
 	Name        *string
@@ -41,7 +40,6 @@ type ThreatFilter struct {
 }
 
 // ThreatRepository defines the interface for threat operations with caching support
-// SEM@436c1840b3eef9687193078750dec3e22874f10e: store interface for threat CRUD, soft-delete, restore, bulk, patch, and cache operations
 type ThreatRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, threat *Threat) error

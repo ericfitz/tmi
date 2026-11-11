@@ -15,7 +15,6 @@ import (
 
 // validateSeedSettings applies the server's semantic setting validators to
 // every setting entry in the seed list, naming each rejected key.
-// SEM@c116c8d3a54fc80f8636bc97da64a579f17a94ca: validate seed setting entries against server semantic rules before seeding (pure)
 func validateSeedSettings(entries []SeedEntry) error {
 	var problems []string
 	for _, entry := range entries {
@@ -37,7 +36,6 @@ func validateSeedSettings(entries []SeedEntry) error {
 	return fmt.Errorf("refusing to seed invalid settings (validation failed before any write; fix the seed file and re-run): %s", strings.Join(problems, "; "))
 }
 
-// SEM@05d35fa239ce471ca0d0d0c324c69e93e1c8c21c: load a seed file, validate settings, and apply entries via DB or API as per-entry users (reads DB)
 func runDataSeed(db *testdb.TestDB, inputFile, serverURL, user, provider string, dryRun bool) error {
 	log := slogging.Get()
 
@@ -145,7 +143,6 @@ const (
 
 // actAsUser returns the user (and provider) an entry must be created as, or
 // "" to use the seeding user.
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: read the user and provider a seed entry must be created as (pure)
 func actAsUser(entry SeedEntry) (user, provider string) {
 	user, _ = entry.Data[seedActAsUser].(string)
 	provider, _ = entry.Data[seedActAsProvider].(string)
@@ -156,19 +153,16 @@ func actAsUser(entry SeedEntry) (user, provider string) {
 }
 
 // tokenCache authenticates each user once per seed run.
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: per-run cache of bearer tokens keyed by provider and user
 type tokenCache struct {
 	serverURL string
 	auth      func(serverURL, user, provider string) (string, error)
 	tokens    map[string]string
 }
 
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: build an empty bearer token cache around an authenticator (pure)
 func newTokenCache(serverURL string, auth func(serverURL, user, provider string) (string, error)) *tokenCache {
 	return &tokenCache{serverURL: serverURL, auth: auth, tokens: map[string]string{}}
 }
 
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: fetch a cached bearer token for a user, authenticating on first use
 func (tc *tokenCache) get(user, provider string) (string, error) {
 	key := provider + "/" + user
 	if tok, ok := tc.tokens[key]; ok {
@@ -182,7 +176,6 @@ func (tc *tokenCache) get(user, provider string) (string, error) {
 	return tok, nil
 }
 
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: parse a seed spec file, rejecting unknown fields, into a SeedFile
 func loadSeedFile(path string) (*SeedFile, error) {
 	data, err := os.ReadFile(path) // #nosec G304 -- path from CLI flags
 	if err != nil {
@@ -255,7 +248,6 @@ const (
 	strategyAPI = "api"
 )
 
-// SEM@c08cdcaa7bf770029c89db2c819eb12680bfe4b5: map a seed entry kind to the DB or API seeding strategy (pure)
 func classifyStrategy(kind string) string {
 	switch kind {
 	case kindUser, kindSetting:
@@ -273,7 +265,6 @@ func classifyStrategy(kind string) string {
 	}
 }
 
-// SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: look up a previously-seeded entity ID by its symbolic ref name (pure)
 func resolveRef(refs RefMap, refName string) (string, error) {
 	result, ok := refs[refName]
 	if !ok {
@@ -282,7 +273,6 @@ func resolveRef(refs RefMap, refName string) (string, error) {
 	return result.ID, nil
 }
 
-// SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: extract a ref field from a data map and resolve it to a seeded entity ID (pure)
 func resolveRefField(data map[string]any, refFieldName string, refs RefMap) (string, error) {
 	refName, ok := data[refFieldName].(string)
 	if !ok || refName == "" {

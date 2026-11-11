@@ -46,7 +46,6 @@ const dedupeRetryDelay = 20 * time.Millisecond
 // UPPERCASE from Oracle and lowercase from Postgres, and an untagged field's
 // DBName is derived from the active dialect's NamingStrategy, so the same
 // struct matches both. The "cnt" alias is unquoted so it folds identically.
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: hold a duplicate groups(provider, group_name) key and its row count (pure)
 type groupDupKey struct {
 	Provider  string
 	GroupName string
@@ -54,7 +53,6 @@ type groupDupKey struct {
 }
 
 // groupIDRow is a raw scan target for a group row's identity/ordering columns.
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: hold a group's identity and ordering columns for dedupe scans (pure)
 type groupIDRow struct {
 	InternalUUID string
 	FirstUsed    time.Time
@@ -63,7 +61,6 @@ type groupIDRow struct {
 // groupMemberRow is a raw scan target for the group_members columns dedupe
 // needs. UserInternalUUID is a pointer because the column is nullable
 // (subject_type = "group" rows carry no user).
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: hold group_members identity, user, and subject-type columns for dedupe scans (pure)
 type groupMemberRow struct {
 	ID               string
 	UserInternalUUID *string
@@ -80,7 +77,6 @@ const maxInListSize = 500
 // chunkStrings splits ids into batches of at most maxInListSize, preserving
 // order. Returns a single-element slice (containing ids itself) when no
 // chunking is needed.
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: split a string slice into fixed-size batches for SQL IN-list safety (pure)
 func chunkStrings(ids []string) [][]string {
 	if len(ids) <= maxInListSize {
 		return [][]string{ids}
@@ -101,7 +97,6 @@ func chunkStrings(ids []string) [][]string {
 // subject_type) for a single group_internal_uuid. Rows with a NULL
 // user_internal_uuid (subject_type = "group") never populate this map: SQL
 // unique indexes never treat two NULLs as equal, so those rows can't collide.
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: identify a group_members row by user and subject type within a group (pure)
 type membershipKey struct {
 	userInternalUUID string
 	subjectType      string
@@ -117,7 +112,6 @@ type membershipKey struct {
 // the key is skipped — and cheap (one query) when there are no duplicates,
 // so it is safe to run on every boot immediately before AutoMigrate creates
 // uniq_groups_provider_group_name.
-// SEM@bb40881560ec43c848a818a906635c7d26b0b603: dedupe groups(provider, group_name) and repoint child rows before the unique index is created (writes DB)
 func DeduplicateGroups(db *gorm.DB) (int64, error) {
 	logger := slogging.Get()
 
@@ -161,7 +155,6 @@ func DeduplicateGroups(db *gorm.DB) (int64, error) {
 // The transaction is wrapped in withMigrationRetry so a transient
 // cross-replica conflict (#712) is retried a bounded number of times instead
 // of aborting the whole migration.
-// SEM@bb40881560ec43c848a818a906635c7d26b0b603: resolve one duplicate groups key by repointing children and deleting the losers, retrying on transient errors (writes DB)
 func dedupeGroupKey(db *gorm.DB, provider, groupName string) (int64, error) {
 	groupsTable := (&models.Group{}).TableName()
 	tmaTable := (&models.ThreatModelAccess{}).TableName()
@@ -239,7 +232,6 @@ func dedupeGroupKey(db *gorm.DB, provider, groupName string) (int64, error) {
 // the retry log line only. Generalized from the original groups-only
 // withDedupeRetry (#712) to also cover the duplicate-key discovery queries
 // (#725 item e) and the users duplicate-identity check (#724).
-// SEM@bb40881560ec43c848a818a906635c7d26b0b603: retry a migration-phase attempt a bounded number of times on transient errors only (pure control flow)
 func withMigrationRetry(label string, fn func() error) error {
 	var err error
 	for attempt := 1; attempt <= dedupeMaxAttempts; attempt++ {
@@ -263,7 +255,6 @@ func withMigrationRetry(label string, fn func() error) error {
 // yet) is skipped rather than treated as an error. table must already be the
 // dialect-correct name (a model's TableName(), not a bare literal — see
 // scripts/check-oracle-table-names.py / #504).
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: repoint a nullable group_internal_uuid FK column from losing groups to the survivor (writes DB)
 func repointGroupReference(tx *gorm.DB, table, survivor string, losers []string) error {
 	if !tx.Migrator().HasTable(table) {
 		return nil
@@ -281,7 +272,6 @@ func repointGroupReference(tx *gorm.DB, table, survivor string, losers []string)
 // dropSelfMembership removes a group_members row left pointing a group at
 // itself (group_internal_uuid == member_group_internal_uuid == survivor).
 // See the comment at its call site in dedupeGroupKey for how this arises.
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: delete a group_members row where the survivor group is listed as its own member (writes DB)
 func dropSelfMembership(tx *gorm.DB, survivor string) error {
 	groupMembersTable := (&models.GroupMember{}).TableName()
 	if !tx.Migrator().HasTable(groupMembersTable) {
@@ -297,7 +287,6 @@ func dropSelfMembership(tx *gorm.DB, survivor string) error {
 
 // memberGroupPairDupKey is a raw scan target for the duplicate
 // (group_internal_uuid, member_group_internal_uuid) pair query.
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: hold a duplicate parent-group subgroup-membership key and its row count (pure)
 type memberGroupPairDupKey struct {
 	GroupInternalUUID string
 	Cnt               int64
@@ -308,7 +297,6 @@ type memberGroupPairDupKey struct {
 // repointing member_group_internal_uuid onto the survivor, keeping the
 // earliest row (by added_at) per parent group and deleting the rest. See the
 // comment at its call site in repointGroupMembers for how this arises.
-// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: collapse duplicate parent-group subgroup-membership rows left by a member repoint (writes DB)
 func dedupeMemberGroupPairs(tx *gorm.DB, groupMembersTable, survivor string) error {
 	var dups []memberGroupPairDupKey
 	if err := tx.Table(groupMembersTable).
@@ -358,7 +346,6 @@ func dedupeMemberGroupPairs(tx *gorm.DB, groupMembersTable, survivor string) err
 // child subgroup as a member, which leaves the survivor listing that child
 // twice once both owning-side rows land on it. dedupeOwnedSubgroupRows
 // collapses those at the end, mirroring dedupeMemberGroupPairs above (#715).
-// SEM@e13b1dbb9c83c0a6e2980a856e7f40116307c0ad: repoint group_members rows from losing groups to the survivor, dropping colliding rows (writes DB)
 func repointGroupMembers(tx *gorm.DB, survivor string, losers []string) error {
 	groupMembersTable := (&models.GroupMember{}).TableName()
 	if !tx.Migrator().HasTable(groupMembersTable) {
@@ -433,7 +420,6 @@ func repointGroupMembers(tx *gorm.DB, survivor string, losers []string) error {
 
 // ownedSubgroupDupKey is a raw scan target for the duplicate
 // member_group_internal_uuid key query under one owning survivor group.
-// SEM@e13b1dbb9c83c0a6e2980a856e7f40116307c0ad: hold a duplicate owned-subgroup membership key and its row count (pure)
 type ownedSubgroupDupKey struct {
 	MemberGroupInternalUUID string
 	Cnt                     int64
@@ -454,7 +440,6 @@ type ownedSubgroupDupKey struct {
 // string IS NULL on Oracle but not on PostgreSQL (oracle-db-admin review), so
 // a NULL bucket left in would collapse inconsistently across dialects
 // instead of just being skipped on both.
-// SEM@e13b1dbb9c83c0a6e2980a856e7f40116307c0ad: collapse duplicate owned-subgroup membership rows left by an owning-side repoint (writes DB)
 func dedupeOwnedSubgroupRows(tx *gorm.DB, groupMembersTable, survivor string) error {
 	var dups []ownedSubgroupDupKey
 	if err := tx.Table(groupMembersTable).
@@ -498,7 +483,6 @@ func dedupeOwnedSubgroupRows(tx *gorm.DB, groupMembersTable, survivor string) er
 // loadMembershipKeys returns the (user_internal_uuid, subject_type) keys
 // already present under groupInternalUUID, restricted to rows with a
 // non-NULL user_internal_uuid (see repointGroupMembers).
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: load existing group_members (user, subject_type) keys for a group (reads DB)
 func loadMembershipKeys(tx *gorm.DB, groupInternalUUID string) (map[membershipKey]bool, error) {
 	groupMembersTable := (&models.GroupMember{}).TableName()
 	var rows []groupMemberRow

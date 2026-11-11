@@ -55,7 +55,6 @@ var providerSecretSuffixes = []string{
 
 // invalidateProviderCacheIfNeeded checks if the key is a provider-related setting
 // and invalidates the provider registry cache if so.
-// SEM@8021854ca7c2ed0ff1bf92d0c81d12f62e8ee616: invalidate the auth provider registry cache if the setting key matches a provider prefix (mutates shared state)
 func (s *Server) invalidateProviderCacheIfNeeded(key string) {
 	if s.providerRegistry == nil {
 		return
@@ -77,7 +76,6 @@ func (s *Server) invalidateProviderCacheIfNeeded(key string) {
 // internal/config/classification_registry.go). This prefix+suffix heuristic
 // supplies the per-key judgment the registry cannot express; registry-driven
 // masking lives in shouldMaskSettingValue.
-// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: report whether a settings key is a provider secret that must be masked in API responses (pure)
 func isProviderSecretKey(key string) bool {
 	isProviderKey := false
 	for _, prefix := range secretMaskKeyPrefixes {
@@ -105,14 +103,12 @@ func isProviderSecretKey(key string) bool {
 // prefix-classified with Secret:false (see isProviderSecretKey), so a
 // registry-only check would unmask every auth-provider secret this file
 // already masks.
-// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: report whether a setting's value must be masked in API responses (pure)
 func shouldMaskSettingValue(key string) bool {
 	return config.ClassificationFor(key).Secret || isProviderSecretKey(key)
 }
 
 // extractProviderID extracts the provider ID from a settings key of the form
 // "<prefix><id>.<field>", returning the id portion.
-// SEM@249b01f4efeacd03d268f0b69702df01a80d6cd1: extract the provider ID segment from a prefixed settings key (pure)
 func extractProviderID(key, prefix string) string {
 	remainder := key[len(prefix):]
 	dotIdx := strings.Index(remainder, ".")
@@ -125,7 +121,6 @@ func extractProviderID(key, prefix string) string {
 // validateProviderEnableKey checks if the key is an enable key for a provider
 // and validates required fields if the value is "true".
 // Returns an error message if validation fails, or empty string if OK.
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: validate required fields on an OAuth or SAML provider before enabling it (reads DB)
 func (s *Server) validateProviderEnableKey(ctx context.Context, key, value string) string {
 	if value != boolTrue {
 		return ""
@@ -191,7 +186,6 @@ var reservedSettingKeys = map[string]string{
 }
 
 // isReservedSettingKey checks if a setting key is reserved
-// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: report whether a settings key is reserved for an API endpoint or special purpose (pure)
 func isReservedSettingKey(key string) (bool, string) {
 	if reason, reserved := reservedSettingKeys[key]; reserved {
 		return true, reason
@@ -206,7 +200,6 @@ func isReservedSettingKey(key string) (bool, string) {
 // value first (which is "" only when the key resolves to nothing through the
 // config-provider-then-database cascade) we keep the caller's default intact
 // for absent keys.
-// SEM@8f7b5125fd7a1b5bb10210ba480278708de918b0: fetch a boolean setting only when the key is explicitly configured, preserving caller defaults (reads DB)
 func (s *Server) boolSettingIfPresent(ctx context.Context, key string) (value bool, present bool) {
 	if s.settingsService == nil {
 		return false, false
@@ -224,7 +217,6 @@ func (s *Server) boolSettingIfPresent(ctx context.Context, key string) (value bo
 
 // GetClientConfig returns public configuration for client applications
 // This is a public endpoint that does not require authentication.
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: fetch public client configuration including feature flags, limits, and content providers
 func (s *Server) GetClientConfig(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
@@ -241,7 +233,6 @@ func (s *Server) GetClientConfig(c *gin.Context) {
 }
 
 // buildClientConfig constructs the ClientConfig response from server config and settings
-// SEM@3b682947: construct the ClientConfig response from server config and settings service (reads DB)
 func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientConfig {
 	logger := slogging.Get()
 
@@ -379,7 +370,6 @@ func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientCo
 // VisibilityInternal, but it can only exist because an admin created it via
 // PUT /admin/settings/{key}, so that admin must be able to read and delete it
 // (#916; docs/superpowers/specs/2026-09-18-adr-unclassified-settings-keys-addressable.md).
-// SEM@7a68fcda23a48c1ef4aac20676a9050cd7e7dcdc: report whether a settings key is classified internal and hidden from by-key admin endpoints (pure)
 func isAPIHiddenSettingKey(key string) bool {
 	cls := config.ClassificationFor(key)
 	return cls.Category != config.CategoryUnclassified && cls.Visibility == config.VisibilityInternal
@@ -400,7 +390,6 @@ func isAPIHiddenSettingKey(key string) bool {
 //
 // Settings whose key is unclassified (zero ConfigClass, CategoryUnclassified)
 // are treated as VisibilityInternal and filtered out.
-// SEM@dcb09b6afcb6a3a78ce7ba3c345e459ba9cf55a2: filter settings to those whose visibility classification matches the requested level (pure)
 func filterByVisibility(settings []MigratableSetting, level config.Visibility) []MigratableSetting {
 	out := make([]MigratableSetting, 0, len(settings))
 	for _, s := range settings {
@@ -420,7 +409,6 @@ func filterByVisibility(settings []MigratableSetting, level config.Visibility) [
 }
 
 // configSettingToAPI converts a MigratableSetting to an API SystemSetting with source/read_only.
-// SEM@249b01f4efeacd03d268f0b69702df01a80d6cd1: convert a migratable config setting to an API SystemSetting, masking secrets (pure)
 func configSettingToAPI(cs MigratableSetting) SystemSetting {
 	source := SystemSettingSource(cs.Source)
 	readOnly := true
@@ -451,7 +439,6 @@ func configSettingToAPI(cs MigratableSetting) SystemSetting {
 // Config settings take priority over database settings for the same key.
 // Settings classified VisibilityInternal are excluded: they are bootstrap or
 // server-internal settings that must never appear in any API response.
-// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: build a merged admin-visible settings list with config-file values overriding database values (reads DB)
 func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []SystemSetting {
 	configMap := make(map[string]MigratableSetting)
 	if s.configProvider != nil {
@@ -510,7 +497,6 @@ func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []Sy
 }
 
 // ListSystemSettings returns all system settings (admin only)
-// SEM@91dca85b52bdc03010be6f156c266607fa22df98: list all admin-visible system settings merged from config and database (reads DB)
 func (s *Server) ListSystemSettings(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
@@ -544,7 +530,6 @@ func (s *Server) ListSystemSettings(c *gin.Context) {
 }
 
 // GetSystemSetting returns a specific system setting by key (admin only)
-// SEM@7a68fcda23a48c1ef4aac20676a9050cd7e7dcdc: fetch a single system setting by key, masking secrets and hiding internal keys (reads DB)
 func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
@@ -626,7 +611,6 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 }
 
 // UpdateSystemSetting creates or updates a system setting (admin only)
-// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: create or update a system setting with explicit origin; validate provider enables, invalidate cache (writes DB)
 func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
@@ -725,7 +709,6 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 }
 
 // DeleteSystemSetting deletes a system setting (admin only)
-// SEM@7a68fcda23a48c1ef4aac20676a9050cd7e7dcdc: delete a system setting by key, rejecting reserved or internal-visibility keys (reads DB)
 func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
@@ -800,7 +783,6 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 }
 
 // ReencryptSystemSettings re-encrypts all system settings with the current encryption key (admin only)
-// SEM@094904c7a8ba41296e31c7fa9623c72c3f018fa2: handle admin request to re-encrypt all system settings; map failures to 409/503 (writes DB)
 func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
@@ -888,7 +870,6 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 //
 // Returns an empty (non-nil) slice when the registry is nil or empty so the
 // JSON response renders a deterministic [] rather than null.
-// SEM@f2e01937e40c91e87ac47a34d11870fde716d093: build the content-provider list from the source registry, merging operator name/icon overrides (pure)
 func buildContentProviders(sources *ContentSourceRegistry, cfg *config.ContentOAuthConfig, pickerConfigs map[string]map[string]string) []ContentProvider {
 	out := make([]ContentProvider, 0)
 	if sources == nil {
@@ -927,7 +908,6 @@ func buildContentProviders(sources *ContentSourceRegistry, cfg *config.ContentOA
 }
 
 // modelToAPISystemSetting converts a models.SystemSetting to an API SystemSetting
-// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: convert a DB system-setting model to its API DTO (pure)
 func modelToAPISystemSetting(m models.SystemSetting) SystemSetting {
 	setting := SystemSetting{
 		Key:         string(m.SettingKey),

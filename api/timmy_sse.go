@@ -21,7 +21,6 @@ import (
 var sseEventNameRe = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 
 // SSEWriter provides helpers for writing Server-Sent Events to a Gin response
-// SEM@e2f78925781ef0a3d3eb6ea222688508cec07972: holds a Gin context and flush function for writing Server-Sent Events (pure)
 type SSEWriter struct {
 	c       *gin.Context
 	flusher func()
@@ -33,7 +32,6 @@ type SSEWriter struct {
 }
 
 // NewSSEWriter initializes an SSE response stream
-// SEM@0c40bcbe0b127e722e6bc4ce4089674fc5303ce2: build an SSE response stream and set required headers on the response
 func NewSSEWriter(c *gin.Context) *SSEWriter {
 	c.Header("Content-Type", "text/event-stream")
 	// Do NOT override Cache-Control here. The SecurityHeaders middleware already
@@ -78,7 +76,6 @@ func NewSSEWriter(c *gin.Context) *SSEWriter {
 }
 
 // SendEvent sends a named SSE event with JSON data
-// SEM@e2f78925781ef0a3d3eb6ea222688508cec07972: serialize data as JSON and send a named SSE event to the client
 func (w *SSEWriter) SendEvent(event string, data any) error {
 	// Once a write has failed the connection does not recover, and every
 	// further attempt is a syscall that fails the same way. Short-circuit so a
@@ -119,13 +116,11 @@ func (w *SSEWriter) SendEvent(event string, data any) error {
 }
 
 // SendToken sends a single token event for LLM streaming
-// SEM@4c239c4f250b659952e70e3af2276d2651e420e9: send a streaming LLM token as an SSE token event
 func (w *SSEWriter) SendToken(content string) error {
 	return w.SendEvent("token", map[string]string{"content": content})
 }
 
 // SendError sends an error event
-// SEM@4c239c4f250b659952e70e3af2276d2651e420e9: send an error code and message as an SSE error event
 func (w *SSEWriter) SendError(code, message string) error {
 	return w.SendEvent("error", map[string]string{"code": code, "message": message})
 }
@@ -133,7 +128,6 @@ func (w *SSEWriter) SendError(code, message string) error {
 // failed latches the first write error and logs it once. Subsequent sends
 // short-circuit on the latch rather than logging per event, which matters for a
 // token stream that would otherwise emit hundreds of identical lines.
-// SEM@e2f78925781ef0a3d3eb6ea222688508cec07972: latch and log the first SSE write failure, returning it wrapped
 func (w *SSEWriter) failed(err error) error {
 	w.writeErr = fmt.Errorf("failed to write SSE event: %w", err)
 	slogging.Get().WithContext(w.c).Warn(
@@ -142,7 +136,6 @@ func (w *SSEWriter) failed(err error) error {
 }
 
 // Err returns the first write failure, or nil while the stream is healthy.
-// SEM@e2f78925781ef0a3d3eb6ea222688508cec07972: return the first SSE write failure, or nil if none (pure)
 func (w *SSEWriter) Err() error { return w.writeErr }
 
 // IsClientGone reports whether the client can no longer receive events.
@@ -154,7 +147,6 @@ func (w *SSEWriter) Err() error { return w.writeErr }
 // still in flight, so the context check alone reports a healthy client and the
 // handler keeps generating LLM tokens nobody will receive. Checking the latched
 // write error covers that.
-// SEM@e2f78925781ef0a3d3eb6ea222688508cec07972: report whether the SSE client is unreachable, via context cancellation or a latched write failure (pure)
 func (w *SSEWriter) IsClientGone() bool {
 	if w.writeErr != nil {
 		return true

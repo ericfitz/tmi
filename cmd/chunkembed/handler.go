@@ -13,7 +13,6 @@ import (
 
 // EmbeddingResult is the chunk-embed stage output blob, written to the
 // Object Store and referenced from the result envelope.
-// SEM@ef969bb79ad525fa5038847af0fb0be1038ae961: index-aligned text chunks and their embedding vectors from a single embedding job (pure)
 type EmbeddingResult struct {
 	// Chunks are the text chunks in order.
 	Chunks []string `json:"chunks"`
@@ -22,7 +21,6 @@ type EmbeddingResult struct {
 }
 
 // validate checks the result is internally consistent.
-// SEM@ef969bb79ad525fa5038847af0fb0be1038ae961: validate that chunk and vector slices have equal length (pure)
 func (r EmbeddingResult) validate() error {
 	if len(r.Chunks) != len(r.Vectors) {
 		return fmt.Errorf("chunk/vector count mismatch: %d chunks, %d vectors",
@@ -32,7 +30,6 @@ func (r EmbeddingResult) validate() error {
 }
 
 // chunkEmbedHandler is the JobHandler for tmi-chunk-embed.
-// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: worker handler that chunks document text and embeds the chunks
 type chunkEmbedHandler struct {
 	conn     *worker.Conn
 	chunker  *extract.TextChunker
@@ -50,7 +47,6 @@ const (
 )
 
 // newChunkEmbedHandler builds the handler.
-// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build a chunk-and-embed worker handler
 func newChunkEmbedHandler(conn *worker.Conn, emb llm.Embedder) *chunkEmbedHandler {
 	return &chunkEmbedHandler{
 		conn:     conn,
@@ -61,7 +57,6 @@ func newChunkEmbedHandler(conn *worker.Conn, emb llm.Embedder) *chunkEmbedHandle
 
 // Handle reads the extracted-text blob, chunks + embeds it, writes the
 // result blob, and publishes the final result envelope.
-// SEM@ef969bb79ad525fa5038847af0fb0be1038ae961: fetch text payload, chunk and embed it, store the result, and publish the completion envelope (reads DB)
 func (h *chunkEmbedHandler) Handle(ctx context.Context, job jobenvelope.Job) error {
 	logger := slogging.Get()
 
@@ -111,7 +106,6 @@ func (h *chunkEmbedHandler) Handle(ctx context.Context, job jobenvelope.Job) err
 }
 
 // publishFailure publishes a failed result and returns a terminal JobError.
-// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: publish a job failure result with the given reason code and detail
 func (h *chunkEmbedHandler) publishFailure(ctx context.Context, job jobenvelope.Job,
 	reasonCode, detail string) error {
 	return h.conn.PublishFailureResult(ctx, job.JobID, reasonCode, detail)

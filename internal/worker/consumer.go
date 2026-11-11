@@ -15,7 +15,6 @@ import (
 // JobError is a typed, terminal failure a handler returns when a job can
 // never succeed (malformed input, unsupported format, timeout). The
 // consumer terminates such a message rather than redelivering it.
-// SEM@3b4afc57df700de14d06ec4e93a7038dcf52b9d2: typed terminal job failure signalling whether redelivery can help (pure)
 type JobError struct {
 	// ReasonCode is a pkg/extract Reason* constant (or a status string).
 	ReasonCode string
@@ -25,7 +24,6 @@ type JobError struct {
 	Terminal bool
 }
 
-// SEM@3b4afc57df700de14d06ec4e93a7038dcf52b9d2: format a JobError as a human-readable string (pure)
 func (e *JobError) Error() string {
 	return fmt.Sprintf("job error: reason=%s detail=%q terminal=%v", e.ReasonCode, e.Detail, e.Terminal)
 }
@@ -37,7 +35,6 @@ func (e *JobError) Error() string {
 // build-Result -> marshal -> publish -> return-terminal-JobError core.
 // A marshal or publish failure is returned as-is (the latter is transient and
 // triggers redelivery).
-// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: publish a terminal job failure result and return a terminal job error (mutates shared state)
 func (c *Conn) PublishFailureResult(ctx context.Context, jobID, reasonCode, detail string) error {
 	res := jobenvelope.Result{
 		JobID:        jobID,
@@ -56,7 +53,6 @@ func (c *Conn) PublishFailureResult(ctx context.Context, jobID, reasonCode, deta
 }
 
 // outcome is the consumer's per-message decision.
-// SEM@3b4afc57df700de14d06ec4e93a7038dcf52b9d2: enumerated ack/nak/term disposition for a consumed JetStream message (pure)
 type outcome int
 
 const (
@@ -69,7 +65,6 @@ const (
 )
 
 // outcomeFor maps a handler's returned error to a consumer outcome.
-// SEM@3b4afc57df700de14d06ec4e93a7038dcf52b9d2: map a handler error to the appropriate ack, nak, or term outcome (pure)
 func outcomeFor(err error) outcome {
 	if err == nil {
 		return OutcomeAck
@@ -86,11 +81,9 @@ func outcomeFor(err error) outcome {
 // redelivery. The handler is responsible for publishing the result envelope
 // for terminal failures BEFORE returning the *JobError — the consumer only
 // decides ack/nak/term, it does not publish results.
-// SEM@3b4afc57df700de14d06ec4e93a7038dcf52b9d2: callback contract for processing a decoded job and signalling ack/nak/term via error (pure)
 type JobHandler func(ctx context.Context, job jobenvelope.Job) error
 
 // ConsumerConfig configures the durable consumer.
-// SEM@3b4afc57df700de14d06ec4e93a7038dcf52b9d2: parameters for binding a durable JetStream consumer to a stream and subject (pure)
 type ConsumerConfig struct {
 	// StreamName is the JetStream stream the consumer binds. The controller
 	// renders one stream per component (TMI_<NAME>); RunConsumer creates the
@@ -115,28 +108,23 @@ type ConsumerConfig struct {
 // serially from a single goroutine (verified for nats.go v1.36.0). If the
 // consumer ever moves to concurrent/worker-pool delivery, this map must be
 // guarded with a sync.Mutex.
-// SEM@3b4afc57df700de14d06ec4e93a7038dcf52b9d2: in-process set of completed job IDs used to skip redelivered messages (mutates shared state)
 type idempotency struct {
 	seen map[string]struct{}
 }
 
-// SEM@3b4afc57df700de14d06ec4e93a7038dcf52b9d2: build an empty in-process idempotency tracker (pure)
 func newIdempotency() *idempotency { return &idempotency{seen: map[string]struct{}{}} }
 
-// SEM@3b4afc57df700de14d06ec4e93a7038dcf52b9d2: report whether a job ID has already been processed this lifetime (pure)
 func (i *idempotency) done(id string) bool {
 	_, ok := i.seen[id]
 	return ok
 }
 
-// SEM@3b4afc57df700de14d06ec4e93a7038dcf52b9d2: record a job ID as completed in the idempotency tracker (mutates shared state)
 func (i *idempotency) mark(id string) { i.seen[id] = struct{}{} }
 
 // ensureStream returns the named stream, creating it (WorkQueue/File) bound
 // to filterSubject if it does not yet exist. The controller normally renders
 // the stream; this fallback keeps a worker self-sufficient (and lets the
 // process-mode integration tests run without the controller).
-// SEM@3b4afc57df700de14d06ec4e93a7038dcf52b9d2: fetch or create a JetStream work-queue stream bound to the given subject
 func ensureStream(ctx context.Context, js jetstream.JetStream, name, filterSubject string) (jetstream.Stream, error) {
 	s, err := js.Stream(ctx, name)
 	if err == nil {
@@ -159,7 +147,6 @@ func ensureStream(ctx context.Context, js jetstream.JetStream, name, filterSubje
 
 // RunConsumer creates the durable consumer and dispatches messages to the
 // handler until ctx is cancelled. It blocks; run it on the main goroutine.
-// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: bind a durable JetStream consumer and dispatch jobs to the handler until context is cancelled
 func RunConsumer(ctx context.Context, conn *Conn, cfg ConsumerConfig, handle JobHandler) error {
 	logger := slogging.Get()
 

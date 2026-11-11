@@ -19,7 +19,7 @@
 - Any DB-touching Go change requires the `oracle-db-admin` subagent review before task completion (Task 2).
 - Frugal choices: db.t3.micro, single NAT, single node, no Multi-AZ.
 - Nothing environment-specific (account IDs, zone IDs, ARNs, tmi.dev names) may be committed — those live in gitignored tfvars/backend/generated files. Committed code takes them as variables/flags.
-- SEM markers: add/update `SEM@` markers on new/changed Go functions; run `/sem-annotate --update <files>` per task.
+- SEM markers: add/update `SEM-` markers on new/changed Go functions; run `/sem-annotate --update <files>` per task.
 - Conventional commits; feature work on `feature/aws-deployment` branch (Task 1).
 
 ---

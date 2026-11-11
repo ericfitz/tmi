@@ -12,7 +12,7 @@
 
 - MANDATORY: use make targets only — `make lint`, `make build-server`, `make test-unit name=X`, `make test-integration`. Never `go test` directly.
 - Zero 500-error policy; Documented-Status-Code policy (503 is already documented on the affected POST operations — verified).
-- Every new/changed function gets a `SEM@<sha>` marker via `/sem-annotate --update <files>` at the end of each task (or copy the style of neighbors).
+- Every new/changed function gets a `SEM-<sha>` marker via `/sem-annotate --update <files>` at the end of each task (or copy the style of neighbors).
 - Structured logging only (`internal/slogging`), never `log` or `fmt.Println`.
 - Branch: `dev/1.8.2/oracle-followups` off `main`. Conventional commits; each commit references its issue.
 - oracle-db-admin subagent review is REQUIRED before completion (Task 8) — schema and repository changes are in scope.

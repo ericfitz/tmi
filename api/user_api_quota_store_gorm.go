@@ -17,20 +17,17 @@ import (
 )
 
 // GormUserAPIQuotaStore implements UserAPIQuotaStoreInterface using GORM
-// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: GORM-backed persistent store for per-user API rate quotas
 type GormUserAPIQuotaStore struct {
 	db    *gorm.DB
 	mutex sync.RWMutex
 }
 
 // NewGormUserAPIQuotaStore creates a new GORM-backed user API quota store
-// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: build a GormUserAPIQuotaStore backed by the given database connection (pure)
 func NewGormUserAPIQuotaStore(db *gorm.DB) *GormUserAPIQuotaStore {
 	return &GormUserAPIQuotaStore{db: db}
 }
 
 // Get retrieves a user API quota by user ID
-// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: fetch the API quota record for a user by internal UUID (reads DB)
 func (s *GormUserAPIQuotaStore) Get(ctx context.Context, userID string) (UserAPIQuota, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -53,7 +50,6 @@ func (s *GormUserAPIQuotaStore) Get(ctx context.Context, userID string) (UserAPI
 }
 
 // GetOrDefault retrieves a quota or returns default values
-// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: fetch the user's API quota or return platform defaults when none is stored (reads DB)
 func (s *GormUserAPIQuotaStore) GetOrDefault(ctx context.Context, userID string) UserAPIQuota {
 	quota, err := s.Get(ctx, userID)
 	if err != nil {
@@ -70,7 +66,6 @@ func (s *GormUserAPIQuotaStore) GetOrDefault(ctx context.Context, userID string)
 }
 
 // List retrieves all user API quotas with pagination
-// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: list all user API quota records with pagination (reads DB)
 func (s *GormUserAPIQuotaStore) List(ctx context.Context, offset, limit int) ([]UserAPIQuota, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -99,7 +94,6 @@ func (s *GormUserAPIQuotaStore) List(ctx context.Context, offset, limit int) ([]
 }
 
 // Count returns the total number of user API quotas
-// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: return the total number of stored user API quota records (reads DB)
 func (s *GormUserAPIQuotaStore) Count(ctx context.Context) (int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -112,7 +106,6 @@ func (s *GormUserAPIQuotaStore) Count(ctx context.Context) (int, error) {
 }
 
 // Create creates a new user API quota
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new user API quota record (writes DB)
 func (s *GormUserAPIQuotaStore) Create(ctx context.Context, item UserAPIQuota) (UserAPIQuota, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -143,7 +136,6 @@ func (s *GormUserAPIQuotaStore) Create(ctx context.Context, item UserAPIQuota) (
 }
 
 // Update updates an existing user API quota
-// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: update rate limit fields of an existing user API quota (mutates shared state)
 func (s *GormUserAPIQuotaStore) Update(ctx context.Context, userID string, item UserAPIQuota) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -179,7 +171,6 @@ func (s *GormUserAPIQuotaStore) Update(ctx context.Context, userID string, item 
 }
 
 // Delete deletes a user API quota
-// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: delete the API quota record for a user by internal UUID (mutates shared state)
 func (s *GormUserAPIQuotaStore) Delete(ctx context.Context, userID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -211,7 +202,6 @@ func (s *GormUserAPIQuotaStore) Delete(ctx context.Context, userID string) error
 // then reads the row back so the returned timestamps reflect what is
 // actually stored rather than a client-side stamp (#706)
 // This is cross-database compatible via GORM's dialect abstraction
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store or update a user's API quota via cross-DB upsert, then read it back (writes DB)
 func (s *GormUserAPIQuotaStore) Upsert(ctx context.Context, item UserAPIQuota) (UserAPIQuota, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -264,7 +254,6 @@ func (s *GormUserAPIQuotaStore) Upsert(ctx context.Context, item UserAPIQuota) (
 }
 
 // modelToAPI converts a GORM model to the API type
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: convert a GORM UserAPIQuota model to its API representation (pure)
 func (s *GormUserAPIQuotaStore) modelToAPI(model models.UserAPIQuota) UserAPIQuota {
 	userUUID, _ := uuid.Parse(string(model.UserInternalUUID))
 	return UserAPIQuota{
@@ -277,7 +266,6 @@ func (s *GormUserAPIQuotaStore) modelToAPI(model models.UserAPIQuota) UserAPIQuo
 }
 
 // apiToModel converts an API type to a GORM model
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: convert an API UserAPIQuota to its GORM model representation (pure)
 func (s *GormUserAPIQuotaStore) apiToModel(api UserAPIQuota) models.UserAPIQuota {
 	return models.UserAPIQuota{
 		UserInternalUUID:     models.DBVarchar(api.UserId.String()),

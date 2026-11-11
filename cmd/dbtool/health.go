@@ -11,7 +11,6 @@ import (
 )
 
 // runHealthCheck connects to the database and reports schema health.
-// SEM@7a8bf8de72c6d39387df00ec0eb9901653555db8: report database schema and system data health, returning error if migration is needed (reads DB)
 func runHealthCheck(db *testdb.TestDB, _ bool) error {
 	log := slogging.Get()
 
@@ -59,7 +58,6 @@ func runHealthCheck(db *testdb.TestDB, _ bool) error {
 }
 
 // checkSystemDataHealth checks whether required system data exists.
-// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: log built-in group count and webhook deny-list seeding status from the database (reads DB)
 func checkSystemDataHealth(db *testdb.TestDB, log *slogging.Logger) {
 	// Check built-in groups (provider = "tmi" are built-in)
 	var groupCount int64

@@ -16,7 +16,7 @@
 - **Never hardcode table names** — query via `db.Model(&models.X{})` so dialect-aware `TableName()` applies (Oracle).
 - **MANDATORY make targets only**: `make lint`, `make build-server`, `make test-unit name=...`, `make test-integration`. Never `go test` directly. Never run two integration suites concurrently (shared server/database).
 - Integration test functions must use the `_Integration` name suffix to be picked up by `make test-integration`.
-- New/changed functions get `SEM@<sha>` one-line intent markers (match style in api/authz_middleware.go; run `/sem-annotate --update` at landing).
+- New/changed functions get `SEM-<sha>` one-line intent markers (match style in api/authz_middleware.go; run `/sem-annotate --update` at landing).
 - Conventional commits; version bump to **1.7.1** (fix → PATCH; manual versioning per #627) in both `.version` and `api-schema/tmi-openapi.json` `info.version`.
 - Do NOT remove the existing per-handler diagram/chat/audit/feedback parentage checks — the middleware gate is defense in depth on top of them.
 
@@ -251,7 +251,7 @@ Wire it into `authzMiddlewareWithTable` (currently lines 95-100) so it runs only
 		}
 ```
 
-Write real `SEM@<current-short-sha>` markers in the file's existing style (see line 35) in place of the `SEM marker:` placeholders above.
+Write real `SEM-<current-short-sha>` markers in the file's existing style (see line 35) in place of the `SEM marker:` placeholders above.
 
 - [ ] **Step 4: Run the new test and the existing suite**
 

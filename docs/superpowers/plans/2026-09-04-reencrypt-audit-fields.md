@@ -14,7 +14,7 @@
 
 - **Always use Make targets.** Never run `go test`, `go run`, or `./bin/tmiserver` directly. Single test: `make test-unit name=TestName count1=true passfail=true` (the `name` value must not contain `|`). Lint: `make lint`. Build: `make build-server`. Integration: `make test-integration`.
 - **gofmt** everything. Imports grouped stdlib / external / internal.
-- **SEM markers:** every function whose behavior changes gets the description text of its `// SEM@<sha>: <intent>` comment updated. Keep the existing sha; tooling refreshes it later. Unchanged functions keep their markers untouched.
+- **SEM markers:** every function whose behavior changes gets the description text of its `// SEM-<sha>: <intent>` comment updated. Keep the existing sha; tooling refreshes it later. Unchanged functions keep their markers untouched.
 - **Logging:** only `github.com/ericfitz/tmi/internal/slogging` (already what these files use).
 - **Branch:** all work on `dev/1.9.16/reencrypt-audit-fields` off `main`. `main` is PR-only; never commit to it.
 - **Commits:** conventional commits. The resolving commit body contains `Fixes #805`. Every commit ends with this trailer (two lines, verbatim):
@@ -173,7 +173,6 @@ Replace lines 665-668 (the doc comment, SEM marker, and signature):
 ```go
 // ReEncryptAll re-encrypts all settings with the current encryption key.
 // Returns the count of settings re-encrypted, any per-setting errors, and a fatal error if applicable.
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: re-encrypt all stored settings with the current encryption key (reads DB)
 func (s *SettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) (int, []SettingError, error) {
 ```
 
@@ -189,7 +188,6 @@ with:
 // operator intent, and only SettingsService.Set may create that signal. The
 // actor of a rotation is recorded by AdminAuditMiddleware
 // (REENCRYPT system_settings), not by the row (#805).
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: re-encrypt every stored setting value in place without touching audit fields (writes DB)
 func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 ```
 

@@ -395,7 +395,6 @@ def get_image_tags(
     ]
 
 
-# SEM@c161adfd8ba839441ccd825e818d342a09c63849: run a docker buildx build, returning the pushed manifest digest if known
 def run_docker_build(
     config: TargetConfig,
     dockerfile: str,

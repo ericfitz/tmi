@@ -11,7 +11,6 @@ import (
 )
 
 // Ownership is the resource-level access tier required by an operation.
-// SEM@e2de7c62a484c8859b1f6760addcf1b628ec49bb: enum of resource-level access tiers required by an operation (pure)
 type Ownership string
 
 const (
@@ -23,7 +22,6 @@ const (
 
 // AuthzRoleName is a named role gate. Defined values for slice 1: admin.
 // Future slices register security_reviewer, automation, confidential_reviewer.
-// SEM@e2de7c62a484c8859b1f6760addcf1b628ec49bb: enum of named role gates checked during authorization (pure)
 type AuthzRoleName string
 
 const (
@@ -53,7 +51,6 @@ var validRoles = map[AuthzRoleName]struct{}{
 // addon-invocation delegation token in api/delegation_token_issuer.go;
 // "service_account" requires an SA token (rare; reserved for SA-internal
 // endpoints).
-// SEM@e2de7c62a484c8859b1f6760addcf1b628ec49bb: enum constraining which authenticated principal type satisfies a route gate (pure)
 type SubjectAuthority string
 
 const (
@@ -69,7 +66,6 @@ var validSubjectAuthorities = map[SubjectAuthority]struct{}{
 }
 
 // AuthzRule is the per-operation declaration sourced from x-tmi-authz.
-// SEM@e6be8a8f816c564356a656ac18f3693ac7f10369: per-operation authorization declaration parsed from the x-tmi-authz OpenAPI extension (pure)
 type AuthzRule struct {
 	Ownership        Ownership
 	Roles            []AuthzRoleName
@@ -81,7 +77,6 @@ type AuthzRule struct {
 // AuthzTable indexes rules by (method, normalized-path-template).
 // Lookups against concrete request paths use template matching (e.g.
 // /admin/users/abc -> /admin/users/{id}).
-// SEM@7a41ed9e2527d8cce054328a84a5d9fec9804ee1: index of authorization rules keyed by HTTP method and path template (pure)
 type AuthzTable struct {
 	// byMethodPath maps method -> path template -> rule.
 	// Path templates are stored exactly as written in the OpenAPI spec
@@ -98,7 +93,6 @@ var (
 // LoadGlobalAuthzTable parses the embedded OpenAPI spec once and caches the
 // resulting AuthzTable. Subsequent calls return the cached value. Errors from
 // the first call are persisted and re-returned on every subsequent call.
-// SEM@e2de7c62a484c8859b1f6760addcf1b628ec49bb: parse the embedded OpenAPI spec into a cached global AuthzTable; return cached result on subsequent calls (mutates shared state)
 func LoadGlobalAuthzTable() (*AuthzTable, error) {
 	globalAuthzTableOnce.Do(func() {
 		swagger, err := GetSwagger()
@@ -113,7 +107,6 @@ func LoadGlobalAuthzTable() (*AuthzTable, error) {
 
 // loadAuthzTableFromJSON is exposed for tests; it parses a raw JSON spec
 // string instead of relying on the embedded production spec.
-// SEM@e2de7c62a484c8859b1f6760addcf1b628ec49bb: parse an AuthzTable from raw JSON spec bytes for test use (pure)
 func loadAuthzTableFromJSON(data []byte) (*AuthzTable, error) {
 	loader := openapi3.NewLoader()
 	swagger, err := loader.LoadFromData(data)
@@ -123,7 +116,6 @@ func loadAuthzTableFromJSON(data []byte) (*AuthzTable, error) {
 	return buildAuthzTable(swagger)
 }
 
-// SEM@7a41ed9e2527d8cce054328a84a5d9fec9804ee1: build an AuthzTable by extracting x-tmi-authz extensions from all OpenAPI operations (pure)
 func buildAuthzTable(swagger *openapi3.T) (*AuthzTable, error) {
 	tbl := &AuthzTable{
 		byMethodPath: make(map[string]map[string]AuthzRule),
@@ -158,7 +150,6 @@ func buildAuthzTable(swagger *openapi3.T) (*AuthzTable, error) {
 	return tbl, nil
 }
 
-// SEM@e6be8a8f816c564356a656ac18f3693ac7f10369: parse and validate an x-tmi-authz extension value into an AuthzRule (pure)
 func parseAuthzExtension(raw any) (AuthzRule, error) {
 	var rule AuthzRule
 	// kin-openapi exposes extensions as raw JSON message or already-decoded.
@@ -232,7 +223,6 @@ func parseAuthzExtension(raw any) (AuthzRule, error) {
 // returns the rule for (method, matched-template). Matching mirrors the
 // strategy in findPathItem (api/openapi_middleware.go): exact match wins,
 // otherwise the template with the most literal segments wins.
-// SEM@7a41ed9e2527d8cce054328a84a5d9fec9804ee1: match a concrete request path against stored templates and return the authorization rule for the operation (pure)
 func (t *AuthzTable) Lookup(method, requestPath string) (AuthzRule, bool) {
 	methodRules := t.byMethodPath[strings.ToUpper(method)]
 	if methodRules == nil {

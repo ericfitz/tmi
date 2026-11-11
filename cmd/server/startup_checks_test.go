@@ -284,7 +284,6 @@ func TestWarnIfPlaintextSecretsAtRest_ProductionBuildPlaintextSecrets(t *testing
 // TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledAllEncrypted verifies that
 // when encryption is ON and every stored secret carries the ENC: prefix, nothing
 // is logged: a secure deployment must not be told it is insecure.
-// SEM@7430764167888f43111b8fe959e8c73449a4f9af: validate no plaintext warning when encryption is on and all secrets are encrypted
 func TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledAllEncrypted(t *testing.T) {
 	cfg := minimalConfigWithBuildMode("production") // worst case
 	secretKeys := secretClassifiedKeys(cfg)
@@ -308,7 +307,6 @@ func TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledAllEncrypted(t *testing.T
 // TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledReadFails verifies that a
 // failed read yields a "could not verify" warning: neither an alarm naming
 // keys nor an all-clear.
-// SEM@7430764167888f43111b8fe959e8c73449a4f9af: validate a failed plaintext-check read reports unverified, not clean or insecure
 func TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledReadFails(t *testing.T) {
 	cfg := minimalConfigWithBuildMode("production")
 	svc := newMockSecretKeyGetter(map[string]string{})
@@ -328,7 +326,6 @@ func TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledReadFails(t *testing.T) {
 // when encryption is ON but a secret stored before it was enabled is still
 // plaintext, one production ERROR names the key and the re-encrypt endpoint
 // (and not the env var, which is already set).
-// SEM@7430764167888f43111b8fe959e8c73449a4f9af: validate the re-encrypt warning names legacy plaintext secrets when encryption is on
 func TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledLegacyPlaintext(t *testing.T) {
 	cfg := minimalConfigWithBuildMode("production")
 	secretKeys := secretClassifiedKeys(cfg)
@@ -699,7 +696,6 @@ func TestWarnIfConfigDatabaseDiverges_RedactsProviderClientSecret(t *testing.T) 
 	}
 }
 
-// SEM@97bdf895453505ffee1c671271b82af781c61b72: verify startup Timmy validation rejects the production dump flag and unknown providers
 func TestValidateTimmyAtStartup(t *testing.T) {
 	dump := config.TimmyConfig{DumpExtractedTextToNote: true}
 	badProvider := config.TimmyConfig{LLMProvider: "bogus"}
@@ -735,18 +731,15 @@ func TestValidateTimmyAtStartup(t *testing.T) {
 
 // timmyStubSettings serves canned string values for the keys read by
 // api.TimmyConfigProvider.Current; every other method panics via the nil embed.
-// SEM@97bdf895453505ffee1c671271b82af781c61b72: stub settings service returning canned values by key (pure)
 type timmyStubSettings struct {
 	api.SettingsServiceInterface
 	values map[string]string
 }
 
-// SEM@97bdf895453505ffee1c671271b82af781c61b72: fetch a canned string setting from the stub (pure)
 func (s timmyStubSettings) GetString(_ context.Context, key string) (string, error) {
 	return s.values[key], nil
 }
 
-// SEM@97bdf895453505ffee1c671271b82af781c61b72: fetch a canned int setting from the stub (pure)
 func (s timmyStubSettings) GetInt(_ context.Context, key string) (int, error) {
 	if v, ok := s.values[key]; ok {
 		return strconv.Atoi(v)
@@ -754,7 +747,6 @@ func (s timmyStubSettings) GetInt(_ context.Context, key string) (int, error) {
 	return 0, nil
 }
 
-// SEM@97bdf895453505ffee1c671271b82af781c61b72: fetch a canned bool setting from the stub (pure)
 func (s timmyStubSettings) GetBool(_ context.Context, key string) (bool, error) {
 	if v, ok := s.values[key]; ok {
 		return strconv.ParseBool(v)
@@ -762,7 +754,6 @@ func (s timmyStubSettings) GetBool(_ context.Context, key string) (bool, error) 
 	return false, nil
 }
 
-// SEM@97bdf895453505ffee1c671271b82af781c61b72: verify the DB-resolved Timmy config path enforces production dump flag and provider validity
 func TestValidateEffectiveTimmyAtStartup(t *testing.T) {
 	tests := []struct {
 		name      string

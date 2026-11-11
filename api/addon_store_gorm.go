@@ -16,19 +16,16 @@ import (
 )
 
 // GormAddonStore implements AddonStore using GORM
-// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: GORM-backed persistent store for add-on records (reads DB)
 type GormAddonStore struct {
 	db *gorm.DB
 }
 
 // NewGormAddonStore creates a new GORM-backed add-on store
-// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: build a GormAddonStore wrapping the given GORM database (pure)
 func NewGormAddonStore(db *gorm.DB) *GormAddonStore {
 	return &GormAddonStore{db: db}
 }
 
 // Create creates a new add-on
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new addon record, assigning ID and timestamp if absent (writes DB)
 func (s *GormAddonStore) Create(ctx context.Context, addon *Addon) error {
 	logger := slogging.Get()
 
@@ -67,7 +64,6 @@ func (s *GormAddonStore) Create(ctx context.Context, addon *Addon) error {
 }
 
 // Get retrieves an add-on by ID
-// SEM@263482d75164f5d9cc6ecfbf63ecc20515b79b0d: fetch a single add-on by UUID, returning ErrAddonNotFound if absent (reads DB)
 func (s *GormAddonStore) Get(ctx context.Context, id uuid.UUID) (*Addon, error) {
 	logger := slogging.Get()
 
@@ -90,7 +86,6 @@ func (s *GormAddonStore) Get(ctx context.Context, id uuid.UUID) (*Addon, error) 
 }
 
 // List retrieves add-ons with pagination, optionally filtered by threat model
-// SEM@263482d75164f5d9cc6ecfbf63ecc20515b79b0d: list add-ons with pagination and optional threat-model filter, returning total count (reads DB)
 func (s *GormAddonStore) List(ctx context.Context, limit, offset int, threatModelID *uuid.UUID) ([]Addon, int, error) {
 	logger := slogging.Get()
 
@@ -145,7 +140,6 @@ var addonUpdatableFields = []string{
 }
 
 // Update writes the mutable fields of an existing add-on
-// SEM@263482d75164f5d9cc6ecfbf63ecc20515b79b0d: update the mutable fields of an add-on by ID, not-found if absent (mutates DB)
 func (s *GormAddonStore) Update(ctx context.Context, addon *Addon) error {
 	logger := slogging.Get()
 
@@ -176,7 +170,6 @@ func (s *GormAddonStore) Update(ctx context.Context, addon *Addon) error {
 }
 
 // Delete removes an add-on by ID
-// SEM@263482d75164f5d9cc6ecfbf63ecc20515b79b0d: delete an add-on by UUID, returning ErrAddonNotFound if not present (writes DB)
 func (s *GormAddonStore) Delete(ctx context.Context, id uuid.UUID) error {
 	logger := slogging.Get()
 
@@ -202,7 +195,6 @@ func (s *GormAddonStore) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 // GetByWebhookID retrieves all add-ons associated with a webhook
-// SEM@263482d75164f5d9cc6ecfbf63ecc20515b79b0d: fetch all add-ons associated with a given webhook UUID (reads DB)
 func (s *GormAddonStore) GetByWebhookID(ctx context.Context, webhookID uuid.UUID) ([]Addon, error) {
 	logger := slogging.Get()
 
@@ -228,7 +220,6 @@ func (s *GormAddonStore) GetByWebhookID(ctx context.Context, webhookID uuid.UUID
 }
 
 // CountActiveInvocations counts pending/in_progress invocations for an add-on
-// SEM@1f7fa52ef92fb87a8cf91a548761c53324b4c630: count pending and in-progress invocations for an add-on via the Redis delivery store (reads DB)
 func (s *GormAddonStore) CountActiveInvocations(ctx context.Context, addonID uuid.UUID) (int, error) {
 	logger := slogging.Get()
 
@@ -253,7 +244,6 @@ func (s *GormAddonStore) CountActiveInvocations(ctx context.Context, addonID uui
 }
 
 // DeleteByWebhookID deletes all add-ons associated with a webhook
-// SEM@263482d75164f5d9cc6ecfbf63ecc20515b79b0d: delete all addon records associated with a webhook ID (reads DB)
 func (s *GormAddonStore) DeleteByWebhookID(ctx context.Context, webhookID uuid.UUID) (int, error) {
 	logger := slogging.Get()
 
@@ -281,7 +271,6 @@ func (s *GormAddonStore) DeleteByWebhookID(ctx context.Context, webhookID uuid.U
 }
 
 // modelToAPI converts a GORM model to the API type
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a GORM addon model to its API DTO (pure)
 func (s *GormAddonStore) modelToAPI(model models.Addon) Addon {
 	addon := Addon{
 		Name:      string(model.Name),
@@ -327,7 +316,6 @@ func (s *GormAddonStore) modelToAPI(model models.Addon) Addon {
 }
 
 // apiToModel converts an API type to a GORM model
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert an API addon DTO to its GORM model (pure)
 func (s *GormAddonStore) apiToModel(addon Addon) models.Addon {
 	model := models.Addon{
 		ID:        models.DBVarchar(addon.ID.String()),

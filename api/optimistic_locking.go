@@ -51,13 +51,11 @@ var requireIfMatchFlag atomic.Bool
 
 // SetRequireIfMatch updates the optimistic-locking enforcement flag. Called
 // once during server initialization from the loaded config.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: store the global If-Match enforcement flag at server startup (mutates shared state)
 func SetRequireIfMatch(v bool) {
 	requireIfMatchFlag.Store(v)
 }
 
 // RequireIfMatch reports whether missing If-Match should hard-fail with 428.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: report whether missing If-Match header should return 428 (pure)
 func RequireIfMatch() bool {
 	return requireIfMatchFlag.Load()
 }
@@ -86,7 +84,6 @@ const VersionWildcard = -1
 // integer ("If-Match: 5"), a quoted integer (`If-Match: "5"`), or the "*"
 // wildcard, which RFC 7232 defines as matching any current representation —
 // we map it to VersionWildcard so the write proceeds unconditionally.
-// SEM@bacedc2fda0d7e7c4267e5fef6abc1a24bafed1a: parse an integer version or wildcard sentinel from the If-Match header (pure)
 func ParseIfMatchHeader(c *gin.Context) (int, bool, error) {
 	raw := strings.TrimSpace(c.GetHeader("If-Match"))
 	if raw == "" {
@@ -114,8 +111,6 @@ func ParseIfMatchHeader(c *gin.Context) (int, bool, error) {
 //   - If the header is absent and bodyVersion is non-nil, returns (*bodyVersion, true, nil).
 //   - If neither is provided, returns (0, false, nil) — caller decides whether
 //     to enforce per RequireIfMatch().
-//
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: resolve expected resource version from If-Match header or body fallback (pure)
 func ResolveExpectedVersion(c *gin.Context, bodyVersion *int) (int, bool, error) {
 	if v, present, err := ParseIfMatchHeader(c); err != nil {
 		return 0, true, err
@@ -134,7 +129,6 @@ func ResolveExpectedVersion(c *gin.Context, bodyVersion *int) (int, bool, error)
 // EnforceIfMatchOrWarn applies the rollout policy when the caller did not
 // supply a version. When RequireIfMatch() is true, returns a 428 RequestError;
 // otherwise sets the Deprecation/Warning headers and returns nil.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: return 428 when If-Match is required, or set deprecation warning headers when lenient
 func EnforceIfMatchOrWarn(c *gin.Context) error {
 	if RequireIfMatch() {
 		return &RequestError{
@@ -151,7 +145,6 @@ func EnforceIfMatchOrWarn(c *gin.Context) error {
 // SetETagHeader writes the ETag response header for a versioned entity.
 // Per RFC 7232 ETag values are double-quoted opaque tokens; we use the
 // integer version as the value.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: write the versioned ETag response header for a resource (pure)
 func SetETagHeader(c *gin.Context, version int) {
 	c.Header("ETag", `"`+strconv.Itoa(version)+`"`)
 }
@@ -195,7 +188,6 @@ func SetETagHeader(c *gin.Context, version int) {
 // tableName must be the physical DB table name (e.g. "threat_models").
 // On Oracle, GORM lowercases the WHERE column references; the column is
 // "version" on both PostgreSQL and Oracle (case-insensitive identifier).
-// SEM@d3b4da4dc61f5396a0e7484319ea7cd47bbeda27: bump a row's version via conditional update, routing wildcard requests to CAS retry (mutates DB)
 func CheckAndBumpVersion(ctx context.Context, db *gorm.DB, tableName, id string, expected int) (int, error) {
 	if expected == VersionWildcard {
 		return casFromCurrentVersion(ctx, db, tableName, id)
@@ -280,7 +272,6 @@ const wildcardCASAttempts = 3
 // builds the `RETURNING ... INTO` form when stmt.Schema != nil, and this call
 // uses Table() with no model, so a clause.Returning would be silently ignored —
 // no error, no value.
-// SEM@501a4bcdc844da658023d459dceec73b9b845d9c: bump a row version via read-then-CAS retry loop, classifying transient vs terminal errors (mutates DB)
 func casFromCurrentVersion(ctx context.Context, db *gorm.DB, tableName, id string) (int, error) {
 	for attempt := 0; attempt < wildcardCASAttempts; attempt++ {
 		var current sql.NullInt64
@@ -340,7 +331,6 @@ func casFromCurrentVersion(ctx context.Context, db *gorm.DB, tableName, id strin
 // RequestError for the optimistic-locking contract. Returns nil if the
 // error is not a versioning error so callers can fall through to their
 // existing error mapping.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: convert a version-mismatch store error to a 409 HTTP request error (pure)
 func MapVersionError(err error) *RequestError {
 	if err == nil {
 		return nil
@@ -367,7 +357,6 @@ func MapVersionError(err error) *RequestError {
 // store's UpdateWithVersion method, which runs the CAS inside the same
 // transaction as the content write (#594). Callers that get (0, false, nil)
 // call the store's plain Update instead.
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: resolve the expected version for a write from body or If-Match header (reads request)
 func ResolveOptimisticLock(c *gin.Context, bodyVersion *int) (expected int, present bool, err error) {
 	expected, hasVersion, parseErr := ResolveExpectedVersion(c, bodyVersion)
 	if parseErr != nil {
@@ -388,7 +377,6 @@ func ResolveOptimisticLock(c *gin.Context, bodyVersion *int) (expected int, pres
 // found"), so a versioned write does not regress to a generic one (#777).
 // Returns nil when err is not a versioning error, so callers fall through to
 // their existing error mapping.
-// SEM@501a4bcdc844da658023d459dceec73b9b845d9c: map a versioned-write store error to its 409 or 404 request error, or nil (pure)
 func MapOptimisticLockError(err error, notFoundMsg string) error {
 	if err == nil {
 		return nil

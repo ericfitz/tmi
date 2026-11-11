@@ -10,7 +10,6 @@ import (
 // SystemSetting represents a system-wide configuration setting stored in the database.
 // These settings can be modified at runtime without requiring server restart.
 // Settings are cached with short TTL for performance.
-// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: GORM model for a runtime-configurable system setting with key, typed value, and audit fields (reads DB)
 type SystemSetting struct {
 	// SettingKey is the unique identifier for this setting (e.g., "websocket.max_participants")
 	// Named SettingKey instead of Key to avoid Oracle reserved word conflict
@@ -61,7 +60,6 @@ type SystemSetting struct {
 }
 
 // TableName specifies the table name for SystemSetting
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: return the database table name for the SystemSetting model (pure)
 func (SystemSetting) TableName() string {
 	return tableName("system_settings")
 }
@@ -96,7 +94,6 @@ const (
 // all read as NOT explicit, so the database only outranks an explicitly
 // configured env/YAML value when something deliberately said so. See the
 // Origin field's comment for why that polarity is the safe one.
-// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: report whether a setting's value was deliberately set rather than seeded (pure)
 func (s *SystemSetting) IsExplicit() bool {
 	return s.Origin.Valid && s.Origin.String == SystemSettingOriginExplicit
 }
@@ -111,7 +108,6 @@ func (s *SystemSetting) IsExplicit() bool {
 // rate_limit.requests_per_hour seeded here with no classification entry
 // anywhere else, so GET/DELETE /admin/settings/{key} 404'd on keys the LIST
 // endpoint showed (#809).
-// SEM@52914780502cbad86069ca79ff9339c6d7ecf04d: build the seed list of default system settings from the operational config registry (pure)
 func DefaultSystemSettings() []SystemSetting {
 	desc := func(s string) NullableDBText { return NullableDBText{String: s, Valid: true} }
 

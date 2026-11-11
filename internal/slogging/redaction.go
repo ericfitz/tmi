@@ -9,7 +9,6 @@ import (
 )
 
 // RedactionAction defines how sensitive data should be handled
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: enumerate the redaction modes: omit, obfuscate, or partially reveal a log field value (pure)
 type RedactionAction string
 
 const (
@@ -22,7 +21,6 @@ const (
 )
 
 // RedactionRule defines a single redaction rule
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: define a single log-field redaction rule binding a field pattern to an action and scope (pure)
 type RedactionRule struct {
 	// FieldPattern is a regex pattern to match field names
 	FieldPattern string `yaml:"field_pattern" json:"field_pattern"`
@@ -37,7 +35,6 @@ type RedactionRule struct {
 }
 
 // RedactionConfig holds all redaction rules
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: hold the enabled flag and ordered list of redaction rules for the log handler (pure)
 type RedactionConfig struct {
 	// Enabled controls whether redaction is active
 	Enabled bool `yaml:"enabled" json:"enabled"`
@@ -46,7 +43,6 @@ type RedactionConfig struct {
 }
 
 // DefaultRedactionConfig provides sensible defaults for security
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: build the default redaction config masking tokens, secrets, and cookies in structured logs (pure)
 func DefaultRedactionConfig() RedactionConfig {
 	return RedactionConfig{
 		Enabled: true,
@@ -81,7 +77,6 @@ func DefaultRedactionConfig() RedactionConfig {
 }
 
 // CompileRules compiles regex patterns for all rules
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: compile all field-pattern regexes in a RedactionConfig; return error on invalid pattern (pure)
 func (rc *RedactionConfig) CompileRules() error {
 	for i := range rc.Rules {
 		pattern, err := regexp.Compile(rc.Rules[i].FieldPattern)
@@ -94,7 +89,6 @@ func (rc *RedactionConfig) CompileRules() error {
 }
 
 // shouldApplyRule checks if a rule should be applied for the given level and groups
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: determine whether a redaction rule applies at the given log level and group context (pure)
 func (rule *RedactionRule) shouldApplyRule(level slog.Level, groups []string) bool {
 	// Check log levels
 	if len(rule.LogLevels) > 0 {
@@ -134,7 +128,6 @@ func (rule *RedactionRule) shouldApplyRule(level slog.Level, groups []string) bo
 }
 
 // applyRedaction applies redaction to a field value
-// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: apply a redaction rule's action to a log attribute value (pure)
 func (rule *RedactionRule) applyRedaction(value slog.Value) slog.Value {
 	switch rule.Action {
 	case RedactionOmit:
@@ -150,7 +143,6 @@ func (rule *RedactionRule) applyRedaction(value slog.Value) slog.Value {
 }
 
 // partialRedactValue applies partial redaction similar to the original implementation
-// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: partially redact a sensitive string value, handling Bearer and JWT formats (pure)
 func partialRedactValue(value string) string {
 	if value == "" {
 		return value
@@ -202,7 +194,6 @@ func partialRedactValue(value string) string {
 }
 
 // redactionHandler wraps another slog.Handler to apply redaction rules
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: slog.Handler that applies redaction rules to log attributes before forwarding (pure)
 type redactionHandler struct {
 	handler slog.Handler
 	config  RedactionConfig
@@ -210,7 +201,6 @@ type redactionHandler struct {
 }
 
 // NewRedactionHandler creates a new redaction handler
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: build a redacting slog.Handler by compiling rules and wrapping an existing handler (pure)
 func NewRedactionHandler(handler slog.Handler, config RedactionConfig) (slog.Handler, error) {
 	if err := config.CompileRules(); err != nil {
 		return nil, err
@@ -223,12 +213,10 @@ func NewRedactionHandler(handler slog.Handler, config RedactionConfig) (slog.Han
 	}, nil
 }
 
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: delegate log-level enablement check to the underlying slog.Handler (pure)
 func (h *redactionHandler) Enabled(ctx context.Context, level slog.Level) bool {
 	return h.handler.Enabled(ctx, level)
 }
 
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: redact sensitive attributes in a log record before forwarding to the underlying handler (pure)
 func (h *redactionHandler) Handle(ctx context.Context, record slog.Record) error {
 	if !h.config.Enabled {
 		return h.handler.Handle(ctx, record)
@@ -249,7 +237,6 @@ func (h *redactionHandler) Handle(ctx context.Context, record slog.Record) error
 	return h.handler.Handle(ctx, newRecord)
 }
 
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: build a new redaction handler with pre-redacted static attributes attached (pure)
 func (h *redactionHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	// Apply redaction to attrs before passing to underlying handler
 	redactedAttrs := make([]slog.Attr, 0, len(attrs))
@@ -267,7 +254,6 @@ func (h *redactionHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	}
 }
 
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: build a new redaction handler scoped to the named log group (pure)
 func (h *redactionHandler) WithGroup(name string) slog.Handler {
 	newGroups := make([]string, len(h.groups)+1)
 	copy(newGroups, h.groups)
@@ -281,7 +267,6 @@ func (h *redactionHandler) WithGroup(name string) slog.Handler {
 }
 
 // redactAttribute applies redaction rules to a single attribute
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: apply matching redaction rules to a single log attribute, returning empty attr to omit (pure)
 func (h *redactionHandler) redactAttribute(attr slog.Attr, level slog.Level) slog.Attr {
 	// Check each rule
 	for _, rule := range h.config.Rules {
@@ -310,7 +295,6 @@ func (h *redactionHandler) redactAttribute(attr slog.Attr, level slog.Level) slo
 // Legacy functions for compatibility with existing code
 
 // SanitizeLogMessage removes newlines and other control characters from log messages
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: strip control characters and collapse whitespace in a log message string (pure)
 func SanitizeLogMessage(message string) string {
 	// Replace newlines with space
 	message = strings.ReplaceAll(message, "\n", " ")
@@ -331,7 +315,6 @@ func SanitizeLogMessage(message string) string {
 }
 
 // RedactSensitiveInfo removes or masks sensitive information from strings (legacy compatibility)
-// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: apply default redaction rules to a raw string value (pure)
 func RedactSensitiveInfo(input string) string {
 	if input == "" {
 		return input
@@ -367,7 +350,6 @@ func RedactSensitiveInfo(input string) string {
 }
 
 // RedactHeaders creates a copy of headers map with sensitive values redacted
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: build a copy of an HTTP headers map with sensitive header values partially redacted (pure)
 func RedactHeaders(headers map[string][]string) map[string][]string {
 	if headers == nil {
 		return nil

@@ -50,14 +50,12 @@ const fatalShutdownDrainTimeout = 30 * time.Second
 const fatalShutdownHardExitAfter = 35 * time.Second
 
 // Server holds dependencies for the API server
-// SEM@f5734776629db6dda852abe358113df500f282f0: server state container holding the token blacklist for logout support (pure)
 type Server struct {
 	// Token blacklist for logout functionality
 	tokenBlacklist *auth.TokenBlacklist
 }
 
 // HTTPSRedirectMiddleware redirects HTTP requests to HTTPS when TLS is enabled
-// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: build middleware that permanently redirects HTTP requests to HTTPS when TLS is enabled
 func HTTPSRedirectMiddleware(tlsEnabled bool, tlsSubjectName string, port string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get logger from context
@@ -89,7 +87,6 @@ func HTTPSRedirectMiddleware(tlsEnabled bool, tlsSubjectName string, port string
 }
 
 // isHTTPS determines if the request is already using HTTPS
-// SEM@f635f0eb5606c40fd75ef7120205ccb9e0e72249: determine whether an incoming HTTP request arrived over HTTPS via TLS or proxy headers (pure)
 func isHTTPS(r *http.Request) bool {
 	// Check common headers set by proxies
 	if r.Header.Get("X-Forwarded-Proto") == "https" {
@@ -177,8 +174,6 @@ var publicPathPrefixes = []string{
 // making the endpoint permanently unreachable (#650). Matching exactly three
 // segments keeps any future /saml/ route private until it is added here
 // deliberately.
-//
-// SEM@2cab847bf088e414c70c5e5f9546cb9a7b9a2ac8: report whether a SAML path is one of the two public provider-scoped routes (pure)
 func isPublicSAMLPath(path string) bool {
 	rest, ok := strings.CutPrefix(path, "/saml/")
 	if !ok {
@@ -196,7 +191,6 @@ func isPublicSAMLPath(path string) bool {
 // provider-scoped public SAML route. This is the single source of truth for the
 // middleware's public decision; TestPublicPathLint calls this exact function so
 // the lint can never drift from what the server does (#662).
-// SEM@5e107bce8eca9a7b10483bef568d3497a8b76f93: report whether a request path is exempt from JWT authentication (pure)
 func isPublicPath(path string) bool {
 	if publicPaths[path] {
 		return true
@@ -210,7 +204,6 @@ func isPublicPath(path string) bool {
 }
 
 // PublicPathsMiddleware identifies paths that don't require authentication
-// SEM@5e107bce8eca9a7b10483bef568d3497a8b76f93: build middleware that marks unauthenticated-friendly paths in the request context
 func PublicPathsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get a context-aware logger
@@ -247,7 +240,6 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 }
 
 // JWT Middleware factory function that takes config, token blacklist, auth handlers, and ticket validator
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build middleware that validates JWT tokens on protected paths and on bearer-carrying handler-auth paths
 func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, authHandlers *auth.Handlers, ticketValidator *TicketValidator) gin.HandlerFunc {
 	// Initialize authentication components
 	publicPathChecker := &PublicPathChecker{}
@@ -306,7 +298,6 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 }
 
 // Dev-mode only endpoint to get current user info
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a dev-only handler that returns the authenticated user's name and role from JWT context
 func DevUserInfoHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.GetContextLogger(c)
@@ -349,7 +340,6 @@ func DevUserInfoHandler() gin.HandlerFunc {
 }
 
 // applyRateLimitConfig sets a custom RPM limit on an IP rate limiter if rpmOverride > 0.
-// SEM@fc2969154106559c68c0f5348b8a9dc52b463c07: apply an optional RPM override to an IP rate limiter (mutates shared state)
 func applyRateLimitConfig(limiter *api.IPRateLimiter, rpmOverride int) {
 	if rpmOverride > 0 {
 		limiter.DefaultLimit = rpmOverride
@@ -369,7 +359,6 @@ func applyRateLimitConfig(limiter *api.IPRateLimiter, rpmOverride int) {
 // SQLite (used by some narrow unit tests) does not support advisory locks; in
 // that case the lock acquisition returns "unsupported dialect" and we proceed
 // unlocked — a single-process in-memory SQLite is inherently single-writer.
-// SEM@bd0419bec83141eb42e193cdea718eccdf2a5dcf: execute all database schema-evolution steps at startup, exiting on unrecoverable error (writes DB)
 func runMigrations(ctx context.Context, gormDB *db.GormDB, dbType string) {
 	logger := slogging.Get()
 	if err := runMigrationsLocked(ctx, gormDB, dbType); err != nil {
@@ -388,7 +377,6 @@ func runMigrations(ctx context.Context, gormDB *db.GormDB, dbType string) {
 // The lock wraps the entire schema-evolution sequence so concurrent replicas
 // serialize on every step (drop legacy column, AutoMigrate, backfill, unique
 // indexes), not just the backfill.
-// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: acquire the cross-replica schema-migration advisory lock and run all migration steps (mutates DB)
 func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) error {
 	return dbschema.WithMigrationLock(ctx, gormDB.DB(), dbschema.MigrationLockName, func() error {
 		return migrateSchema(ctx, gormDB, dbType)
@@ -399,7 +387,6 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 // the cross-replica migration advisory lock held (see runMigrationsLocked) —
 // several of its steps issue DDL that is not safe to run concurrently from
 // two replicas.
-// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: migrate the database schema: auto-migrate, backfill, upgrade indexes, and seed data (writes DB)
 func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error {
 	logger := slogging.Get()
 
@@ -669,7 +656,6 @@ func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error 
 // only), drop before raise so a retired index is never rebuilt. Runs even
 // when the fingerprint fast path skips AutoMigrate; never fatal on a DDL
 // failure -- each step logs and continues, and the next boot retries.
-// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: drop retired metadata indexes then raise metadata INITRANS (writes DB)
 func ensureMetadataSchema(ctx context.Context, gormDB *gorm.DB) error {
 	if err := dbschema.DropRetiredMetadataIndexes(ctx, gormDB); err != nil {
 		return fmt.Errorf("failed to check the retired metadata indexes: %w", err)
@@ -686,7 +672,6 @@ func ensureMetadataSchema(ctx context.Context, gormDB *gorm.DB) error {
 // container image contains only the binary (Dockerfile.server), so a relative
 // path resolves to nothing and every static route 404s — including the OAuth
 // provider sign-in icons (#498).
-// SEM@c1ae98795fcc480287e8ef03be0c86587e974cc5: register embedded static assets and well-known web files on the router
 func registerStaticFiles(r *gin.Engine) {
 	staticSub, err := fs.Sub(tmi.StaticFS, "static")
 	if err != nil {
@@ -714,7 +699,6 @@ func registerStaticFiles(r *gin.Engine) {
 }
 
 // configureTrustedProxies sets trusted proxies on the Gin engine when configured.
-// SEM@fc2969154106559c68c0f5348b8a9dc52b463c07: configure the Gin engine to trust X-Forwarded-For from specified proxy addresses (mutates shared state)
 func configureTrustedProxies(r *gin.Engine, proxies []string) {
 	if len(proxies) == 0 {
 		return
@@ -731,7 +715,6 @@ func configureTrustedProxies(r *gin.Engine, proxies []string) {
 // decorator that emits system_audit.admin_write webhook events (#395).
 // A nil GlobalEventEmitter (Redis-less boot) must not be wrapped: a typed-nil
 // interface value would panic in EmitEvent on every admin write.
-// SEM@c13f85301f7c723dfb20f687cb8fddc4ed77e703: build a system audit repository, wrapping it with an alerting decorator when Redis is available
 func newSystemAuditRepo(db *gorm.DB, operatorName string) api.SystemAuditRepository {
 	repo := api.NewSystemAuditRepository(db)
 	if api.GlobalEventEmitter != nil {
@@ -740,7 +723,6 @@ func newSystemAuditRepo(db *gorm.DB, operatorName string) api.SystemAuditReposit
 	return repo
 }
 
-// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: initialize databases and subsystems and register all API routes, returning the router
 func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.EmbeddingCleaner) {
 	// Create a gin router without default middleware
 	r := gin.New()
@@ -1342,7 +1324,6 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 // Returns a non-nil *api.ExtractionPublisher when NATS is available; the
 // caller should propagate the publisher and the UseAsyncExtraction decider
 // into the DocumentSubResourceHandler and the AccessPoller (Task 8).
-// SEM@a8006cf44cfcde106890cf0e06d51a99145807b1: connect to NATS and wire the async document extraction publisher and result consumer into the API server
 func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) *api.ExtractionPublisher {
 	logger := slogging.Get()
 	natsURL := os.Getenv("TMI_NATS_URL")
@@ -1397,7 +1378,6 @@ func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) *api.ExtractionP
 // content provider), or when any required collaborator is unavailable, the
 // function logs and leaves the handler unset; the generated delegation
 // wrappers will respond with 503 for the affected endpoints.
-// SEM@d5435580d5a233d66783c8c40148f924403f1809: build and register delegated content-OAuth handlers on the API server
 func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB *gorm.DB, dbManager *db.Manager, authHandlers *auth.Handlers) (api.ContentTokenRepository, *api.ContentOAuthProviderRegistry) {
 	logger := slogging.Get()
 
@@ -1541,7 +1521,6 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 // skip) instead of crashing the server with os.Exit(1).  os.Exit(1) is still
 // used for genuinely fatal bootstrap problems unrelated to content sources
 // (database unavailable, auth init failure, etc.).
-// SEM@d994c2f113f9e0997f83a0815018638cc94111f7: wire the Timmy AI assistant subsystem with DB-backed config, content sources, and LLM core into the API server
 func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, settingsService *api.SettingsService, contentTokenRepo api.ContentTokenRepository, stampedCfgProvider config.StampedConfigProvider, extractionPublisher *api.ExtractionPublisher) {
 	logger := slogging.Get()
 
@@ -1709,7 +1688,6 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, setting
 // surfaced via /config → ContentProvider.picker_config. Each entry is
 // published only when the operator supplied all required public values for
 // that source. No client_secret or service-account material is included.
-// SEM@f2e01937e40c91e87ac47a34d11870fde716d093: build the browser-safe picker config map for content providers, omitting secrets (pure)
 func buildBrowserPickerConfigs(cfg *config.Config, logger *slogging.Logger) map[string]map[string]string {
 	out := map[string]map[string]string{}
 	if pc := cfg.ContentSources.GoogleDrive.PickerConfig(); pc != nil {
@@ -1719,7 +1697,6 @@ func buildBrowserPickerConfigs(cfg *config.Config, logger *slogging.Logger) map[
 	return out
 }
 
-// SEM@117032a3c5523a04e970f76a285e342169d5150c: assemble the content extraction pipeline with OOXML extractors, per-user concurrency limiter, and wall-clock budget
 func buildContentPipeline(cfg *config.Config, contentSources *api.ContentSourceRegistry, logger *slogging.Logger) *api.ContentPipeline {
 	// Validate content_extractors config (the top-level Config.Validate
 	// already runs this — second call here is for fail-fast clarity at the
@@ -1792,7 +1769,6 @@ func buildContentPipeline(cfg *config.Config, contentSources *api.ContentSourceR
 }
 
 // buildURIValidator creates a URIValidator from SSRF config with environment variable overrides.
-// SEM@16448c9907ad0841082fc251937632bfd96ab7da: build a URIValidator from SSRF config fields with environment variable overrides (pure)
 func buildURIValidator(cfg config.SSRFURIConfig, envPrefix string) *api.URIValidator {
 	allowlistStr := cfg.Allowlist
 	if envVal := os.Getenv(envPrefix + "_ALLOWLIST"); envVal != "" {
@@ -1827,7 +1803,6 @@ func buildURIValidator(cfg config.SSRFURIConfig, envPrefix string) *api.URIValid
 }
 
 // serverContextMiddleware makes the API server available in the request context.
-// SEM@034968fa0e0ba8c15e9af9052b475f4d5dd72d50: build middleware that stores the API server instance in the request context
 func serverContextMiddleware(apiServer *api.Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set("server", apiServer)
@@ -1836,7 +1811,6 @@ func serverContextMiddleware(apiServer *api.Server) gin.HandlerFunc {
 }
 
 // serverConfigMiddleware provides server configuration values to all handlers via context.
-// SEM@95fbc20511ce80f464d07e7723483035dbf87346: build middleware that injects server configuration values, including CORS origins, into the request context
 func serverConfigMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set("tlsEnabled", cfg.Server.TLSEnabled)
@@ -1851,7 +1825,6 @@ func serverConfigMiddleware(cfg *config.Config) gin.HandlerFunc {
 }
 
 // startWebhookWorkers initializes and starts all webhook workers
-// SEM@b554bb5371f70e0115912131e032671de29e8c09: start event consumer, challenge verifier, delivery, and cleanup webhook workers (mutates shared state)
 func startWebhookWorkers(ctx context.Context, cfg *config.Config) (*api.WebhookEventConsumer, *api.WebhookChallengeWorker, *api.WebhookDeliveryWorker, *api.WebhookCleanupWorker) {
 	logger := slogging.Get()
 
@@ -1917,7 +1890,6 @@ func startWebhookWorkers(ctx context.Context, cfg *config.Config) (*api.WebhookE
 	return webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker
 }
 
-// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: parse flags, load config, resolve secrets, and launch the server process
 func main() {
 	// Parse command line flags
 	flags, err := config.ParseFlagsExt()
@@ -2004,7 +1976,6 @@ func main() {
 //
 // A config that references an unresolvable secret cannot run, so any failure
 // is fatal.
-// SEM@b583a71af02ca00e2c408d9d52e1e41f514df3ff: dereference vault://, env://, and file:// secret references in the bootstrap config, exiting on failure
 func resolveSecretReferences(cfg *config.Config) {
 	if err := doResolveSecretReferences(cfg); err != nil {
 		slogging.Get().Error("Failed to resolve secret references: %v", err)
@@ -2015,7 +1986,6 @@ func resolveSecretReferences(cfg *config.Config) {
 // doResolveSecretReferences performs the three-phase resolution and returns an
 // error rather than exiting, so its deferred secrets-provider Close runs before
 // the caller's os.Exit.
-// SEM@b583a71af02ca00e2c408d9d52e1e41f514df3ff: perform three-phase secret reference resolution in the config, returning an error on failure (reads secrets provider)
 func doResolveSecretReferences(cfg *config.Config) error {
 	logger := slogging.Get()
 	ctx := context.Background()
@@ -2049,7 +2019,6 @@ func doResolveSecretReferences(cfg *config.Config) error {
 // printVersionAndExit dumps version, build, architecture, and commit metadata
 // to stdout and exits. It does not touch the database, network, or shared
 // on-disk state, so it is safe to invoke while another tmiserver is running.
-// SEM@611336ef1d0532d45b3fcb7690961fe67029d425: print server version, API version, git commit, and build metadata to stdout then exit
 func printVersionAndExit() {
 	v := api.GetVersion()
 	version := fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
@@ -2066,7 +2035,6 @@ func printVersionAndExit() {
 
 // initOTel initializes OpenTelemetry and registers all TMI metric instruments.
 // Returns the OTel shutdown function on success.
-// SEM@de94ca8de4d9f1541750217c9a701b38bf923214: initialize OpenTelemetry tracing, Prometheus metrics, and TMI metric instruments
 func initOTel(ctx context.Context, cfg *config.Config) (func(context.Context) error, error) {
 	otelCfg := tmiotel.Config{
 		Enabled:        cfg.Observability.Enabled,
@@ -2089,7 +2057,6 @@ func initOTel(ctx context.Context, cfg *config.Config) (func(context.Context) er
 
 // registerPoolMetrics wires up observable gauge metrics for the DB and Redis connection pools.
 // Failures are non-fatal and logged as warnings.
-// SEM@82a346411b061b20ff839bbbd4281294e94d82ff: register observable OTel gauge metrics for DB and Redis connection pools (mutates shared state)
 func registerPoolMetrics(gormDB *db.GormDB, dbManager *db.Manager) {
 	logger := slogging.Get()
 	sqlDB, err := gormDB.DB().DB()
@@ -2128,7 +2095,6 @@ func registerPoolMetrics(gormDB *db.GormDB, dbManager *db.Manager) {
 // runServer runs the TMI API server and returns an exit code.
 // This function is separate from main() so that deferred cleanup (logger close, signal restore)
 // executes before os.Exit is called in main().
-// SEM@13c4215bf8e204da342579717f97f7393bb5fe2f: start the HTTP server, block until shutdown signal or fatal error, then drain and stop all workers
 func runServer(cfg *config.Config) int {
 	// Get logger instance
 	logger := slogging.Get()
@@ -2361,7 +2327,6 @@ func runServer(cfg *config.Config) int {
 }
 
 // stopBackgroundWorkers gracefully stops all background workers during server shutdown.
-// SEM@c87997d95abd9e4fce36d944df5fb6e998df0996: gracefully stop all background workers including webhook, audit pruner, embedding cleaner, and auth system
 func stopBackgroundWorkers(
 	apiServer *api.Server,
 	webhookConsumer *api.WebhookEventConsumer,
@@ -2411,7 +2376,6 @@ func stopBackgroundWorkers(
 }
 
 // validateDatabaseSchema validates the database schema matches expectations
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: validate the PostgreSQL schema matches expected structure after migration (reads DB)
 func validateDatabaseSchema(cfg *config.Config) error {
 	// Only validate for PostgreSQL databases (schema validation uses PostgreSQL-specific queries)
 	if !strings.HasPrefix(cfg.Database.URL, "postgres://") && !strings.HasPrefix(cfg.Database.URL, "postgresql://") {
@@ -2475,7 +2439,6 @@ const (
 
 // adminInitTimeout returns the deadline for a pass over entries configured
 // administrators.
-// SEM@ae5e2194af0d13d5169db6f58db71d4275c7fc0f: compute a bounded deadline for administrator initialization scaled by entry count (pure)
 func adminInitTimeout(entries int) time.Duration {
 	total := adminInitBaseTimeout + time.Duration(entries)*adminInitPerEntryTimeout
 	if total > adminInitMaxTimeout {
@@ -2485,7 +2448,6 @@ func adminInitTimeout(entries int) time.Duration {
 }
 
 // initializeAdministratorsGorm initializes administrators from configuration using GORM
-// SEM@e366b358cc15bd5e5a59a246885007024900dbc4: seed the Administrators group with configured users/groups, creating missing users only on not-found (writes DB)
 func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 	logger := slogging.Get()
 	logger.Info("Initializing administrators from configuration (GORM)")
@@ -2624,7 +2586,6 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 }
 
 // findUserByProviderIdentityGorm looks up a user by provider and provider_id or email using GORM
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: fetch a user's internal UUID by provider identity or email (reads DB)
 func findUserByProviderIdentityGorm(ctx context.Context, gormDB *gorm.DB, provider string, providerID string, email string) (uuid.UUID, error) {
 	// Deliberately NOT tagged with `gorm:"column:..."`: result-set labels come
 	// back UPPERCASE from Oracle and lowercase from Postgres, and GORM matches
@@ -2666,7 +2627,6 @@ func findUserByProviderIdentityGorm(ctx context.Context, gormDB *gorm.DB, provid
 }
 
 // createUserForAdministratorGorm creates a new user record for a configured administrator using GORM
-// SEM@8b3ed9b61b0621b01f6928cc867b692933b7ad5b: store a new user record for a configured administrator using GORM (writes DB)
 func createUserForAdministratorGorm(ctx context.Context, gormDB *gorm.DB, adminCfg config.AdministratorConfig) (uuid.UUID, error) {
 	logger := slogging.Get()
 
@@ -2732,7 +2692,6 @@ func createUserForAdministratorGorm(ctx context.Context, gormDB *gorm.DB, adminC
 }
 
 // findGroupByProviderAndNameGorm looks up a group by provider and group_name using GORM
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch a group's internal UUID by provider and group name (reads DB)
 func findGroupByProviderAndNameGorm(ctx context.Context, gormDB *gorm.DB, provider string, groupName string) (uuid.UUID, error) {
 	var group models.Group
 
@@ -2748,7 +2707,6 @@ func findGroupByProviderAndNameGorm(ctx context.Context, gormDB *gorm.DB, provid
 
 // isGroupMemberGorm reports whether memberGroupUUID is already a direct
 // (subject_type=group) member of groupUUID.
-// SEM@e366b358cc15bd5e5a59a246885007024900dbc4: check whether a group is already a direct member of another group (reads DB)
 func isGroupMemberGorm(ctx context.Context, gormDB *gorm.DB, groupUUID, memberGroupUUID uuid.UUID) (bool, error) {
 	var count int64
 	err := gormDB.WithContext(ctx).Model(&models.GroupMember{}).
@@ -2760,7 +2718,6 @@ func isGroupMemberGorm(ctx context.Context, gormDB *gorm.DB, groupUUID, memberGr
 
 // buildGormConfig creates a GORM configuration from the application config.
 // DATABASE_URL is required and contains all connection parameters.
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: parse the database URL and apply connection pool settings to produce a GORM config (pure)
 func buildGormConfig(cfg *config.Config) db.GormConfig {
 	log := slogging.Get()
 
@@ -2791,7 +2748,6 @@ func buildGormConfig(cfg *config.Config) db.GormConfig {
 // If TMI_REDIS_URL is set, it takes precedence over individual fields; a
 // rediss:// scheme turns TLS on (the CA file still comes from
 // TMI_REDIS_TLS_CA_FILE).
-// SEM@e50244f: build a Redis connection config from URL or fields, enabling TLS for rediss URLs (pure)
 func buildRedisConfig(cfg *config.Config) db.RedisConfig {
 	log := slogging.Get()
 	rc := db.RedisConfig{

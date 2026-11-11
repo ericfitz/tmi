@@ -12,7 +12,6 @@ import (
 
 const nilUUID = "00000000-0000-0000-0000-000000000000"
 
-// SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: write seeded resource IDs to JSON and/or YAML reference files for CATS parameter substitution (mutates shared state)
 func writeReferenceFiles(output *SeedOutput, refs RefMap, serverURL, user, provider string) error {
 	log := slogging.Get()
 
@@ -33,7 +32,6 @@ func writeReferenceFiles(output *SeedOutput, refs RefMap, serverURL, user, provi
 	return nil
 }
 
-// SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: JSON reference file structure mapping seeded object names to their IDs and metadata (pure)
 type referenceJSON struct {
 	Version   string                     `json:"version"`
 	CreatedAt string                     `json:"created_at"`
@@ -42,14 +40,12 @@ type referenceJSON struct {
 	Objects   map[string]referenceObject `json:"objects"`
 }
 
-// SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: user identity embedded in a JSON reference file (pure)
 type referenceUser struct {
 	ProviderUserID string `json:"provider_user_id"`
 	Provider       string `json:"provider"`
 	Email          string `json:"email"`
 }
 
-// SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: a single seeded resource record with ID, kind, and optional relationship IDs (pure)
 type referenceObject struct {
 	ID            string `json:"id"`
 	Kind          string `json:"kind"`
@@ -59,7 +55,6 @@ type referenceObject struct {
 	SurveyID      string `json:"survey_id,omitempty"`
 }
 
-// SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: serialize seeded resource refs to a versioned JSON file at the given path (mutates shared state)
 func writeJSONReference(path string, refs RefMap, serverURL, user, provider string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
@@ -103,7 +98,6 @@ func writeJSONReference(path string, refs RefMap, serverURL, user, provider stri
 	return os.WriteFile(path, data, 0o600)
 }
 
-// SEM@3f6bbfeb4674fdaa5885dfc24c251bc03bfecef0: serialize seeded resource IDs to a CATS-compatible YAML parameter reference file (writes file)
 func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
@@ -458,7 +452,6 @@ all:
 	)
 }
 
-// SEM@ab7ea33a868b16fca968f4640659ee8149524a1e: hold resolved seeded resource IDs used to build the fixture manifest (pure)
 type fixtureIDs struct {
 	threatModelID, threatID, diagramID, documentID, assetID, noteID string
 	feedbackID, repositoryID                                        string
@@ -468,7 +461,6 @@ type fixtureIDs struct {
 	webhookID, deliveryID                                           string
 }
 
-// SEM@ab7ea33a868b16fca968f4640659ee8149524a1e: describe one seeded fixture and how to verify it still exists (pure)
 type referenceFixture struct {
 	// Key is the refData key CATS substitutes this id into.
 	Key string `json:"key"`
@@ -486,7 +478,6 @@ type referenceFixture struct {
 	Decoyed bool `json:"decoyed"`
 }
 
-// SEM@ab7ea33a868b16fca968f4640659ee8149524a1e: hold the fixture integrity manifest of verifiable and unverifiable seeded fixtures (pure)
 type fixtureManifest struct {
 	Version   string             `json:"version"`
 	CreatedAt string             `json:"created_at"`
@@ -498,7 +489,6 @@ type fixtureManifest struct {
 	Unverifiable map[string]string `json:"unverifiable"`
 }
 
-// SEM@3f6bbfeb4674fdaa5885dfc24c251bc03bfecef0: serialize the seeded-fixture integrity manifest consumed by the CATS runner gates (writes file)
 func writeFixtureManifest(path string, ids fixtureIDs) error {
 	tm := ids.threatModelID
 	// Anchors that writeYAMLReference emits a decoy override for. Keep in step
@@ -648,7 +638,6 @@ const (
 // findRefByKind ranges over a map, so with two instances seeded it would
 // return an arbitrary one — fine while every kind had exactly one instance,
 // actively wrong now that the decoys exist.
-// SEM@6555823316e5b7d19376bb266bdaf21940c19d0d: search seeded ids for an exact ref, falling back to the first of a kind (pure)
 func findRefByName(refs RefMap, ref, kind string) string {
 	if r, ok := refs[ref]; ok && r.ID != "" {
 		return r.ID
@@ -656,7 +645,6 @@ func findRefByName(refs RefMap, ref, kind string) string {
 	return findRefByKind(refs, kind)
 }
 
-// SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: return the ID of the first ref matching a resource kind, or the nil UUID if not found (pure)
 func findRefByKind(refs RefMap, kind string) string {
 	for _, r := range refs {
 		if r.Kind == kind {

@@ -18,7 +18,7 @@
 - Always use make targets (`make generate-api`, `make test-unit name=TestX count1=true`, `make lint`, `make verify`); never `go test`/`go run` directly.
 - Logging only via `github.com/ericfitz/tmi/internal/slogging`.
 - Use `rg` with an explicit path; use `jq` for `api-schema/tmi-openapi.json` (never Read it whole). Back up a file before editing it with jq (`cp f f.bak`), and delete the backup once the edit is confirmed, before committing.
-- New or changed Go functions get a `// SEM@<sha>: <intent>` marker line directly above them (one line, ≤ ~12 words, canonical verb first). Use `SEM@0000000` as the sha placeholder in new code; the controller refreshes markers at the end.
+- New or changed Go functions get a `// SEM-<sha>: <intent>` marker line directly above them (one line, ≤ ~12 words, canonical verb first). Use `SEM-0000000` as the sha placeholder in new code; the controller refreshes markers at the end.
 - Conventional commits; end each commit message with:
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and
   `Claude-Session: https://claude.ai/code/session_01TwPH4r1SH2go1BFp6iQcGG`.
@@ -72,7 +72,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// SEM@0000000: load and validate the OpenAPI spec from the repository file (test helper)
 func loadSpecFromFile(t *testing.T) *openapi3.T {
 	t.Helper()
 	loader := openapi3.NewLoader()
@@ -82,7 +81,6 @@ func loadSpecFromFile(t *testing.T) *openapi3.T {
 	return doc
 }
 
-// SEM@0000000: validate frozen diagram payloads against their schemas, valid and invalid (test)
 func TestDiagramPayloadCorpus(t *testing.T) {
 	doc := loadSpecFromFile(t)
 	for _, dir := range []string{"valid", "invalid"} {
@@ -154,17 +152,14 @@ import (
 )
 
 // diagramSchemaScope reports whether a component schema belongs to the diagram family (#956).
-// SEM@0000000: decide whether a component schema is a diagram or cell schema (pure)
 func diagramSchemaScope(name string) bool {
 	return name == "Node" || name == "Edge" || strings.Contains(name, "Diagram") || strings.Contains(name, "Cell")
 }
 
-// SEM@0000000: resolve a local component $ref to its schema name (pure)
 func refName(ref string) string {
 	return strings.TrimPrefix(ref, "#/components/schemas/")
 }
 
-// SEM@0000000: collect property names a schema declares, following allOf refs (pure)
 func declaredProps(schemas map[string]map[string]any, name string, seen map[string]bool) map[string]bool {
 	out := map[string]bool{}
 	if seen[name] {
@@ -194,7 +189,6 @@ func declaredProps(schemas map[string]map[string]any, name string, seen map[stri
 	return out
 }
 
-// SEM@0000000: check diagram schemas for redeclared allOf props and misplaced discriminators (test)
 func TestDiagramSchemaStructure(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "api-schema", "tmi-openapi.json"))
 	require.NoError(t, err)
@@ -340,7 +334,6 @@ commit makes it pass."
 - [ ] **Step 5: Round-trip test for `CellData` extra keys.** Add to `api/cell_union_helpers_test.go`:
 
 ```go
-// SEM@0000000: verify cell data extra keys survive a Node JSON round-trip (test)
 func TestNodeCellDataRoundTripKeepsExtraKeys(t *testing.T) {
 	in := []byte(`{"id":"6f1c2c8e-7a51-4a38-9b1e-0d1c8f5a2b10","shape":"process","x":10,"y":20,"width":120,"height":60,"data":{"custom_note":"kept","_metadata":[{"key":"k","value":"v"}]}}`)
 	var n Node

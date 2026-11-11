@@ -15,7 +15,6 @@ import (
 
 // secretKeyGetter is the subset of SettingsServiceInterface needed by the startup checks
 // in this file. Using a minimal interface makes them unit-testable without a real DB.
-// SEM@7430764167888f43111b8fe959e8c73449a4f9af: fetch a single system setting by key (reads DB)
 type secretKeyGetter interface {
 	Get(ctx context.Context, key string) (*models.SystemSetting, error)
 	PlaintextKeys(ctx context.Context, keys []string) ([]string, error)
@@ -28,7 +27,6 @@ type secretKeyGetter interface {
 // trips costs seconds of startup on Oracle ADB — materially more on a cold
 // Always Free instance that has just auto-started, where a slow boot can trip
 // a readiness deadline into a restart loop (oracle-db-admin review, note 4).
-// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: list every stored system setting in one read (reads DB)
 type settingsLister interface {
 	List(ctx context.Context) ([]models.SystemSetting, error)
 }
@@ -47,13 +45,11 @@ type settingsLister interface {
 // The function NEVER returns an error; a warning is informational only and must not
 // abort startup. Call this after both the settings service and its encryptor are ready.
 // Only key names are logged, never values.
-// SEM@7430764167888f43111b8fe959e8c73449a4f9af: warn when secret-classified settings are stored as plaintext, whether or not encryption is enabled (reads DB)
 // settingsAtRestCheckPrefix starts every log line warnIfPlaintextSecretsAtRest
 // writes, so deploy-aws.sh can find its result in the pod log without matching
 // anything else (request logs start with REQUEST_COMPLETE).
 const settingsAtRestCheckPrefix = "settings-at-rest check: "
 
-// SEM@7430764167888f43111b8fe959e8c73449a4f9af: warn when secret-classified settings are stored as plaintext at rest (reads DB)
 func warnIfPlaintextSecretsAtRest(
 	ctx context.Context,
 	encryptor *crypto.SettingsEncryptor,
@@ -149,7 +145,6 @@ func warnIfPlaintextSecretsAtRest(
 // The function NEVER returns an error; a warning is informational only and must not
 // abort startup. Call this after both the settings service and config are ready —
 // ideally after SeedDefaults, so DB rows actually exist to compare against.
-// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: warn when an explicit config value and a database setting disagree (reads DB)
 func warnIfConfigDatabaseDiverges(
 	ctx context.Context,
 	svc settingsLister,
@@ -235,7 +230,6 @@ func warnIfConfigDatabaseDiverges(
 
 // secretClassifiedKeys returns the list of setting keys that are marked Secret in the
 // migratable settings registry derived from the current configuration.
-// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: list config keys classified as secret from the migratable settings registry (pure)
 func secretClassifiedKeys(cfg *config.Config) []string {
 	all := cfg.GetMigratableSettings()
 	keys := make([]string, 0, len(all))
@@ -252,7 +246,6 @@ func secretClassifiedKeys(cfg *config.Config) []string {
 // the env/YAML config after Load and again on the DB-resolved effective config
 // once the settings service is up (#1102); source labels the config in the
 // returned error.
-// SEM@97bdf895453505ffee1c671271b82af781c61b72: validate Timmy config at startup, labeling the failing config source (pure)
 func validateTimmyAtStartup(source string, timmyCfg config.TimmyConfig, buildMode string) error {
 	if err := config.ValidateTimmyConfig(timmyCfg, buildMode); err != nil {
 		return fmt.Errorf("invalid Timmy configuration (%s): %w", source, err)
@@ -262,14 +255,12 @@ func validateTimmyAtStartup(source string, timmyCfg config.TimmyConfig, buildMod
 
 // validateEffectiveTimmyAtStartup runs validateTimmyAtStartup on the Timmy
 // config resolved through the settings service (config-first, then DB).
-// SEM@97bdf895453505ffee1c671271b82af781c61b72: validate the DB-resolved effective Timmy config at startup (reads DB)
 func validateEffectiveTimmyAtStartup(ctx context.Context, settings api.SettingsServiceInterface, buildMode string) error {
 	return validateTimmyAtStartup("settings", api.NewTimmyConfigProvider(settings).Current(ctx), buildMode)
 }
 
 // exitOnInvalidEffectiveTimmy logs the failure and exits the process when the
 // effective Timmy config is invalid.
-// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: terminate startup when the effective Timmy config is invalid (exits process)
 func exitOnInvalidEffectiveTimmy(ctx context.Context, settings api.SettingsServiceInterface, buildMode string) {
 	if err := validateEffectiveTimmyAtStartup(ctx, settings, buildMode); err != nil {
 		slogging.Get().Error("%v", err)

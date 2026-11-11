@@ -5,7 +5,6 @@ import (
 )
 
 // NotificationMessageType represents the type of notification message
-// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: string enum of WebSocket notification event types (pure)
 type NotificationMessageType string
 
 const (
@@ -34,7 +33,6 @@ const (
 )
 
 // NotificationMessage is the base structure for all notification messages
-// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: envelope for WebSocket notification messages with type, actor, payload, and unserialized access snapshot (pure)
 type NotificationMessage struct {
 	MessageType NotificationMessageType `json:"message_type"`
 	UserID      string                  `json:"user_id"` // internal_uuid of user who triggered the event
@@ -49,7 +47,6 @@ type NotificationMessage struct {
 }
 
 // ThreatModelNotificationData contains data for threat model notifications
-// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: payload for threat model lifecycle notifications (pure)
 type ThreatModelNotificationData struct {
 	ThreatModelID   string `json:"threat_model_id"`
 	ThreatModelName string `json:"threat_model_name"`
@@ -57,7 +54,6 @@ type ThreatModelNotificationData struct {
 }
 
 // ThreatModelShareData contains data for threat model sharing notifications
-// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: payload for threat model sharing notifications including recipient and role (pure)
 type ThreatModelShareData struct {
 	ThreatModelID   string `json:"threat_model_id"`
 	ThreatModelName string `json:"threat_model_name"`
@@ -66,7 +62,6 @@ type ThreatModelShareData struct {
 }
 
 // CollaborationNotificationData contains data for collaboration notifications
-// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: payload for diagram collaboration session start/end notifications (pure)
 type CollaborationNotificationData struct {
 	DiagramID       string `json:"diagram_id"`
 	DiagramName     string `json:"diagram_name,omitempty"`
@@ -76,7 +71,6 @@ type CollaborationNotificationData struct {
 }
 
 // CollaborationInviteData contains data for collaboration invitations
-// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: payload for collaboration invitation notifications including inviter and role (pure)
 type CollaborationInviteData struct {
 	DiagramID       string `json:"diagram_id"`
 	DiagramName     string `json:"diagram_name,omitempty"`
@@ -87,7 +81,6 @@ type CollaborationInviteData struct {
 }
 
 // SystemNotificationData contains data for system notifications
-// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: payload for system-wide announcements with severity and optional action URL (pure)
 type SystemNotificationData struct {
 	Severity       string `json:"severity"` // info, warning, error, critical
 	Message        string `json:"message"`
@@ -96,14 +89,12 @@ type SystemNotificationData struct {
 }
 
 // UserActivityData contains data for user activity notifications
-// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: payload for user join/leave activity notifications (pure)
 type UserActivityData struct {
 	UserEmail string `json:"user_email"`
 	UserName  string `json:"user_name,omitempty"`
 }
 
 // NotificationSubscription represents a user's notification preferences
-// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: user's notification preferences including subscribed types and resource filters (pure)
 type NotificationSubscription struct {
 	UserID             string                    `json:"user_id"`
 	SubscribedTypes    []NotificationMessageType `json:"subscribed_types"`

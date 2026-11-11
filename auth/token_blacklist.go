@@ -29,7 +29,6 @@ const (
 // be worth retrying. Redis answering with an application-level error (a wrong
 // type, a rejected command) will answer identically next time, so only
 // connectivity failures qualify.
-// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: classify a Redis error as transient and worth retrying (pure)
 func isRetryableRedisError(err error) bool {
 	if err == nil || errors.Is(err, redis.Nil) {
 		return false
@@ -57,14 +56,12 @@ func isRetryableRedisError(err error) bool {
 var ErrRevocationStorage = errors.New("revocation storage unavailable")
 
 // TokenBlacklist manages blacklisted JWT tokens using Redis
-// SEM@41fea1c48a3526015f75a5e401ec4970c6c9dfcf: Redis-backed store for revoked JWT tokens to prevent reuse after logout (reads DB)
 type TokenBlacklist struct {
 	redis      *redis.Client
 	keyManager *JWTKeyManager
 }
 
 // NewTokenBlacklist creates a new token blacklist service
-// SEM@70ff47b7829f38ef04399520210ae8765d39495d: build a Redis-backed token blacklist service (reads DB)
 func NewTokenBlacklist(redisClient *redis.Client, keyManager *JWTKeyManager) *TokenBlacklist {
 	logger := slogging.Get()
 	logger.Info("Initializing token blacklist service")
@@ -75,7 +72,6 @@ func NewTokenBlacklist(redisClient *redis.Client, keyManager *JWTKeyManager) *To
 }
 
 // BlacklistToken adds a JWT token to the blacklist
-// SEM@9750a568b8ffb60cfd241d61263b7e23f990899e: blacklist a session token until its expiry (mutates shared state)
 func (tb *TokenBlacklist) BlacklistToken(ctx context.Context, tokenString string) error {
 	logger := slogging.Get()
 	logger.Debug("Attempting to blacklist token")
@@ -134,14 +130,12 @@ func (tb *TokenBlacklist) BlacklistToken(ctx context.Context, tokenString string
 }
 
 // IsTokenBlacklisted checks if a JWT token is blacklisted
-// SEM@c161adfd8ba839441ccd825e818d342a09c63849: validate whether a session token is blacklisted (reads cache)
 func (tb *TokenBlacklist) IsTokenBlacklisted(ctx context.Context, tokenString string) (bool, error) {
 	return tb.IsTokenHashBlacklisted(ctx, HashToken(tokenString))
 }
 
 // IsTokenHashBlacklisted checks the blacklist by a hash from HashToken, for
 // callers that retain only the hash (WebSocket tickets, #869).
-// SEM@c161adfd8ba839441ccd825e818d342a09c63849: validate whether a session token hash is blacklisted (reads cache)
 func (tb *TokenBlacklist) IsTokenHashBlacklisted(ctx context.Context, tokenHash string) (bool, error) {
 	logger := slogging.Get()
 	key := fmt.Sprintf("blacklist:token:%s", tokenHash)
@@ -164,7 +158,6 @@ func (tb *TokenBlacklist) IsTokenHashBlacklisted(ctx context.Context, tokenHash 
 // so they cannot be blacklisted individually; instead the credential ID is
 // marked for ttl, which must be at least the access-token lifetime so that the
 // last token minted before the revoke has expired by the time the marker does.
-// SEM@9750a568b8ffb60cfd241d61263b7e23f990899e: revoke all tokens issued to a client credential for a TTL (mutates shared state)
 func (tb *TokenBlacklist) RevokeCredential(ctx context.Context, credentialID string, ttl time.Duration) error {
 	key := fmt.Sprintf("blacklist:credential:%s", credentialID)
 	if err := tb.redis.Set(ctx, key, "revoked", ttl).Err(); err != nil {
@@ -177,7 +170,6 @@ func (tb *TokenBlacklist) RevokeCredential(ctx context.Context, credentialID str
 
 // IsCredentialRevoked reports whether service-account tokens minted from a
 // client credential have been revoked via RevokeCredential.
-// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: validate whether a client credential's tokens are revoked (reads cache)
 func (tb *TokenBlacklist) IsCredentialRevoked(ctx context.Context, credentialID string) (bool, error) {
 	return tb.keyExists(ctx, fmt.Sprintf("blacklist:credential:%s", credentialID), "credential_id="+credentialID)
 }
@@ -187,7 +179,6 @@ func (tb *TokenBlacklist) IsCredentialRevoked(ctx context.Context, credentialID 
 // otherwise valid request outright. Retry transient failures a bounded number
 // of times before giving up; a genuine outage still surfaces, just as 503
 // rather than 500 (see issue #660).
-// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: check a cache key exists, retrying transient failures (reads cache)
 func (tb *TokenBlacklist) keyExists(ctx context.Context, key, logID string) (bool, error) {
 	logger := slogging.Get()
 	var exists int64
@@ -212,13 +203,11 @@ func (tb *TokenBlacklist) keyExists(ctx context.Context, key, logID string) (boo
 }
 
 // hashToken creates a SHA-256 hash of the token for storage
-// SEM@c161adfd8ba839441ccd825e818d342a09c63849: compute the SHA-256 hex digest of a session token (pure)
 func (tb *TokenBlacklist) hashToken(token string) string {
 	return HashToken(token)
 }
 
 // HashToken returns the blacklist key hash for a token string.
-// SEM@c161adfd8ba839441ccd825e818d342a09c63849: compute the SHA-256 hex digest of a session token (pure)
 func HashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
@@ -227,7 +216,6 @@ func HashToken(token string) string {
 // CleanupExpiredTokens removes expired entries from the blacklist
 // This is handled automatically by Redis TTL, but this method can be used
 // for monitoring or manual cleanup if needed
-// SEM@70ff47b7829f38ef04399520210ae8765d39495d: no-op stub; Redis TTL handles blacklist expiry automatically (pure)
 func (tb *TokenBlacklist) CleanupExpiredTokens(ctx context.Context) error {
 	logger := slogging.Get()
 	logger.Debug("Cleanup expired tokens called - Redis handles this automatically via TTL")

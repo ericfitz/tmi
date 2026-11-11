@@ -29,7 +29,6 @@ const (
 )
 
 // Keyring is the settings-encryption key material held in tmi-secrets.
-// SEM@3b682947: current and previous settings encryption keys with their ids (pure)
 type Keyring struct {
 	CurrentKeyHex  string
 	CurrentID      int
@@ -39,7 +38,6 @@ type Keyring struct {
 
 // KeyringFromSecret reads and validates the keyring; a missing context id is 1
 // (the id every pre-rotation value carries).
-// SEM@3b682947: parse and validate the settings keyring from secret data (pure)
 func KeyringFromSecret(s *Secret) (Keyring, error) {
 	kr := Keyring{CurrentKeyHex: s.Data[SettingsKeyKey], CurrentID: 1, PreviousKeyHex: s.Data[SettingsPrevKeyKey]}
 	if err := checkHexKey(kr.CurrentKeyHex); err != nil {
@@ -65,7 +63,6 @@ func KeyringFromSecret(s *Secret) (Keyring, error) {
 	return kr, nil
 }
 
-// SEM@3b682947: validate a 64-hex-character key string (pure)
 func checkHexKey(v string) error {
 	b, err := hex.DecodeString(v)
 	if err != nil || len(b) != 32 {
@@ -75,7 +72,6 @@ func checkHexKey(v string) error {
 }
 
 // Encryptor builds the crypto keyring for this Keyring.
-// SEM@3b682947: build a SettingsEncryptor from a keyring (pure)
 func (k Keyring) Encryptor() (*crypto.SettingsEncryptor, error) {
 	cur, _ := hex.DecodeString(k.CurrentKeyHex)
 	var prev []byte
@@ -86,25 +82,21 @@ func (k Keyring) Encryptor() (*crypto.SettingsEncryptor, error) {
 }
 
 // SettingsStore is the database side of the settings-key rotation.
-// SEM@3b682947: define re-encrypting settings under a keyring and counting rows per key id
 type SettingsStore interface {
 	ReEncrypt(ctx context.Context, kr Keyring) (int, error)
 	CountWithID(ctx context.Context, kr Keyring, id int) (int64, error)
 }
 
 // GormSettingsStore runs the real SettingsService against the database.
-// SEM@3b682947: settings store backed by the settings service over GORM (writes DB)
 type GormSettingsStore struct {
 	gormDB *gorm.DB
 	redis  *db.RedisDB
 }
 
-// SEM@3b682947: build a GORM-backed settings store (pure)
 func NewGormSettingsStore(gormDB *gorm.DB, redis *db.RedisDB) *GormSettingsStore {
 	return &GormSettingsStore{gormDB: gormDB, redis: redis}
 }
 
-// SEM@3b682947: build a settings service configured with a keyring's encryptor (pure)
 func (g *GormSettingsStore) service(kr Keyring) (*api.SettingsService, error) {
 	enc, err := kr.Encryptor()
 	if err != nil {
@@ -115,7 +107,6 @@ func (g *GormSettingsStore) service(kr Keyring) (*api.SettingsService, error) {
 	return svc, nil
 }
 
-// SEM@3b682947: re-encrypt every stale settings row under the keyring's current key (writes DB)
 func (g *GormSettingsStore) ReEncrypt(ctx context.Context, kr Keyring) (int, error) {
 	svc, err := g.service(kr)
 	if err != nil {
@@ -130,7 +121,6 @@ func (g *GormSettingsStore) ReEncrypt(ctx context.Context, kr Keyring) (int, err
 	return n, err
 }
 
-// SEM@3b682947: count settings rows still under a key id (reads DB)
 func (g *GormSettingsStore) CountWithID(ctx context.Context, kr Keyring, id int) (int64, error) {
 	svc, err := g.service(kr)
 	if err != nil {
@@ -141,14 +131,12 @@ func (g *GormSettingsStore) CountWithID(ctx context.Context, kr Keyring, id int)
 
 // SettingsKeyRotation rotates the settings-encryption key: stage, promote,
 // re-encrypt, and (after previousGrace, once nothing references the old id) drop.
-// SEM@7f1038af: phased settings encryption key rotation with injected escrow and deferred previous-key drop
 type SettingsKeyRotation struct {
 	store         SettingsStore
 	previousGrace time.Duration
 	escrow        Escrow
 }
 
-// SEM@070c69a19a7fed18f17f2bd3475d508172778494: build a settings key rotation with escrow, defaulting to a no-op (pure)
 func NewSettingsKeyRotation(store SettingsStore, previousGrace time.Duration, escrow Escrow) *SettingsKeyRotation {
 	if escrow == nil {
 		escrow = NoopEscrow{}
@@ -157,14 +145,12 @@ func NewSettingsKeyRotation(store SettingsStore, previousGrace time.Duration, es
 }
 
 // escrowKey is one key and its context id in the escrow document.
-// SEM@070c69a19a7fed18f17f2bd3475d508172778494: key id and hex value pair in the escrow document (pure)
 type escrowKey struct {
 	ID     int    `json:"id"`
 	KeyHex string `json:"key_hex"`
 }
 
 // settingsEscrowDoc names the post-promotion roles, which the restore runbook relies on.
-// SEM@070c69a19a7fed18f17f2bd3475d508172778494: settings key escrow document naming post-promotion current and previous keys (pure)
 type settingsEscrowDoc struct {
 	Rotation   string    `json:"rotation"`
 	EscrowedAt string    `json:"escrowed_at"`
@@ -172,10 +158,8 @@ type settingsEscrowDoc struct {
 	Previous   escrowKey `json:"previous"`
 }
 
-// SEM@3b682947: return the rotation's name (pure)
 func (r *SettingsKeyRotation) Name() string { return settingsRotationName }
 
-// SEM@070c69a19a7fed18f17f2bd3475d508172778494: advance the settings key rotation from its recorded phase, escrowing before promotion
 func (r *SettingsKeyRotation) Run(ctx context.Context, env *Env) error {
 	logger := slogging.Get()
 	s, err := env.Secrets.Get(ctx, env.SecretName)

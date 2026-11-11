@@ -19,7 +19,6 @@ import (
 )
 
 // splitCommaValues splits a comma-separated string into trimmed, non-empty values.
-// SEM@b5f5b0ef9acc20e2099b5b6bf98de7caee40f775: parse a comma-separated string into trimmed, non-empty values (pure)
 func splitCommaValues(s string) []string {
 	parts := strings.Split(s, ",")
 	result := make([]string, 0, len(parts))
@@ -33,7 +32,6 @@ func splitCommaValues(s string) []string {
 }
 
 // SurveyResponseStore defines the interface for survey response operations
-// SEM@8ad084af00cac46a8e90401a74f8b62061fd7449: interface defining CRUD, listing, status-transition, and authorization operations for survey responses
 type SurveyResponseStore interface {
 	// CRUD operations
 	Create(ctx context.Context, response *SurveyResponse, userInternalUUID string) error
@@ -61,7 +59,6 @@ type SurveyResponseStore interface {
 }
 
 // SurveyResponseFilters defines filter options for listing responses
-// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: filter parameters for listing survey responses by status, survey, owner, or confidentiality (pure)
 type SurveyResponseFilters struct {
 	Status   *string
 	SurveyID *uuid.UUID
@@ -73,19 +70,16 @@ type SurveyResponseFilters struct {
 }
 
 // GormSurveyResponseStore implements SurveyResponseStore using GORM
-// SEM@5998227fb120ee0575a994ea2c0ecb24f0e67109: GORM-backed implementation of SurveyResponseStore (reads DB)
 type GormSurveyResponseStore struct {
 	db *gorm.DB
 }
 
 // NewGormSurveyResponseStore creates a new GORM-backed survey response store
-// SEM@5998227fb120ee0575a994ea2c0ecb24f0e67109: build a GormSurveyResponseStore wrapping the given database connection (pure)
 func NewGormSurveyResponseStore(db *gorm.DB) *GormSurveyResponseStore {
 	return &GormSurveyResponseStore{db: db}
 }
 
 // Create creates a new survey response
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new survey response with owner ACL and reviewer groups in a transaction (mutates DB)
 func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyResponse, userInternalUUID string) error {
 	logger := slogging.Get()
 
@@ -244,7 +238,6 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 //
 // In practice the seed in api/seed/seed.go pre-populates these groups, so the
 // race window only opens for fresh databases that haven't been seeded yet.
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch or create a built-in group by name using a savepoint to survive duplicate-key races on PostgreSQL (reads DB)
 func (s *GormSurveyResponseStore) ensureBuiltInGroup(tx *gorm.DB, groupKey, groupDisplay, groupUUID string) (string, error) {
 	var group models.Group
 	result := tx.Where("group_name = ? AND provider = ?", groupKey, BuiltInProvider).First(&group)
@@ -286,25 +279,21 @@ func (s *GormSurveyResponseStore) ensureBuiltInGroup(tx *gorm.DB, groupKey, grou
 }
 
 // ensureSecurityReviewersGroup ensures the Security Reviewers group exists and returns its UUID
-// SEM@1bfd9531238664297805d919d8d2bee76170cc8d: fetch or create the built-in Security Reviewers group and return its UUID (reads DB)
 func (s *GormSurveyResponseStore) ensureSecurityReviewersGroup(tx *gorm.DB) (string, error) {
 	return s.ensureBuiltInGroup(tx, SecurityReviewersGroup, "Security Reviewers", SecurityReviewersGroupUUID)
 }
 
 // ensureConfidentialProjectReviewersGroup ensures the confidential-project-reviewers group exists and returns its UUID.
-// SEM@1bfd9531238664297805d919d8d2bee76170cc8d: fetch or create the built-in Confidential Project Reviewers group and return its UUID (reads DB)
 func (s *GormSurveyResponseStore) ensureConfidentialProjectReviewersGroup(tx *gorm.DB) (string, error) {
 	return s.ensureBuiltInGroup(tx, ConfidentialProjectReviewersGroup, "Confidential Project Reviewers", ConfidentialProjectReviewersGroupUUID)
 }
 
 // ensureTMIAutomationGroup ensures the tmi-automation group exists and returns its UUID.
-// SEM@1bfd9531238664297805d919d8d2bee76170cc8d: fetch or create the built-in TMI Automation group and return its UUID (reads DB)
 func (s *GormSurveyResponseStore) ensureTMIAutomationGroup(tx *gorm.DB) (string, error) {
 	return s.ensureBuiltInGroup(tx, TMIAutomationGroup, "TMI Automation", TMIAutomationGroupUUID)
 }
 
 // Get retrieves a survey response by ID
-// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: fetch a survey response by ID with authorization and metadata (reads DB)
 func (s *GormSurveyResponseStore) Get(ctx context.Context, id uuid.UUID) (*SurveyResponse, error) {
 	logger := slogging.Get()
 
@@ -355,7 +344,6 @@ func (s *GormSurveyResponseStore) Get(ctx context.Context, id uuid.UUID) (*Surve
 
 // update runs the survey response content write inside one retryable
 // transaction, CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: store mutable survey response fields, optionally CAS-guarded, preserving immutable fields (mutates DB)
 func (s *GormSurveyResponseStore) update(ctx context.Context, response *SurveyResponse, expectedVersion *int) (int, error) {
 	logger := slogging.Get()
 
@@ -461,7 +449,6 @@ func (s *GormSurveyResponseStore) update(ctx context.Context, response *SurveyRe
 }
 
 // Update updates an existing survey response
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: store mutable fields of an existing survey response; preserves immutable fields (mutates DB)
 func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyResponse) error {
 	_, err := s.update(ctx, response, nil)
 	return err
@@ -469,13 +456,11 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 
 // UpdateWithVersion updates a survey response guarded by a same-transaction
 // optimistic-lock CAS (#594).
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update a survey response guarded by a same-transaction version CAS (mutates DB)
 func (s *GormSurveyResponseStore) UpdateWithVersion(ctx context.Context, response *SurveyResponse, expectedVersion int) (int, error) {
 	return s.update(ctx, response, &expectedVersion)
 }
 
 // Delete removes a survey response by ID
-// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: delete a survey response and all dependent rows in a single transaction (mutates DB)
 func (s *GormSurveyResponseStore) Delete(ctx context.Context, id uuid.UUID) error {
 	logger := slogging.Get()
 
@@ -518,7 +503,6 @@ func (s *GormSurveyResponseStore) Delete(ctx context.Context, id uuid.UUID) erro
 }
 
 // List retrieves survey responses with pagination and optional filters
-// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: list paginated survey responses with optional status/survey/owner/confidentiality filters (reads DB)
 func (s *GormSurveyResponseStore) List(ctx context.Context, limit, offset int, filters *SurveyResponseFilters) ([]SurveyResponseListItem, int, error) {
 	logger := slogging.Get()
 
@@ -597,7 +581,6 @@ var validSurveyResponseStatuses = map[string]bool{
 // BEFORE that write so a malformed status transition fails without
 // committing anything, rather than surfacing as a 409 after the write that
 // preceded it already committed.
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: validate a survey response status transition before any DB write (pure)
 func ValidateSurveyResponseStatusTransition(newStatus string, revisionNotes *string) error {
 	if !validSurveyResponseStatuses[newStatus] {
 		return fmt.Errorf("invalid status value: %s", newStatus)
@@ -609,7 +592,6 @@ func ValidateSurveyResponseStatusTransition(newStatus string, revisionNotes *str
 }
 
 // UpdateStatus transitions a response to a new status with validation
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: validate and apply a status transition to a survey response, recording reviewer and notes (mutates DB)
 func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID, newStatus string, reviewerInternalUUID *string, revisionNotes *string) error {
 	logger := slogging.Get()
 
@@ -676,13 +658,11 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 }
 
 // GetAuthorization retrieves authorization entries for a response
-// SEM@5998227fb120ee0575a994ea2c0ecb24f0e67109: fetch all authorization entries for a survey response (reads DB)
 func (s *GormSurveyResponseStore) GetAuthorization(ctx context.Context, id uuid.UUID) ([]Authorization, error) {
 	return s.loadAuthorization(ctx, id.String())
 }
 
 // UpdateAuthorization updates authorization entries for a response
-// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: replace all survey response authorization entries within a locked transaction (reads DB)
 func (s *GormSurveyResponseStore) UpdateAuthorization(ctx context.Context, id uuid.UUID, authorization []Authorization) error {
 	logger := slogging.Get()
 
@@ -740,7 +720,6 @@ func (s *GormSurveyResponseStore) UpdateAuthorization(ctx context.Context, id uu
 }
 
 // HasAccess checks if a user has the required access to a response
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: check whether a user holds the required role on a survey response via direct or group membership (reads DB)
 func (s *GormSurveyResponseStore) HasAccess(ctx context.Context, id uuid.UUID, userInternalUUID string, requiredRole AuthorizationRole) (bool, error) {
 	// Get user's groups
 	var userGroups []models.GroupMember
@@ -792,7 +771,6 @@ func (s *GormSurveyResponseStore) HasAccess(ctx context.Context, id uuid.UUID, u
 // already persisted; the retry's WHERE predicate fails because status has moved
 // past ready_for_review. Without this check, the retry surfaced a misleading
 // "not in ready_for_review status" error even though the operation succeeded.
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: atomically link a threat model and transition survey response to review_created; idempotent on retry (mutates DB)
 func (s *GormSurveyResponseStore) SetCreatedThreatModel(ctx context.Context, id uuid.UUID, threatModelID string) error {
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.
@@ -834,7 +812,6 @@ func (s *GormSurveyResponseStore) SetCreatedThreatModel(ctx context.Context, id 
 }
 
 // loadAuthorization loads authorization entries for a response
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch and convert survey response access entries to Authorization domain objects (reads DB)
 func (s *GormSurveyResponseStore) loadAuthorization(ctx context.Context, responseID string) ([]Authorization, error) {
 	var accessEntries []models.SurveyResponseAccess
 	result := s.db.WithContext(ctx).
@@ -872,7 +849,6 @@ func (s *GormSurveyResponseStore) loadAuthorization(ctx context.Context, respons
 }
 
 // resolveUserToUUID resolves a user identifier to internal UUID
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: resolve a provider user identity to its internal UUID (reads DB)
 func (s *GormSurveyResponseStore) resolveUserToUUID(tx *gorm.DB, providerUserID, provider string) (string, error) {
 	var user models.User
 	result := tx.Where("provider = ? AND provider_user_id = ?", provider, providerUserID).First(&user)
@@ -886,7 +862,6 @@ func (s *GormSurveyResponseStore) resolveUserToUUID(tx *gorm.DB, providerUserID,
 }
 
 // apiToModel converts an API SurveyResponse to a database model
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert an API SurveyResponse to its GORM database model (pure)
 func (s *GormSurveyResponseStore) apiToModel(response *SurveyResponse, ownerInternalUUID string) (*models.SurveyResponse, error) {
 	model := &models.SurveyResponse{
 		TemplateID:        models.DBVarchar(response.SurveyId.String()),
@@ -956,7 +931,6 @@ func (s *GormSurveyResponseStore) apiToModel(response *SurveyResponse, ownerInte
 }
 
 // modelToAPI converts a database model to an API SurveyResponse
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a GORM SurveyResponse model to the API domain struct (pure)
 func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*SurveyResponse, error) {
 	id, err := uuid.Parse(string(model.ID))
 	if err != nil {
@@ -1053,7 +1027,6 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 }
 
 // modelToListItem converts a database model to an API SurveyResponseListItem
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: convert a GORM SurveyResponse model to a lightweight list-item API struct (pure)
 func (s *GormSurveyResponseStore) modelToListItem(model *models.SurveyResponse) SurveyResponseListItem {
 	id, _ := uuid.Parse(string(model.ID))
 	surveyID, _ := uuid.Parse(string(model.TemplateID))
@@ -1084,13 +1057,11 @@ func (s *GormSurveyResponseStore) modelToListItem(model *models.SurveyResponse) 
 }
 
 // loadMetadata loads metadata for a survey response
-// SEM@22b222cb8680df2700e22f0e8538874669789920: fetch metadata key-value entries for a survey response (reads DB)
 func (s *GormSurveyResponseStore) loadMetadata(ctx context.Context, responseID string) ([]Metadata, error) {
 	return loadEntityMetadata(s.db.WithContext(ctx), "survey_response", responseID)
 }
 
 // saveMetadata saves metadata for a survey response
-// SEM@22b222cb8680df2700e22f0e8538874669789920: store metadata key-value entries for a survey response (mutates DB)
 func (s *GormSurveyResponseStore) saveMetadata(ctx context.Context, responseID string, metadata []Metadata) error {
 	return saveEntityMetadata(s.db.WithContext(ctx), "survey_response", responseID, metadata)
 }

@@ -32,14 +32,12 @@ const (
 // natsClientSecretName maps a component to its cert-manager client-cert
 // Secret: nats-client-<name without the tmi- prefix>, e.g. tmi-extractor ->
 // nats-client-extractor, matching deployments/k8s/platform/pki.yml.
-// SEM@6b7b976: derive the NATS client-cert Secret name for a component (pure)
 func natsClientSecretName(c *platformv1alpha1.TMIComponent) string {
 	return "nats-client-" + strings.TrimPrefix(c.Name, "tmi-")
 }
 
 // natsTLSEnv points internal/worker.Connect (via tlsconfig.NATSFromEnv) at
 // the mounted client cert.
-// SEM@6b7b976: build the NATS TLS file-path env vars for the mounted client cert (pure)
 func natsTLSEnv() []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{Name: "TMI_NATS_TLS_CA_FILE", Value: natsTLSMountPath + "/ca.crt"},
@@ -52,7 +50,6 @@ func natsTLSEnv() []corev1.EnvVar {
 // Pod hardening (readOnlyRootFilesystem, runAsNonRoot, all caps dropped,
 // RuntimeDefault seccomp) is applied unconditionally — it is a hard
 // platform invariant, not a per-component option.
-// SEM@6b7b976: build a hardened worker Deployment with NATS client-cert mount and Reloader annotation (pure)
 func RenderDeployment(c *platformv1alpha1.TMIComponent) *appsv1.Deployment {
 	labels := componentPodLabels(c)
 
@@ -133,7 +130,6 @@ func RenderDeployment(c *platformv1alpha1.TMIComponent) *appsv1.Deployment {
 
 // configEnv turns spec.config into sorted env vars (sorted for deterministic
 // output so reconcile does not thrash on map iteration order).
-// SEM@40b1a824a6d8de39df0e2a4d0a1372a4d53c56ad: convert a component's config map to sorted Kubernetes EnvVar literals (pure)
 func configEnv(c *platformv1alpha1.TMIComponent) []corev1.EnvVar {
 	keys := make([]string, 0, len(c.Spec.Config))
 	for k := range c.Spec.Config {
@@ -148,7 +144,6 @@ func configEnv(c *platformv1alpha1.TMIComponent) []corev1.EnvVar {
 }
 
 // secretEnv turns secretRefs into env vars sourced from K8s Secrets.
-// SEM@40b1a824a6d8de39df0e2a4d0a1372a4d53c56ad: convert a component's secret references to Kubernetes SecretKeyRef env vars (pure)
 func secretEnv(c *platformv1alpha1.TMIComponent) []corev1.EnvVar {
 	env := make([]corev1.EnvVar, 0, len(c.Spec.SecretRefs))
 	for _, ref := range c.Spec.SecretRefs {

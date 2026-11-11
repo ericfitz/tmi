@@ -12,13 +12,11 @@ import (
 
 // TriageNoteSubResourceHandler provides handlers for triage note sub-resource operations.
 // Triage notes are append-only: only create and read operations are supported.
-// SEM@869fcafe6842b187f8cfe8e7cf65ca47021b8418: HTTP handler providing read and append-only create operations for triage notes
 type TriageNoteSubResourceHandler struct {
 	triageNoteStore TriageNoteStore
 }
 
 // NewTriageNoteSubResourceHandler creates a new triage note sub-resource handler
-// SEM@869fcafe6842b187f8cfe8e7cf65ca47021b8418: build a triage note sub-resource handler backed by the given store (pure)
 func NewTriageNoteSubResourceHandler(store TriageNoteStore) *TriageNoteSubResourceHandler {
 	return &TriageNoteSubResourceHandler{
 		triageNoteStore: store,
@@ -34,7 +32,6 @@ func NewTriageNoteSubResourceHandler(store TriageNoteStore) *TriageNoteSubResour
 // Returns true on success. On failure (not found OR access denied, collapsed
 // into 404 to avoid existence disclosure) writes the error response and
 // returns false.
-// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: authorize the caller on a parent survey response via row ACL, or accept a pre-verified triage reviewer, returning 404 on failure
 func (h *TriageNoteSubResourceHandler) requireSurveyResponseAccessForTriageNote(
 	c *gin.Context,
 	surveyResponseID string,
@@ -53,7 +50,6 @@ func (h *TriageNoteSubResourceHandler) requireSurveyResponseAccessForTriageNote(
 }
 
 // ListTriageNotes retrieves all triage notes for a survey response with pagination
-// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: list triage notes for a survey response with pagination, enforcing reader access (reads DB)
 func (h *TriageNoteSubResourceHandler) ListTriageNotes(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("ListTriageNotes - retrieving triage notes for survey response")
@@ -127,7 +123,6 @@ func (h *TriageNoteSubResourceHandler) ListTriageNotes(c *gin.Context) {
 }
 
 // GetTriageNote retrieves a specific triage note by ID
-// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: fetch a single triage note by ID within a survey response, enforcing reader access (reads DB)
 func (h *TriageNoteSubResourceHandler) GetTriageNote(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetTriageNote - retrieving specific triage note")
@@ -183,7 +178,6 @@ func (h *TriageNoteSubResourceHandler) GetTriageNote(c *gin.Context) {
 }
 
 // CreateTriageNote creates a new triage note in a survey response
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: store a new sanitized triage note under a survey response after access check (writes DB)
 func (h *TriageNoteSubResourceHandler) CreateTriageNote(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateTriageNote - creating new triage note")

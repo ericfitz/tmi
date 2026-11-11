@@ -29,7 +29,6 @@ const (
 var clientKeyPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 
 // validatePreferences validates the preferences JSON data
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate user preferences JSON for size, structure, and client key format (pure)
 func validatePreferences(data []byte) error {
 	if len(data) > MaxPreferencesSize {
 		return InvalidInputError(fmt.Sprintf("preferences exceed 1KB limit (%d bytes)", len(data)))
@@ -54,7 +53,6 @@ func validatePreferences(data []byte) error {
 }
 
 // GetCurrentUserPreferences handles GET /me/preferences
-// SEM@0953e9f0b776f0b6506c4a5b3d809b26588328fe: fetch the authenticated user's stored preferences, defaulting to empty when unset (reads DB)
 func (s *Server) GetCurrentUserPreferences(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	logger.Info("[PREFERENCES] GetCurrentUserPreferences called")
@@ -113,7 +111,6 @@ func (s *Server) GetCurrentUserPreferences(c *gin.Context) {
 }
 
 // CreateCurrentUserPreferences handles POST /me/preferences
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: store new preferences for the authenticated user, rejecting duplicates (reads DB)
 func (s *Server) CreateCurrentUserPreferences(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	logger.Info("[PREFERENCES] CreateCurrentUserPreferences called")
@@ -198,7 +195,6 @@ func (s *Server) CreateCurrentUserPreferences(c *gin.Context) {
 }
 
 // UpdateCurrentUserPreferences handles PUT /me/preferences
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: upsert preferences for the authenticated user via full replacement (mutates shared state)
 func (s *Server) UpdateCurrentUserPreferences(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	logger.Info("[PREFERENCES] UpdateCurrentUserPreferences called")

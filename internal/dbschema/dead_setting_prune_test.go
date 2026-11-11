@@ -12,7 +12,6 @@ import (
 )
 
 // countSystemSettings returns how many rows carry the given key.
-// SEM@24731679561a852b21b37271caffd9a597080f0b: count system_settings rows for one key in tests (reads DB)
 func countSystemSettings(t *testing.T, db *gorm.DB, key string) int64 {
 	t.Helper()
 	var n int64
@@ -28,7 +27,6 @@ func countSystemSettings(t *testing.T, db *gorm.DB, key string) int64 {
 // LIST would keep showing it while GET and DELETE 404 -- exactly the
 // inconsistency #809 reported. Leaving the row behind fixes the bug for new
 // databases and re-creates it for every existing one.
-// SEM@24731679561a852b21b37271caffd9a597080f0b: validate the prune removes retired setting rows
 func TestPruneRetiredSystemSettings_DeletesRetiredRows(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 
@@ -55,7 +53,6 @@ func TestPruneRetiredSystemSettings_DeletesRetiredRows(t *testing.T) {
 // drives rate limiting and shares a prefix-adjacent name with the retired
 // keys, so it is the one most at risk from a careless LIKE 'rate_limit%'
 // implementation.
-// SEM@24731679561a852b21b37271caffd9a597080f0b: validate the prune leaves live settings untouched
 func TestPruneRetiredSystemSettings_LeavesLiveSettingsAlone(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 
@@ -97,7 +94,6 @@ func TestPruneRetiredSystemSettings_LeavesLiveSettingsAlone(t *testing.T) {
 // nothing reads has no effect to preserve, and an explicit-origin row left
 // behind reproduces the orphan case above for precisely the installs most
 // likely to notice it.
-// SEM@24731679561a852b21b37271caffd9a597080f0b: validate the prune removes operator-set rows as well
 func TestPruneRetiredSystemSettings_DeletesExplicitRowsToo(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 
@@ -119,7 +115,6 @@ func TestPruneRetiredSystemSettings_DeletesExplicitRowsToo(t *testing.T) {
 // TestPruneRetiredSystemSettings_Idempotent covers the steady state: this
 // runs on every boot, so a second pass must find nothing and report zero
 // rather than erroring or re-reporting.
-// SEM@24731679561a852b21b37271caffd9a597080f0b: validate a repeated prune finds nothing left to delete
 func TestPruneRetiredSystemSettings_Idempotent(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 
@@ -141,7 +136,6 @@ func TestPruneRetiredSystemSettings_Idempotent(t *testing.T) {
 
 // TestPruneRetiredSystemSettings_NoRows covers the empty-table fast path: a
 // fresh database has nothing to prune and must not error.
-// SEM@24731679561a852b21b37271caffd9a597080f0b: validate the prune no-ops against an empty settings table
 func TestPruneRetiredSystemSettings_NoRows(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 
@@ -161,7 +155,6 @@ func TestPruneRetiredSystemSettings_NoRows(t *testing.T) {
 //
 // Watched to fail: swapping the two calls below makes the backfill report 1
 // stamped row instead of 0.
-// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: validate pruning precedes the origin backfill
 func TestPruneRetiredSystemSettings_RunsBeforeOriginBackfill(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 
@@ -203,7 +196,6 @@ func TestPruneRetiredSystemSettings_RunsBeforeOriginBackfill(t *testing.T) {
 // shape on SystemSetting is realistic; it would leave SQLite and Postgres
 // hard-deleting, this test green, and Oracle alone silently not deleting --
 // reproducing #809 on the one platform this change exists to fix.
-// SEM@32d2fef5a48bbd2ea65b9aa7d5232510b52a4aca: validate the prune hard-deletes rather than soft-deletes
 func TestPruneRetiredSystemSettings_HardDeletes(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 

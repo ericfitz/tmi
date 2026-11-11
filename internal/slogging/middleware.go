@@ -10,7 +10,6 @@ import (
 )
 
 // LoggerMiddleware returns a Gin middleware for logging requests using slog
-// SEM@3e48a58cb418d2e7a4f04f1288fa11cb942bc99e: log each HTTP request's start, completion, and status at the appropriate level
 func LoggerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get logger
@@ -74,7 +73,6 @@ func LoggerMiddleware() gin.HandlerFunc {
 }
 
 // Recoverer creates middleware for recovering from panics using slog
-// SEM@a1d7f44f9fbf44b654abfc81c5b3770eb540ecb0: catch panics in downstream handlers and return 500 with a structured stack trace
 func Recoverer() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
@@ -114,7 +112,6 @@ func Recoverer() gin.HandlerFunc {
 }
 
 // RequestTracingMiddleware adds detailed request tracing for debugging
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: log detailed request headers, URL, and query params at debug level
 func RequestTracingMiddleware(enableBodyLogging bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := Get().WithContext(c)
@@ -151,7 +148,6 @@ func RequestTracingMiddleware(enableBodyLogging bool) gin.HandlerFunc {
 }
 
 // PerformanceMiddleware logs performance metrics for requests
-// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: warn when a request exceeds a configurable slow-request duration threshold
 func PerformanceMiddleware(slowRequestThreshold time.Duration) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -179,7 +175,6 @@ func PerformanceMiddleware(slowRequestThreshold time.Duration) gin.HandlerFunc {
 }
 
 // StructuredLogHandler provides a Gin handler for structured logging endpoints
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: handle an HTTP log ingestion endpoint and emit structured log entries at the requested level
 func StructuredLogHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var logRequest struct {

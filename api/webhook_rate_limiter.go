@@ -10,13 +10,11 @@ import (
 )
 
 // WebhookRateLimiter implements rate limiting for webhook operations using Redis
-// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: Redis-backed rate limiter for webhook subscription and event publication quotas
 type WebhookRateLimiter struct {
 	SlidingWindowRateLimiter
 }
 
 // NewWebhookRateLimiter creates a new rate limiter
-// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: build a webhook rate limiter backed by the given Redis client (pure)
 func NewWebhookRateLimiter(redisClient *redis.Client) *WebhookRateLimiter {
 	return &WebhookRateLimiter{
 		SlidingWindowRateLimiter: SlidingWindowRateLimiter{RedisClient: redisClient},
@@ -24,7 +22,6 @@ func NewWebhookRateLimiter(redisClient *redis.Client) *WebhookRateLimiter {
 }
 
 // CheckSubscriptionLimit checks if owner can create a new subscription
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: validate that an owner has not exceeded their maximum subscription count (reads DB)
 func (r *WebhookRateLimiter) CheckSubscriptionLimit(ctx context.Context, ownerID string) error {
 	logger := slogging.Get()
 
@@ -51,7 +48,6 @@ func (r *WebhookRateLimiter) CheckSubscriptionLimit(ctx context.Context, ownerID
 }
 
 // CheckSubscriptionRequestLimit checks rate limit for subscription creation requests
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: validate per-minute and per-day subscription creation rate limits for an owner (reads DB)
 func (r *WebhookRateLimiter) CheckSubscriptionRequestLimit(ctx context.Context, ownerID string) error {
 	logger := slogging.Get()
 
@@ -89,7 +85,6 @@ func (r *WebhookRateLimiter) CheckSubscriptionRequestLimit(ctx context.Context, 
 }
 
 // CheckEventPublicationLimit checks rate limit for event publications
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: validate the per-minute event publication rate limit for an owner (reads DB)
 func (r *WebhookRateLimiter) CheckEventPublicationLimit(ctx context.Context, ownerID string) error {
 	logger := slogging.Get()
 
@@ -116,7 +111,6 @@ func (r *WebhookRateLimiter) CheckEventPublicationLimit(ctx context.Context, own
 }
 
 // RecordSubscriptionRequest records a subscription creation request for rate limiting
-// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: record a subscription creation attempt in the per-minute and per-day Redis windows (reads DB)
 func (r *WebhookRateLimiter) RecordSubscriptionRequest(ctx context.Context, ownerID string) error {
 	if r.RedisClient == nil {
 		return nil
@@ -140,7 +134,6 @@ func (r *WebhookRateLimiter) RecordSubscriptionRequest(ctx context.Context, owne
 }
 
 // RecordEventPublication records an event publication for rate limiting
-// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: record an event publication in the per-minute Redis sliding window (reads DB)
 func (r *WebhookRateLimiter) RecordEventPublication(ctx context.Context, ownerID string) error {
 	if r.RedisClient == nil {
 		return nil
@@ -153,7 +146,6 @@ func (r *WebhookRateLimiter) RecordEventPublication(ctx context.Context, ownerID
 }
 
 // GetSubscriptionRateLimitInfo returns current subscription request rate limit status
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: fetch current subscription rate limit, remaining capacity, and reset time for an owner (reads DB)
 func (r *WebhookRateLimiter) GetSubscriptionRateLimitInfo(ctx context.Context, ownerID string) (limit int, remaining int, resetAt int64, err error) {
 	logger := slogging.Get()
 

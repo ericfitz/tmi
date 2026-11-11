@@ -12,7 +12,6 @@ import (
 )
 
 // ThreatSubResourceHandler provides handlers for threat sub-resource operations
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: HTTP handler aggregate for threat sub-resource CRUD operations within a threat model
 type ThreatSubResourceHandler struct {
 	threatStore      ThreatRepository
 	db               *sql.DB
@@ -23,13 +22,11 @@ type ThreatSubResourceHandler struct {
 }
 
 // SetIssueURIValidator sets the URI validator for issue_uri fields
-// SEM@5eacb6f5fd0d2a1861dafb4d1fc5a18f97ee8e40: attach a URI validator for SSRF protection on issue_uri fields (mutates shared state)
 func (h *ThreatSubResourceHandler) SetIssueURIValidator(v *URIValidator) {
 	h.issueURIValidator = v
 }
 
 // NewThreatSubResourceHandler creates a new threat sub-resource handler
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build a threat sub-resource handler wired to the store, DB, cache, and invalidator (pure)
 func NewThreatSubResourceHandler(threatStore ThreatRepository, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *ThreatSubResourceHandler {
 	return &ThreatSubResourceHandler{
 		threatStore:      threatStore,
@@ -41,7 +38,6 @@ func NewThreatSubResourceHandler(threatStore ThreatRepository, db *sql.DB, cache
 
 // GetThreats retrieves all threats for a threat model with pagination
 // GET /threat_models/{threat_model_id}/threats
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: list threats for a threat model with pagination, enforcing auth via middleware (reads DB)
 func (h *ThreatSubResourceHandler) GetThreats(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetThreats - retrieving threats for threat model")
@@ -106,7 +102,6 @@ func (h *ThreatSubResourceHandler) GetThreats(c *gin.Context) {
 
 // GetThreatsWithFilters retrieves all threats for a threat model with advanced filtering
 // GET /threat_models/{threat_model_id}/threats with query parameters
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: list threats for a threat model applying filter, pagination, and sort parameters (reads DB)
 func (h *ThreatSubResourceHandler) GetThreatsWithFilters(c *gin.Context, params GetThreatModelThreatsParams) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetThreatsWithFilters - retrieving threats with advanced filtering")
@@ -152,7 +147,6 @@ func (h *ThreatSubResourceHandler) GetThreatsWithFilters(c *gin.Context, params 
 	})
 }
 
-// SEM@281d11fe6c4147803fea7c7d311369ce3e05ee22: validate the threat model ID path param and return it as a UUID string (pure)
 func (h *ThreatSubResourceHandler) validateThreatModelID(c *gin.Context) (string, error) {
 	threatModelID := c.Param("threat_model_id")
 	if threatModelID == "" {
@@ -166,7 +160,6 @@ func (h *ThreatSubResourceHandler) validateThreatModelID(c *gin.Context) (string
 	return threatModelID, nil
 }
 
-// SEM@281d11fe6c4147803fea7c7d311369ce3e05ee22: build a ThreatFilter from query params including pagination, field filters, scores, and dates (pure)
 func (h *ThreatSubResourceHandler) buildThreatFilter(params GetThreatModelThreatsParams) (ThreatFilter, error) {
 	filter := ThreatFilter{
 		Offset: 0,
@@ -197,7 +190,6 @@ func (h *ThreatSubResourceHandler) buildThreatFilter(params GetThreatModelThreat
 	return filter, nil
 }
 
-// SEM@281d11fe6c4147803fea7c7d311369ce3e05ee22: validate and apply limit and offset query params to a ThreatFilter (pure)
 func (h *ThreatSubResourceHandler) setPaginationParams(filter *ThreatFilter, params GetThreatModelThreatsParams) error {
 	if params.Limit != nil {
 		if *params.Limit < 1 || *params.Limit > 100 {
@@ -216,7 +208,6 @@ func (h *ThreatSubResourceHandler) setPaginationParams(filter *ThreatFilter, par
 	return nil
 }
 
-// SEM@37a1103bbb5b0e3f1eb12a73c70a48a4f17e9c45: apply name, type, severity, status, and reference field filters to a ThreatFilter (pure)
 func (h *ThreatSubResourceHandler) setFilterParams(filter *ThreatFilter, params GetThreatModelThreatsParams) error {
 	filter.Name = params.Name
 	filter.Description = params.Description
@@ -246,7 +237,6 @@ func (h *ThreatSubResourceHandler) setFilterParams(filter *ThreatFilter, params 
 	return nil
 }
 
-// SEM@281d11fe6c4147803fea7c7d311369ce3e05ee22: validate a threat type filter list is non-empty and within the 10-item maximum (pure)
 func (h *ThreatSubResourceHandler) validateThreatTypes(types []string) error {
 	if len(types) > 10 {
 		return InvalidInputError("Maximum 10 threat types in filter")
@@ -261,7 +251,6 @@ func (h *ThreatSubResourceHandler) validateThreatTypes(types []string) error {
 	return nil
 }
 
-// SEM@281d11fe6c4147803fea7c7d311369ce3e05ee22: copy score comparison query params into a ThreatFilter (pure)
 func (h *ThreatSubResourceHandler) setScoreParams(filter *ThreatFilter, params GetThreatModelThreatsParams) {
 	filter.ScoreGT = params.ScoreGt
 	filter.ScoreLT = params.ScoreLt
@@ -270,7 +259,6 @@ func (h *ThreatSubResourceHandler) setScoreParams(filter *ThreatFilter, params G
 	filter.ScoreLE = params.ScoreLe
 }
 
-// SEM@281d11fe6c4147803fea7c7d311369ce3e05ee22: copy created and modified date range query params into a ThreatFilter (pure)
 func (h *ThreatSubResourceHandler) setDateParams(filter *ThreatFilter, params GetThreatModelThreatsParams) {
 	filter.CreatedAfter = params.CreatedAfter
 	filter.CreatedBefore = params.CreatedBefore
@@ -280,7 +268,6 @@ func (h *ThreatSubResourceHandler) setDateParams(filter *ThreatFilter, params Ge
 
 // GetThreat retrieves a specific threat by ID
 // GET /threat_models/{threat_model_id}/threats/{threat_id}
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch a single threat by ID for an authenticated user (reads DB)
 func (h *ThreatSubResourceHandler) GetThreat(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetThreat - retrieving specific threat")
@@ -321,7 +308,6 @@ func (h *ThreatSubResourceHandler) GetThreat(c *gin.Context) {
 
 // CreateThreat creates a new threat in a threat model
 // POST /threat_models/{threat_model_id}/threats
-// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: store a new threat under a threat model, sanitizing inputs and recording an audit entry (mutates shared state)
 func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateThreat - creating new threat")
@@ -404,7 +390,6 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 
 // UpdateThreat updates an existing threat
 // PUT /threat_models/{threat_model_id}/threats/{threat_id}
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: replace a threat with optimistic locking, sanitize inputs, and record an audit entry (mutates shared state)
 func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateThreat - updating existing threat")
@@ -511,7 +496,6 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 
 // PatchThreat applies JSON patch operations to a threat
 // PATCH /threat_models/{threat_model_id}/threats/{threat_id}
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: apply JSON patch operations to a threat with authorization and optimistic locking, recording an audit entry (mutates shared state)
 func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchThreat - applying patch operations to threat")
@@ -622,7 +606,6 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 
 // DeleteThreat deletes a threat
 // DELETE /threat_models/{threat_model_id}/threats/{threat_id}
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: delete a threat by ID and record a deletion audit entry (mutates shared state)
 func (h *ThreatSubResourceHandler) DeleteThreat(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteThreat - deleting threat")
@@ -674,7 +657,6 @@ func (h *ThreatSubResourceHandler) DeleteThreat(c *gin.Context) {
 
 // BulkCreateThreats creates multiple threats in a single request
 // POST /threat_models/{threat_model_id}/threats/bulk
-// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: create up to 50 threats under a threat model; reject client-supplied IDs (mutates DB)
 func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateThreats - creating multiple threats")
@@ -778,7 +760,6 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 
 // BulkUpdateThreats updates multiple threats in a single request
 // PUT /threat_models/{threat_model_id}/threats/bulk
-// SEM@436c1840b3eef9687193078750dec3e22874f10e: replace up to 50 existing threats under a threat model in a single request (mutates shared state)
 func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkUpdateThreats - updating multiple threats")
@@ -879,7 +860,6 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 
 // BulkPatchThreats applies JSON patch operations to multiple threats
 // PATCH /threat_models/{threat_model_id}/threats/bulk
-// SEM@0366350593b297b3143d1125e29982be617236ab: update multiple threats by JSON Patch, authorizing and dry-run validating every entry before writing any (mutates DB)
 func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkPatchThreats - applying patch operations to multiple threats")
@@ -1031,7 +1011,6 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 
 // BulkDeleteThreats deletes multiple threats
 // DELETE /threat_models/{threat_model_id}/threats/bulk
-// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: delete up to 20 threats by ID in a single request and return the deleted IDs (mutates shared state)
 func (h *ThreatSubResourceHandler) BulkDeleteThreats(c *gin.Context, threatIDs ThreatIdsQueryParam) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkDeleteThreats - deleting multiple threats")

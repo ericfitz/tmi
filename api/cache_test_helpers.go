@@ -11,7 +11,6 @@ import (
 )
 
 // CacheTestHelper provides utilities for testing Redis cache functionality
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: test utility bundling a CacheService, invalidator, and Redis client for cache integration tests (pure)
 type CacheTestHelper struct {
 	Cache       *CacheService
 	Invalidator *CacheInvalidator
@@ -21,7 +20,6 @@ type CacheTestHelper struct {
 }
 
 // CacheTestScenario defines a test scenario for cache testing
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: declarative specification of a single cache test case including hit/miss/TTL/invalidation expectations (pure)
 type CacheTestScenario struct {
 	Description     string
 	EntityType      string
@@ -35,7 +33,6 @@ type CacheTestScenario struct {
 }
 
 // NewCacheTestHelper creates a new cache test helper
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: build a CacheTestHelper wiring together the cache service, invalidator, and Redis client (pure)
 func NewCacheTestHelper(cache *CacheService, invalidator *CacheInvalidator, redisClient *db.RedisDB) *CacheTestHelper {
 	return &CacheTestHelper{
 		Cache:       cache,
@@ -47,7 +44,6 @@ func NewCacheTestHelper(cache *CacheService, invalidator *CacheInvalidator, redi
 }
 
 // SetupTestCache initializes cache with test data
-// SEM@98c83c6a9092288eead710533517e486c44239b2: populate the Redis cache with standard sub-resource test fixtures (mutates shared state)
 func (h *CacheTestHelper) SetupTestCache(t *testing.T) {
 	t.Helper()
 
@@ -62,7 +58,6 @@ func (h *CacheTestHelper) SetupTestCache(t *testing.T) {
 }
 
 // CacheTestThreat caches a threat for testing
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: store a threat in the Redis cache for test setup (mutates shared state)
 func (h *CacheTestHelper) CacheTestThreat(t *testing.T, threat *Threat) {
 	t.Helper()
 
@@ -73,7 +68,6 @@ func (h *CacheTestHelper) CacheTestThreat(t *testing.T, threat *Threat) {
 }
 
 // CacheTestDocument caches a document for testing
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: store a document into the test cache, failing the test on error
 func (h *CacheTestHelper) CacheTestDocument(t *testing.T, document *Document) {
 	t.Helper()
 
@@ -84,7 +78,6 @@ func (h *CacheTestHelper) CacheTestDocument(t *testing.T, document *Document) {
 }
 
 // CacheTestRepository caches a repository for testing
-// SEM@98c83c6a9092288eead710533517e486c44239b2: store a repository into the test cache, failing the test on error
 func (h *CacheTestHelper) CacheTestRepository(t *testing.T, repository *Repository) {
 	t.Helper()
 
@@ -95,7 +88,6 @@ func (h *CacheTestHelper) CacheTestRepository(t *testing.T, repository *Reposito
 }
 
 // TestCacheThreatOperations tests caching operations for threats
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: validate threat cache hit, miss, and invalidation across test scenarios (pure)
 func (h *CacheTestHelper) TestCacheThreatOperations(t *testing.T, scenarios []CacheTestScenario) {
 	t.Helper()
 
@@ -156,7 +148,6 @@ func (h *CacheTestHelper) TestCacheThreatOperations(t *testing.T, scenarios []Ca
 }
 
 // TestCacheDocumentOperations tests caching operations for documents
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: validate document cache hit, miss, and invalidation across test scenarios (pure)
 func (h *CacheTestHelper) TestCacheDocumentOperations(t *testing.T, scenarios []CacheTestScenario) {
 	t.Helper()
 
@@ -211,7 +202,6 @@ func (h *CacheTestHelper) TestCacheDocumentOperations(t *testing.T, scenarios []
 }
 
 // TestCacheRepositoryOperations tests caching operations for repositories
-// SEM@98c83c6a9092288eead710533517e486c44239b2: validate repository cache hit, miss, and invalidation across test scenarios (pure)
 func (h *CacheTestHelper) TestCacheRepositoryOperations(t *testing.T, scenarios []CacheTestScenario) {
 	t.Helper()
 
@@ -266,7 +256,6 @@ func (h *CacheTestHelper) TestCacheRepositoryOperations(t *testing.T, scenarios 
 }
 
 // TestCacheMetadataOperations tests caching operations for metadata
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: validate metadata cache store, retrieval, and invalidation for an entity (pure)
 func (h *CacheTestHelper) TestCacheMetadataOperations(t *testing.T, entityType, entityID string) {
 	t.Helper()
 
@@ -328,7 +317,6 @@ func (h *CacheTestHelper) TestCacheMetadataOperations(t *testing.T, entityType, 
 }
 
 // TestCacheAuthOperations tests caching operations for authorization data
-// SEM@d628c72c0cdb096a8e1e541018253b05694edeab: validate authorization data cache store, retrieval, and full invalidation (pure)
 func (h *CacheTestHelper) TestCacheAuthOperations(t *testing.T, threatModelID string) {
 	t.Helper()
 
@@ -375,7 +363,6 @@ func (h *CacheTestHelper) TestCacheAuthOperations(t *testing.T, threatModelID st
 }
 
 // TestCacheTTLBehavior tests TTL behavior for cached items
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: validate that cached entries expire after their configured TTL (reads DB)
 func (h *CacheTestHelper) TestCacheTTLBehavior(t *testing.T, scenarios []CacheTestScenario) {
 	t.Helper()
 
@@ -415,7 +402,6 @@ func (h *CacheTestHelper) TestCacheTTLBehavior(t *testing.T, scenarios []CacheTe
 }
 
 // TestCacheConsistency tests cache consistency across operations
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: validate that overwriting a cached threat reflects the updated value (reads DB)
 func (h *CacheTestHelper) TestCacheConsistency(t *testing.T, threatModelID string) {
 	t.Helper()
 
@@ -456,7 +442,6 @@ func (h *CacheTestHelper) TestCacheConsistency(t *testing.T, threatModelID strin
 }
 
 // TestCacheInvalidationStrategies tests different invalidation strategies
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: validate immediate cache invalidation across multiple entity-type strategies (pure)
 func (h *CacheTestHelper) TestCacheInvalidationStrategies(t *testing.T, threatModelID string) {
 	t.Helper()
 
@@ -491,7 +476,6 @@ func (h *CacheTestHelper) TestCacheInvalidationStrategies(t *testing.T, threatMo
 }
 
 // ClearThreatCache clears threat cache for testing
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: delete a threat's Redis cache entry by ID for test isolation (mutates shared state)
 func (h *CacheTestHelper) ClearThreatCache(t *testing.T, threatID string) {
 	t.Helper()
 	key := h.KeyBuilder.CacheThreatKey(threatID)
@@ -502,7 +486,6 @@ func (h *CacheTestHelper) ClearThreatCache(t *testing.T, threatID string) {
 }
 
 // ClearDocumentCache clears document cache for testing
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: delete a document's Redis cache entry by ID for test isolation (mutates shared state)
 func (h *CacheTestHelper) ClearDocumentCache(t *testing.T, documentID string) {
 	t.Helper()
 	key := h.KeyBuilder.CacheDocumentKey(documentID)
@@ -513,7 +496,6 @@ func (h *CacheTestHelper) ClearDocumentCache(t *testing.T, documentID string) {
 }
 
 // ClearRepositoryCache clears repository cache for testing
-// SEM@98c83c6a9092288eead710533517e486c44239b2: delete a repository's Redis cache entry by ID for test isolation (mutates shared state)
 func (h *CacheTestHelper) ClearRepositoryCache(t *testing.T, repositoryID string) {
 	t.Helper()
 	key := h.KeyBuilder.CacheRepositoryKey(repositoryID)
@@ -524,7 +506,6 @@ func (h *CacheTestHelper) ClearRepositoryCache(t *testing.T, repositoryID string
 }
 
 // ClearAllTestCache clears all test cache data
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: delete all test cache entries across every entity-type namespace (mutates shared state)
 func (h *CacheTestHelper) ClearAllTestCache(t *testing.T) {
 	t.Helper()
 
@@ -557,7 +538,6 @@ func (h *CacheTestHelper) ClearAllTestCache(t *testing.T) {
 }
 
 // GetCacheStats returns cache statistics for testing
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: fetch raw Redis INFO stats for cache performance inspection (reads DB)
 func (h *CacheTestHelper) GetCacheStats(t *testing.T) map[string]any {
 	t.Helper()
 
@@ -577,7 +557,6 @@ func (h *CacheTestHelper) GetCacheStats(t *testing.T) map[string]any {
 }
 
 // SetupCacheTestScenarios returns common cache test scenarios
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: build the standard set of hit, miss, invalidation, and TTL cache test scenarios (pure)
 func SetupCacheTestScenarios() []CacheTestScenario {
 	if !SubResourceFixtures.Initialized {
 		InitSubResourceTestFixtures()
@@ -632,7 +611,6 @@ func SetupCacheTestScenarios() []CacheTestScenario {
 }
 
 // VerifyCacheMetrics verifies cache performance metrics
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: validate that the cache service is responsive by performing a read-write probe (reads DB)
 func (h *CacheTestHelper) VerifyCacheMetrics(t *testing.T, expectedHitRatio float64) {
 	t.Helper()
 

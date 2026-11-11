@@ -25,14 +25,12 @@ const (
 )
 
 // apiClient holds the auth context for API seeding.
-// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: authenticated API client bundling bearer token and optional DB connection
 type apiClient struct {
 	serverURL string
 	token     string
 	db        *testdb.TestDB
 }
 
-// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: build an authenticated API client configured for a server URL and bearer token
 func newAPIClient(serverURL, token string) *apiClient {
 	return &apiClient{
 		serverURL: serverURL,
@@ -40,7 +38,6 @@ func newAPIClient(serverURL, token string) *apiClient {
 	}
 }
 
-// SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: fetch a bearer token for a user by polling the local OAuth stub flow
 func authenticateViaOAuthStub(serverURL, user, provider string) (string, error) {
 	log := slogging.Get()
 	oauthStubURL := fmt.Sprintf("http://localhost:%d", oauthStubPort)
@@ -106,7 +103,6 @@ func authenticateViaOAuthStub(serverURL, user, provider string) (string, error) 
 	return "", fmt.Errorf("OAuth flow timed out after 30 seconds")
 }
 
-// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: dispatch a seed entry to the appropriate API seeder by resource kind
 func seedViaAPI(serverURL, token string, entry SeedEntry, refs RefMap, db *testdb.TestDB) (*SeedResult, error) {
 	client := newAPIClient(serverURL, token)
 	client.db = db
@@ -170,27 +166,22 @@ func seedViaAPI(serverURL, token string, entry SeedEntry, refs RefMap, db *testd
 
 // --- Idempotency helpers ---
 
-// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: fetch the ID of a threat model by name, returning empty if absent
 func (c *apiClient) findExistingTM(name string) string {
 	return c.findExistingByNameHTTP("/threat_models", "threat_models", name)
 }
 
-// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: fetch the ID of a team by name, returning empty if absent
 func (c *apiClient) findExistingTeam(name string) string {
 	return c.findExistingByNameHTTP("/teams", "teams", name)
 }
 
-// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: fetch the ID of a project by name, returning empty if absent
 func (c *apiClient) findExistingProject(name string) string {
 	return c.findExistingByNameHTTP("/projects", "projects", name)
 }
 
-// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: fetch the ID of a webhook subscription by name, returning empty if absent
 func (c *apiClient) findExistingWebhook(name string) string {
 	return c.findExistingByNameHTTP("/admin/webhooks/subscriptions", "subscriptions", name)
 }
 
-// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: fetch the ID of a survey by name, trying admin then intake endpoints
 func (c *apiClient) findExistingSurvey(name string) string {
 	log := slogging.Get()
 	// Try admin endpoint, then intake endpoint as fallback
@@ -214,7 +205,6 @@ func (c *apiClient) findExistingSurvey(name string) string {
 // Most TMI collections are name/id shaped, but /admin/groups matches on
 // group_name and identifies rows by internal_uuid, so both the match field and
 // the id field are parameters rather than assumptions.
-// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: search a list endpoint by field and return the matching resource ID (reads API)
 func (c *apiClient) findExistingByFieldHTTP(path, itemsKey, matchKey, want, idKey string) string {
 	result, status, err := c.apiRequest("GET", path+"?limit=100", nil)
 	if err != nil || status >= 300 {
@@ -243,7 +233,6 @@ func (c *apiClient) findExistingByFieldHTTP(path, itemsKey, matchKey, want, idKe
 }
 
 // findExistingByNameHTTP finds a resource by its name property and returns its id.
-// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: search a list endpoint by name and return the matching resource ID (reads API)
 func (c *apiClient) findExistingByNameHTTP(path, itemsKey, name string) string {
 	return c.findExistingByFieldHTTP(path, itemsKey, "name", name, "id")
 }
@@ -254,8 +243,6 @@ func (c *apiClient) findExistingByNameHTTP(path, itemsKey, name string) string {
 // Deliveries have no name to match on, so this filters by subscription_id
 // rather than going through findExistingByFieldHTTP (which also owns the query
 // string and so cannot carry an extra filter).
-// SEM@none: fetch the ID of an existing webhook delivery for a subscription, returning empty if absent
-// SEM@e8d9e23927681c41551b5fb90464e5bd976c1c50: fetch the id of an existing delivery for a webhook subscription, empty if none (reads API)
 func (c *apiClient) findExistingWebhookDelivery(subscriptionID string) string {
 	path := fmt.Sprintf("/admin/webhooks/deliveries?subscription_id=%s&limit=100",
 		neturl.QueryEscape(subscriptionID))
@@ -287,7 +274,6 @@ func (c *apiClient) findExistingWebhookDelivery(subscriptionID string) string {
 // findFirstIDHTTP returns the id of the first item in a listing, for resources
 // that have no name to match on (content feedback). Empty if the listing is
 // empty or unreachable.
-// SEM@c08cdcaa7bf770029c89db2c819eb12680bfe4b5: fetch the id of the first item in an API listing, returning empty if absent (reads API)
 func (c *apiClient) findFirstIDHTTP(path, itemsKey string) string {
 	result, status, err := c.apiRequest("GET", path+"?limit=1", nil)
 	if err != nil || status >= 300 {
@@ -307,14 +293,12 @@ func (c *apiClient) findFirstIDHTTP(path, itemsKey string) string {
 
 // AdminGroup matches on group_name and identifies rows by internal_uuid rather
 // than id, which is why the generic by-field helper exists.
-// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: fetch the internal UUID of an admin group by group name, returning empty if absent
 func (c *apiClient) findExistingGroup(groupName string) string {
 	return c.findExistingByFieldHTTP("/admin/groups", "groups", "group_name", groupName, "internal_uuid")
 }
 
 // findExistingSurveyResponse returns the ID and status of the current user's
 // response to the given survey, or empty strings if there is none.
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: fetch the ID and status of the caller's response to a survey
 func (c *apiClient) findExistingSurveyResponse(surveyID string) (id, status string) {
 	result, code, err := c.apiRequest("GET", "/intake/survey_responses?limit=100", nil)
 	if err != nil || code >= 300 {
@@ -338,14 +322,12 @@ func (c *apiClient) findExistingSurveyResponse(surveyID string) (id, status stri
 }
 
 // findExistingClientCredential checks if the current user already has a credential with the given name.
-// SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: fetch the ID of a client credential by name for the current user
 func (c *apiClient) findExistingClientCredential(name string) string {
 	return c.findExistingByNameHTTP("/me/client_credentials", "credentials", name)
 }
 
 // --- Seed handlers ---
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: create a threat model via API, skipping if one with the same name exists
 func (c *apiClient) seedThreatModel(entry SeedEntry, _ RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -364,7 +346,6 @@ func (c *apiClient) seedThreatModel(entry SeedEntry, _ RefMap) (*SeedResult, err
 	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
 }
 
-// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: apply JSON Patch operations to a threat model, falling back to DB for owner transfer
 func (c *apiClient) seedTMPatch(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -439,7 +420,6 @@ func (c *apiClient) seedTMPatch(entry SeedEntry, refs RefMap) (*SeedResult, erro
 // transferOwnerViaDB sets threat model ownership directly in the database.
 // This is a fallback for when the API ownership transfer fails due to
 // server identity matching bugs (see #253).
-// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: update a threat model's owner directly in the database as an API fallback (writes DB)
 func (c *apiClient) transferOwnerViaDB(tmID string, patch map[string]any) error {
 	log := slogging.Get()
 
@@ -503,20 +483,17 @@ func (c *apiClient) transferOwnerViaDB(tmID string, patch map[string]any) error 
 // the spec (PUT replaces members, responsible parties and fields). Skipping an
 // existing team left it as it was: after its users had been deleted it kept
 // members=[] forever, and the spec's memberships never came back.
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: create or reconcile a team to its seed spec via API
 func (c *apiClient) seedTeam(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	name, _ := entry.Data["name"].(string)
 	return c.seedTeamOrProject(entry, refs, "/teams", c.findExistingTeam(name))
 }
 
 // seedProject creates or reconciles a project; see seedTeam.
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: create or reconcile a project to its seed spec via API
 func (c *apiClient) seedProject(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	name, _ := entry.Data["name"].(string)
 	return c.seedTeamOrProject(entry, refs, "/projects", c.findExistingProject(name))
 }
 
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: create or replace a team or project, then replace its metadata (writes API)
 func (c *apiClient) seedTeamOrProject(entry SeedEntry, refs RefMap, collection, existingID string) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -564,7 +541,6 @@ func (c *apiClient) seedTeamOrProject(entry SeedEntry, refs RefMap, collection, 
 // and team_ref to IDs and splits off metadata, which has its own endpoint.
 // An unresolvable ref is an error: dropping the entry would seed a team
 // without a member the spec declares.
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: resolve user and team refs in a team or project payload (pure)
 func buildTeamOrProjectPayload(data map[string]any, refs RefMap) (map[string]any, []map[string]any, error) {
 	payload := copyMap(data)
 
@@ -604,7 +580,6 @@ func buildTeamOrProjectPayload(data map[string]any, refs RefMap) (map[string]any
 	return payload, metadata, nil
 }
 
-// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: create an admin group via API, skipping if one with the same name exists
 func (c *apiClient) seedGroup(entry SeedEntry, _ RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -635,7 +610,6 @@ func (c *apiClient) seedGroup(entry SeedEntry, _ RefMap) (*SeedResult, error) {
 	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: add a user to a group via API, tolerating 409 if already a member
 func (c *apiClient) seedGroupMember(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -683,7 +657,6 @@ func (c *apiClient) seedGroupMember(entry SeedEntry, refs RefMap) (*SeedResult, 
 	return &SeedResult{Kind: entry.Kind, ID: userUUID}, nil
 }
 
-// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: create a threat-model child resource via API, skipping if one with the same name exists
 func (c *apiClient) seedChildResource(entry SeedEntry, refs RefMap, refField, resourcePath string) (*SeedResult, error) {
 	return c.seedNestedResource(entry, refs, refField, "threat_models", "threat_model_id", resourcePath)
 }
@@ -696,7 +669,6 @@ func (c *apiClient) seedChildResource(entry SeedEntry, refs RefMap, refField, re
 // parentCollection is the URL segment ("teams"), parentIDKey the name the
 // resolved parent id is published under in Extra so the reference file can
 // emit it.
-// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: create a resource nested under a parent collection via API, skipping same-named duplicates
 func (c *apiClient) seedNestedResource(
 	entry SeedEntry, refs RefMap, refField, parentCollection, parentIDKey, resourcePath string,
 ) (*SeedResult, error) {
@@ -752,7 +724,6 @@ func (c *apiClient) seedNestedResource(
 // entry and an existing one is reused. target_ref names the seed ref of the
 // artifact the feedback is about (a note, diagram or threat) and is resolved
 // to target_id here — a fabricated UUID would 404.
-// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: create a content-feedback entry on a threat model, reusing an existing one
 func (c *apiClient) seedFeedback(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -798,7 +769,6 @@ func (c *apiClient) seedFeedback(entry SeedEntry, refs RefMap) (*SeedResult, err
 	}, nil
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: update a diagram's cells and name via API PUT, replacing existing content
 func (c *apiClient) seedDiagramUpdate(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -838,7 +808,6 @@ func (c *apiClient) seedDiagramUpdate(entry SeedEntry, refs RefMap) (*SeedResult
 	}}, nil
 }
 
-// SEM@869f9bc78ec9e1c5d66cf3ac70991b70d07f20e1: create a webhook subscription via API, skipping if one with the same name exists
 func (c *apiClient) seedWebhook(entry SeedEntry, _ RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -884,7 +853,6 @@ func (c *apiClient) seedWebhook(entry SeedEntry, _ RefMap) (*SeedResult, error) 
 // pinSeededWebhook pins a seeded webhook, logging rather than failing on error:
 // an unpinned fixture still works, it is just mortal, and seeding a usable
 // dataset matters more than the pin.
-// SEM@869f9bc78ec9e1c5d66cf3ac70991b70d07f20e1: pin a seeded webhook, downgrading failure to a warning (writes DB)
 func (c *apiClient) pinSeededWebhook(id string) {
 	if err := c.pinWebhookViaDB(id); err != nil {
 		slogging.Get().Warn("  could not pin webhook %s (it may be auto-deleted during long runs): %v", id, err)
@@ -915,7 +883,6 @@ func (c *apiClient) pinSeededWebhook(id string) {
 // the API the rest of seeding uses — hence the direct write. Uses GORM's model
 // mapping rather than raw SQL so the column identifier is cased per dialect;
 // Oracle folds unquoted identifiers to uppercase.
-// SEM@e8d9e23927681c41551b5fb90464e5bd976c1c50: mark a seeded webhook subscription operator-pinned so cleanup cannot delete it (writes DB)
 func (c *apiClient) pinWebhookViaDB(id string) error {
 	return c.setWebhookPinnedViaDB(id, true)
 }
@@ -929,8 +896,6 @@ func (c *apiClient) pinWebhookViaDB(id string) error {
 // Oracle ADB is exactly where ORA-03113/ORA-12537 and Always Free auto-stop
 // surface; without a retry a single blip would leave the CATS anchor unpinned
 // and mortal. Writing a fixed boolean is idempotent, so a replay is harmless.
-// SEM@none: set or clear the operator-pinned flag on a webhook subscription, retrying transient errors (writes DB)
-// SEM@e8d9e23927681c41551b5fb90464e5bd976c1c50: update the operator-pinned flag on a webhook subscription, retrying transient errors (writes DB)
 func (c *apiClient) setWebhookPinnedViaDB(id string, pinned bool) error {
 	if c.db == nil {
 		return fmt.Errorf("no database connection available")
@@ -958,8 +923,6 @@ func (c *apiClient) setWebhookPinnedViaDB(id string, pinned bool) error {
 // webhookIsPinnedViaDB reports whether a subscription is operator-pinned.
 // Retries transient errors so a momentary ADB blip does not read as "not
 // pinned" and skip the unpin the caller needs.
-// SEM@none: report whether a webhook subscription is operator-pinned (reads DB)
-// SEM@e8d9e23927681c41551b5fb90464e5bd976c1c50: fetch the operator-pinned flag of a webhook subscription (reads DB)
 func (c *apiClient) webhookIsPinnedViaDB(id string) (bool, error) {
 	if c.db == nil {
 		return false, fmt.Errorf("no database connection available")
@@ -982,8 +945,6 @@ func (c *apiClient) webhookIsPinnedViaDB(id string) (bool, error) {
 // delivery, because the cleanup worker can then destroy the CATS anchor
 // mid-campaign and invalidate the whole run (#708/#709) with nothing but a log
 // line to show for it. The caller turns a failure here into a failed seed.
-// SEM@none: restore and verify the operator-pinned flag on a webhook subscription (writes DB)
-// SEM@e8d9e23927681c41551b5fb90464e5bd976c1c50: update a webhook subscription back to operator-pinned and validate it stuck (writes DB)
 func (c *apiClient) restoreWebhookPin(id string) error {
 	if err := c.setWebhookPinnedViaDB(id, true); err != nil {
 		return fmt.Errorf("failed to restore operator_pinned on webhook %s: %w", id, err)
@@ -1000,7 +961,6 @@ func (c *apiClient) restoreWebhookPin(id string) error {
 	return nil
 }
 
-// SEM@e8d9e23927681c41551b5fb90464e5bd976c1c50: trigger a test delivery for a webhook subscription and return the delivery ID
 func (c *apiClient) seedWebhookTestDelivery(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -1037,8 +997,6 @@ func (c *apiClient) seedWebhookTestDelivery(entry SeedEntry, refs RefMap) (*Seed
 // the trigger and restores it afterwards. The unpinned window is a single
 // request long and occurs before any campaign starts, so the cleanup worker has
 // no realistic opportunity to act on it.
-// SEM@none: trigger a webhook test delivery, unpinning and repinning the subscription if needed (writes DB)
-// SEM@e8d9e23927681c41551b5fb90464e5bd976c1c50: dispatch a webhook test delivery, unpinning the subscription if required (writes DB)
 func (c *apiClient) triggerWebhookTestDelivery(webhookID string) (deliveryID string, err error) {
 	log := slogging.Get()
 
@@ -1084,7 +1042,6 @@ func (c *apiClient) triggerWebhookTestDelivery(webhookID string) (deliveryID str
 	return deliveryID, nil
 }
 
-// SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: create an addon via API with resolved webhook and threat model refs, skipping if present
 func (c *apiClient) seedAddon(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -1124,7 +1081,6 @@ func (c *apiClient) seedAddon(entry SeedEntry, refs RefMap) (*SeedResult, error)
 	return &SeedResult{Ref: entry.Ref, Kind: kindAddon, ID: id}, nil
 }
 
-// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: create a survey via admin API, skipping or recovering if already present
 func (c *apiClient) seedSurvey(entry SeedEntry, _ RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -1168,7 +1124,6 @@ func (c *apiClient) seedSurvey(entry SeedEntry, _ RefMap) (*SeedResult, error) {
 // spec's status. The server ignores status and authorization on create and
 // makes the caller the owner, so runDataSeed hands this seeder a token for the
 // spec's user (seedActAsUser), and submission is a separate PATCH.
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: create or reuse the caller's survey response and move it to spec status
 func (c *apiClient) seedSurveyResponse(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -1217,7 +1172,6 @@ func (c *apiClient) seedSurveyResponse(entry SeedEntry, refs RefMap) (*SeedResul
 // the spec's. Only draft and submitted are seedable (validateSurveyResponses);
 // a response already past the wanted status cannot be moved back through the
 // intake API, so that is an error naming the fix rather than a silent mismatch.
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: submit a survey response when the spec wants submitted, else reject (writes API)
 func (c *apiClient) reconcileSurveyResponseStatus(id, current, want string) error {
 	if want == "" || want == current {
 		return nil
@@ -1238,7 +1192,6 @@ func (c *apiClient) reconcileSurveyResponseStatus(id, current, want string) erro
 		"delete the response and seed again", id, current, want)
 }
 
-// SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: create a top-level resource at a given API path, skipping if already present
 func (c *apiClient) seedTopLevel(entry SeedEntry, path string) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -1259,7 +1212,6 @@ func (c *apiClient) seedTopLevel(entry SeedEntry, path string) (*SeedResult, err
 	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
 }
 
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: attach a key-value metadata entry to a supported seeded target via API
 func (c *apiClient) seedMetadata(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -1323,7 +1275,6 @@ func (c *apiClient) seedMetadata(entry SeedEntry, refs RefMap) (*SeedResult, err
 
 // --- HTTP helpers ---
 
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: execute an authenticated JSON request and return the object response with status
 func (c *apiClient) apiRequest(method, path string, payload any) (map[string]any, int, error) {
 	result, status, err := c.apiRequestAny(method, path, payload)
 	if err != nil {
@@ -1341,12 +1292,10 @@ func (c *apiClient) apiRequest(method, path string, payload any) (map[string]any
 
 // apiRequestAny is apiRequest for endpoints whose response body may be a JSON
 // array (the metadata bulk endpoints).
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: execute an authenticated JSON request and return a response of any shape
 func (c *apiClient) apiRequestAny(method, path string, payload any) (any, int, error) {
 	return c.apiRequestWithType(method, path, payload, "application/json")
 }
 
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: execute an authenticated request with a given content type and parse the reply
 func (c *apiClient) apiRequestWithType(method, path string, payload any, contentType string) (any, int, error) {
 	var body io.Reader
 	if payload != nil {
@@ -1389,7 +1338,6 @@ func (c *apiClient) apiRequestWithType(method, path string, payload any, content
 	return result, resp.StatusCode, nil
 }
 
-// SEM@c08cdcaa7bf770029c89db2c819eb12680bfe4b5: POST a resource to the API and return the created object's ID (writes API)
 func (c *apiClient) createAPIObject(name, path string, payload any) (string, error) {
 	log := slogging.Get()
 	log.Info("  Creating %s...", name)
@@ -1421,7 +1369,6 @@ const (
 )
 
 // auditEntryCapture describes one audit listing to harvest an entry id from.
-// SEM@27f3772fc6f3f53382ff01e0a9b73204f0c5e377: audit listing to harvest an entry id from after seeding (pure)
 type auditEntryCapture struct {
 	Kind     string // seed kind the captured id is registered under
 	ListPath string // collection to read (may contain a %s for the threat model id)
@@ -1449,7 +1396,6 @@ var auditEntryCaptures = []auditEntryCapture{
 // Best-effort by design: an empty audit table or an unreachable endpoint
 // leaves that family without an id, exactly as before this existed. A seed
 // must not fail because a listing happened to be empty.
-// SEM@27f3772fc6f3f53382ff01e0a9b73204f0c5e377: harvest one audit entry id per audit family after seeding (reads API)
 func (c *apiClient) captureAuditEntryIDs(refs RefMap, threatModelID string) {
 	log := slogging.Get()
 	for _, capture := range auditEntryCaptures {
@@ -1494,7 +1440,6 @@ func (c *apiClient) captureAuditEntryIDs(refs RefMap, threatModelID string) {
 // within its survey response" — and encoding/json decodes those as float64.
 // A string-only assertion rejected them with "no 'id' field in response",
 // which is both wrong and misleading, since the field was right there.
-// SEM@c08cdcaa7bf770029c89db2c819eb12680bfe4b5: render a resource id from a decoded JSON string or number (pure)
 func extractID(v any) (string, bool) {
 	switch id := v.(type) {
 	case string:
@@ -1513,7 +1458,6 @@ func extractID(v any) (string, bool) {
 	}
 }
 
-// SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: shallow-copy a string-keyed map (pure)
 func copyMap(m map[string]any) map[string]any {
 	cp := make(map[string]any, len(m))
 	for k, v := range m {
@@ -1522,7 +1466,6 @@ func copyMap(m map[string]any) map[string]any {
 	return cp
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert a seed kind string to its API resource path segment (pure)
 func pluralizeKind(kind string) string {
 	switch kind {
 	case kindThreat:

@@ -15,7 +15,6 @@ import (
 )
 
 // ProjectNoteStoreInterface defines the store interface for project notes
-// SEM@f860641a78901543e88ebd0a603a69bd4db1d696: define CRUD and patch operations for persistent project note storage
 type ProjectNoteStoreInterface interface {
 	Create(ctx context.Context, note *ProjectNote, projectID string) (*ProjectNote, error)
 	Get(ctx context.Context, id string) (*ProjectNote, error)
@@ -30,19 +29,16 @@ type ProjectNoteStoreInterface interface {
 }
 
 // GormProjectNoteStore implements ProjectNoteStoreInterface using GORM
-// SEM@f860641a78901543e88ebd0a603a69bd4db1d696: GORM-backed implementation of ProjectNoteStoreInterface (reads DB)
 type GormProjectNoteStore struct {
 	db *gorm.DB
 }
 
 // NewGormProjectNoteStore creates a new GORM-backed project note store
-// SEM@f860641a78901543e88ebd0a603a69bd4db1d696: build a GORM-backed project note store from a database connection (pure)
 func NewGormProjectNoteStore(db *gorm.DB) *GormProjectNoteStore {
 	return &GormProjectNoteStore{db: db}
 }
 
 // projectNoteToRecord converts an API ProjectNote to a GORM record
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert an API ProjectNote to its GORM database record (pure)
 func projectNoteToRecord(note *ProjectNote, projectID string) *models.ProjectNoteRecord {
 	record := &models.ProjectNoteRecord{
 		ProjectID: models.DBVarchar(projectID),
@@ -71,7 +67,6 @@ func projectNoteToRecord(note *ProjectNote, projectID string) *models.ProjectNot
 }
 
 // projectNoteFromRecord converts a GORM record to an API ProjectNote
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a GORM database record to an API ProjectNote (pure)
 func projectNoteFromRecord(record *models.ProjectNoteRecord) *ProjectNote {
 	id := uuid.MustParse(string(record.ID))
 	sharable := bool(record.Sharable)
@@ -92,7 +87,6 @@ func projectNoteFromRecord(record *models.ProjectNoteRecord) *ProjectNote {
 }
 
 // projectNoteListItemFromRecord converts a GORM record to an API ProjectNoteListItem
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a GORM database record to a ProjectNoteListItem summary (pure)
 func projectNoteListItemFromRecord(record *models.ProjectNoteRecord) ProjectNoteListItem {
 	id := uuid.MustParse(string(record.ID))
 	sharable := bool(record.Sharable)
@@ -112,7 +106,6 @@ func projectNoteListItemFromRecord(record *models.ProjectNoteRecord) ProjectNote
 }
 
 // Create creates a new project note
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new project note under a verified parent project (mutates DB)
 func (s *GormProjectNoteStore) Create(ctx context.Context, note *ProjectNote, projectID string) (*ProjectNote, error) {
 	logger := slogging.Get()
 
@@ -153,7 +146,6 @@ func (s *GormProjectNoteStore) Create(ctx context.Context, note *ProjectNote, pr
 }
 
 // Get retrieves a project note by ID
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a single project note by ID (reads DB)
 func (s *GormProjectNoteStore) Get(ctx context.Context, id string) (*ProjectNote, error) {
 	logger := slogging.Get()
 
@@ -172,7 +164,6 @@ func (s *GormProjectNoteStore) Get(ctx context.Context, id string) (*ProjectNote
 }
 
 // Update replaces a project note
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: replace all fields of a project note within its parent project (reads DB)
 func (s *GormProjectNoteStore) Update(ctx context.Context, id string, note *ProjectNote, projectID string) (*ProjectNote, error) {
 	logger := slogging.Get()
 
@@ -219,7 +210,6 @@ func (s *GormProjectNoteStore) Update(ctx context.Context, id string, note *Proj
 }
 
 // Delete deletes a project note
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: delete a project note by ID, returning not-found if absent (reads DB)
 func (s *GormProjectNoteStore) Delete(ctx context.Context, id string) error {
 	logger := slogging.Get()
 
@@ -240,7 +230,6 @@ func (s *GormProjectNoteStore) Delete(ctx context.Context, id string) error {
 
 // Patch applies JSON Patch operations to a project note, runs check on the
 // result, and persists it.
-// SEM@d276bf5e1126f3d0a1dcda0c73c3a265feffa704: apply JSON Patch operations to a project note, validate the result with a caller check, and persist it (reads DB)
 func (s *GormProjectNoteStore) Patch(ctx context.Context, id string, operations []PatchOperation, check func(before, after *ProjectNote) error) (*ProjectNote, error) {
 	logger := slogging.Get()
 
@@ -280,7 +269,6 @@ func (s *GormProjectNoteStore) Patch(ctx context.Context, id string, operations 
 }
 
 // List returns a paginated list of project notes for a project
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a paginated list of project notes for a project, optionally filtering by sharability (reads DB)
 func (s *GormProjectNoteStore) List(ctx context.Context, projectID string, offset, limit int, includeNonSharable bool) ([]ProjectNoteListItem, int, error) {
 	logger := slogging.Get()
 
@@ -317,7 +305,6 @@ func (s *GormProjectNoteStore) List(ctx context.Context, projectID string, offse
 }
 
 // Count returns the number of project notes for a project
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: count project notes for a project, optionally filtering by sharability (reads DB)
 func (s *GormProjectNoteStore) Count(ctx context.Context, projectID string, includeNonSharable bool) (int, error) {
 	logger := slogging.Get()
 

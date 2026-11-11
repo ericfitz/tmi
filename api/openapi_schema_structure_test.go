@@ -13,17 +13,14 @@ import (
 )
 
 // diagramSchemaScope reports whether a component schema belongs to the diagram family (#956).
-// SEM@628e6237bbdddb23ba8010625b30d9e4801667a2: decide whether a component schema is a diagram or cell schema (pure)
 func diagramSchemaScope(name string) bool {
 	return name == "Node" || name == "Edge" || strings.Contains(name, "Diagram") || strings.Contains(name, "Cell")
 }
 
-// SEM@628e6237bbdddb23ba8010625b30d9e4801667a2: resolve a local component $ref to its schema name (pure)
 func refName(ref string) string {
 	return strings.TrimPrefix(ref, "#/components/schemas/")
 }
 
-// SEM@628e6237bbdddb23ba8010625b30d9e4801667a2: collect property names a schema declares, following allOf refs (pure)
 func declaredProps(schemas map[string]map[string]any, name string, seen map[string]bool) map[string]bool {
 	out := map[string]bool{}
 	if seen[name] {
@@ -53,7 +50,6 @@ func declaredProps(schemas map[string]map[string]any, name string, seen map[stri
 	return out
 }
 
-// SEM@628e6237bbdddb23ba8010625b30d9e4801667a2: validate diagram schemas have no redeclared allOf properties or misplaced discriminators (test)
 func TestDiagramSchemaStructure(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "api-schema", "tmi-openapi.json"))
 	require.NoError(t, err)

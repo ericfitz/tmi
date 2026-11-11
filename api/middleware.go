@@ -18,7 +18,6 @@ import (
 )
 
 // LogLevel represents logging verbosity
-// SEM@386eea01f3b66c35027bf3ca762efbc291419e20: enumerate logging verbosity levels (pure)
 type LogLevel int
 
 const (
@@ -33,7 +32,6 @@ const (
 )
 
 // ParseLogLevel converts a string log level to LogLevel
-// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: convert a log-level string to its LogLevel constant (pure)
 func ParseLogLevel(level string) LogLevel {
 	switch strings.ToLower(level) {
 	case LogLevelDebugStr:
@@ -50,7 +48,6 @@ func ParseLogLevel(level string) LogLevel {
 }
 
 // SecurityHeaders middleware adds security headers to all responses
-// SEM@a1d7f44f9fbf44b654abfc81c5b3770eb540ecb0: attach OWASP security headers (CSP, X-Frame-Options, etc.) to every response
 func SecurityHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Prevent MIME type sniffing
@@ -92,7 +89,6 @@ func SecurityHeaders() gin.HandlerFunc {
 }
 
 // HSTSMiddleware adds Strict-Transport-Security header when TLS is enabled
-// SEM@8bc458fb71c00d05590f369b09ca1dcf7de7819d: add Strict-Transport-Security header when TLS is enabled
 func HSTSMiddleware(tlsEnabled bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if tlsEnabled {
@@ -106,7 +102,6 @@ func HSTSMiddleware(tlsEnabled bool) gin.HandlerFunc {
 // CORS middleware to handle Cross-Origin Resource Sharing.
 // In dev mode, any origin is reflected (permissive but spec-correct).
 // In production, only origins in allowedOrigins are permitted.
-// SEM@5d36fbba264b6e4f105d4eb316e4f509c58d7300: handle CORS preflight and set allowed-origin headers per environment mode
 func CORS(allowedOrigins []string, isDev bool) gin.HandlerFunc {
 	// Build a set for O(1) lookup
 	originSet := make(map[string]bool, len(allowedOrigins))
@@ -151,7 +146,6 @@ func CORS(allowedOrigins []string, isDev bool) gin.HandlerFunc {
 }
 
 // ContextTimeout adds a timeout to the request context
-// SEM@386eea01f3b66c35027bf3ca762efbc291419e20: attach a deadline to the request context to enforce a per-request timeout
 func ContextTimeout(timeout time.Duration) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Create a new context with timeout
@@ -183,7 +177,6 @@ var ErrAccessDenied = errors.New("access denied")
 
 // GetUserRole determines the role of the user for a given threat model.
 // Uses SamePrincipal for identity matching via AccessCheckWithGroups.
-// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: compute the highest role a user holds on a threat model (pure)
 func GetUserRole(user ResolvedUser, groups []string, threatModel ThreatModel) Role {
 	authData := threatModelAuthorizationData(threatModel)
 
@@ -205,7 +198,6 @@ func GetUserRole(user ResolvedUser, groups []string, threatModel ThreatModel) Ro
 
 // CheckThreatModelAccess checks if a user has required access to a threat model.
 // Uses SamePrincipal for identity matching via AccessCheckWithGroups.
-// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: authorize a user against a required role on a threat model, returning an error if denied (pure)
 func CheckThreatModelAccess(user ResolvedUser, groups []string, threatModel ThreatModel, requiredRole Role) error {
 	if AccessCheckWithGroups(user, groups, requiredRole, threatModelAuthorizationData(threatModel)) {
 		return nil
@@ -215,7 +207,6 @@ func CheckThreatModelAccess(user ResolvedUser, groups []string, threatModel Thre
 }
 
 // threatModelAuthorizationData builds the authorization data (owner plus grants) for a threat model.
-// SEM@c7039d153fb60131dc2f56eee92fda73ada25885: build authorization data from a threat model's owner and grants (pure)
 func threatModelAuthorizationData(threatModel ThreatModel) AuthorizationData {
 	var authSlice []Authorization
 	if threatModel.Authorization != nil {
@@ -229,7 +220,6 @@ func threatModelAuthorizationData(threatModel ThreatModel) AuthorizationData {
 }
 
 // ThreatModelMiddleware creates middleware for threat model authorization
-// SEM@8fa90ed6c2a4a20c3a5b7d508736a882e9c647a0: enforce threat model authorization for unannotated routes, delegating to legacy logic
 func ThreatModelMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.GetContextLogger(c)
@@ -264,7 +254,6 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 // /threat_models/* routes that have not yet been annotated with x-tmi-authz.
 // Once #371 (slice 8) lands and every operation is annotated, the entire
 // ThreatModelMiddleware closure can be deleted.
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: enforce ownership-based authorization on /threat_models/* routes not yet covered by x-tmi-authz
 func threatModelMiddlewareLegacy(c *gin.Context, logger slogging.SimpleLogger) {
 	userID, exists := c.Get("userEmail")
 	if !exists {
@@ -388,7 +377,6 @@ func threatModelMiddlewareLegacy(c *gin.Context, logger slogging.SimpleLogger) {
 // requiredRoleForLegacyMethod returns the required role for a /threat_models/*
 // route based on the HTTP method, or false if the method has no rule (let the
 // router 405 it).
-// SEM@8fa90ed6c2a4a20c3a5b7d508736a882e9c647a0: map an HTTP method to the minimum role required on a threat-model route (pure)
 func requiredRoleForLegacyMethod(method string, isRestoreRoute bool) (Role, bool) {
 	switch method {
 	case http.MethodGet:
@@ -408,7 +396,6 @@ func requiredRoleForLegacyMethod(method string, isRestoreRoute bool) (Role, bool
 
 // loadMiddlewareAuthData loads lightweight authorization data for a threat model,
 // checking Redis cache first (for non-restore routes) and falling back to the store.
-// SEM@2ec29b7908cd546e20f3bbf1ad51b2c76e52c70d: fetch threat model authorization and owner from cache or store (reads DB)
 func loadMiddlewareAuthData(ctx context.Context, id string, isRestoreRoute bool) ([]Authorization, User, error) {
 	// Try cache first (non-restore routes only)
 	if !isRestoreRoute && GlobalCacheService != nil {
@@ -444,7 +431,6 @@ func loadMiddlewareAuthData(ctx context.Context, id string, isRestoreRoute bool)
 
 // getUserRoleFromAuthData determines the highest role a user has from lightweight auth data.
 // This avoids loading the full ThreatModel just to check role membership.
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: compute the highest role a user holds from pre-loaded authorization data (pure)
 func getUserRoleFromAuthData(user ResolvedUser, groups []string, authData AuthorizationData) Role {
 	switch {
 	case AccessCheckWithGroups(user, groups, RoleOwner, authData):
@@ -459,7 +445,6 @@ func getUserRoleFromAuthData(user ResolvedUser, groups []string, authData Author
 }
 
 // DiagramMiddleware creates middleware for diagram authorization
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: enforce role-based authorization on /diagrams/* routes and set diagram context
 func DiagramMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get logger from context
@@ -618,7 +603,6 @@ func DiagramMiddleware() gin.HandlerFunc {
 
 // GetUserRoleForDiagram determines the role of the user for a given diagram.
 // Uses SamePrincipal for identity matching via GetUserRole.
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: compute the user's role on a diagram by inheriting from its parent threat model (reads DB)
 func GetUserRoleForDiagram(user ResolvedUser, groups []string, diagram DfdDiagram) Role {
 	// Diagrams inherit permissions from their parent threat model
 	// For database-backed diagrams, we need to find the parent threat model
@@ -646,23 +630,19 @@ func GetUserRoleForDiagram(user ResolvedUser, groups []string, diagram DfdDiagra
 }
 
 // NewReadCloser creates a new io.ReadCloser from a byte slice
-// SEM@386eea01f3b66c35027bf3ca762efbc291419e20: io.ReadCloser wrapping a strings.Reader with a no-op Close (pure)
 type readCloser struct {
 	*strings.Reader
 }
 
-// SEM@386eea01f3b66c35027bf3ca762efbc291419e20: satisfy io.Closer with a no-op for the in-memory read-closer (pure)
 func (r readCloser) Close() error {
 	return nil
 }
 
-// SEM@386eea01f3b66c35027bf3ca762efbc291419e20: build an io.ReadCloser from a byte slice for body restoration (pure)
 func NewReadCloser(b []byte) *readCloser {
 	return &readCloser{strings.NewReader(string(b))}
 }
 
 // LogRequest logs debug information about the request
-// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: log request method, path, headers, and body at debug level
 func LogRequest(c *gin.Context, prefix string) {
 	// Get logger from context
 	logger := slogging.GetContextLogger(c)
@@ -688,7 +668,6 @@ func LogRequest(c *gin.Context, prefix string) {
 
 // CheckDiagramAccess checks if a user has required access to a diagram.
 // Uses SamePrincipal for identity matching via GetUserRoleForDiagram.
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: authorize a user against a required role on a diagram, returning an error if denied (reads DB)
 func CheckDiagramAccess(user ResolvedUser, groups []string, diagram DfdDiagram, requiredRole Role) error {
 	userRole := GetUserRoleForDiagram(user, groups, diagram)
 
@@ -720,7 +699,6 @@ func CheckDiagramAccess(user ResolvedUser, groups []string, diagram DfdDiagram, 
 // ValidateSubResourceAccess creates middleware for sub-resource authorization with caching
 // This middleware validates access to sub-resources (threats, documents, sources) by inheriting
 // permissions from their parent threat model
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: enforce inherited threat-model authorization for sub-resource routes at a given role level
 func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Role) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.GetContextLogger(c)
@@ -813,7 +791,6 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 }
 
 // extractThreatModelIDFromPath extracts the threat model ID from sub-resource paths
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: parse the threat model UUID from a /threat_models/{id}/{sub-resource} path (pure)
 func extractThreatModelIDFromPath(path string) string {
 	// Handle paths like:
 	// /threat_models/{threat_model_id}/threats
@@ -861,19 +838,16 @@ func extractThreatModelIDFromPath(path string) string {
 }
 
 // ValidateSubResourceAccessReader creates middleware for read-only sub-resource access
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: build sub-resource authorization middleware requiring reader role
 func ValidateSubResourceAccessReader(db *sql.DB, cache *CacheService) gin.HandlerFunc {
 	return ValidateSubResourceAccess(db, cache, RoleReader)
 }
 
 // ValidateSubResourceAccessWriter creates middleware for write sub-resource access
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: build sub-resource authorization middleware requiring writer role
 func ValidateSubResourceAccessWriter(db *sql.DB, cache *CacheService) gin.HandlerFunc {
 	return ValidateSubResourceAccess(db, cache, RoleWriter)
 }
 
 // ValidateSubResourceAccessOwner creates middleware for owner-only sub-resource access
-// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: build sub-resource authorization middleware requiring owner role
 func ValidateSubResourceAccessOwner(db *sql.DB, cache *CacheService) gin.HandlerFunc {
 	return ValidateSubResourceAccess(db, cache, RoleOwner)
 }
@@ -883,7 +857,6 @@ func ValidateSubResourceAccessOwner(db *sql.DB, cache *CacheService) gin.Handler
 // When the handler sets Content-Type: text/event-stream, the writer flips to
 // streaming mode and forwards writes directly to the underlying writer so that
 // Server-Sent Events reach the client in real time (see issue #409).
-// SEM@fe66a81c53a1025335c2af395233d4ab46ed6d0f: gin.ResponseWriter wrapper that buffers responses and switches to streaming for SSE (mutates shared state)
 type bufferedResponseWriter struct {
 	gin.ResponseWriter
 	body       *bytes.Buffer
@@ -895,7 +868,6 @@ type bufferedResponseWriter struct {
 // first time it observes a text/event-stream Content-Type. It is idempotent:
 // once streaming, subsequent calls are no-ops. On the flip it commits the
 // buffered status code and any already-buffered bytes to the underlying writer.
-// SEM@fe66a81c53a1025335c2af395233d4ab46ed6d0f: flip the response writer to pass-through streaming mode on first text/event-stream observation (mutates shared state)
 func (w *bufferedResponseWriter) maybeSwitchToStreaming() {
 	if w.streaming {
 		return
@@ -911,7 +883,6 @@ func (w *bufferedResponseWriter) maybeSwitchToStreaming() {
 	}
 }
 
-// SEM@fe66a81c53a1025335c2af395233d4ab46ed6d0f: write response bytes to the buffer or directly to the wire in streaming mode
 func (w *bufferedResponseWriter) Write(b []byte) (int, error) {
 	w.maybeSwitchToStreaming()
 	if w.streaming {
@@ -920,7 +891,6 @@ func (w *bufferedResponseWriter) Write(b []byte) (int, error) {
 	return w.body.Write(b)
 }
 
-// SEM@b4b89b1aa68d86cfa9fb88cdf770adb9ee438776: buffer the HTTP status code without committing it to the wire
 func (w *bufferedResponseWriter) WriteHeader(statusCode int) {
 	w.statusCode = statusCode
 }
@@ -934,12 +904,10 @@ func (w *bufferedResponseWriter) WriteHeader(statusCode int) {
 // write-deadline clear silently did nothing and streams were still cut at
 // http.Server.WriteTimeout. gin's own *responseWriter does implement Unwrap,
 // so with this one hop the chain reaches the real http.ResponseWriter.
-// SEM@495d0e707e286e7230e11759448f784ebb220018: expose the wrapped response writer so a ResponseController can reach the connection (pure)
 func (w *bufferedResponseWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
 }
 
-// SEM@fe66a81c53a1025335c2af395233d4ab46ed6d0f: write a string response to the buffer or directly to the wire in streaming mode
 func (w *bufferedResponseWriter) WriteString(s string) (int, error) {
 	w.maybeSwitchToStreaming()
 	if w.streaming {
@@ -952,7 +920,6 @@ func (w *bufferedResponseWriter) WriteString(s string) (int, error) {
 // c.Writer.Status() after c.Next() observe the handler's intended status —
 // not the embedded writer's default 200, which holds until JSONErrorHandler
 // flushes the buffered response. See issue #289.
-// SEM@8a56e2e312211e3df59423decd1489065f44f433: return the buffered HTTP status code without flushing (pure)
 func (w *bufferedResponseWriter) Status() int {
 	return w.statusCode
 }
@@ -961,7 +928,6 @@ func (w *bufferedResponseWriter) Status() int {
 // Without this override, calls to WriteHeaderNow would fall through to the
 // embedded gin.ResponseWriter and commit its default status (200) instead of
 // the status the handler asked for via c.Status / c.JSON.
-// SEM@fe66a81c53a1025335c2af395233d4ab46ed6d0f: commit the buffered status code to the underlying writer immediately
 func (w *bufferedResponseWriter) WriteHeaderNow() {
 	w.maybeSwitchToStreaming()
 	if w.streaming {
@@ -975,7 +941,6 @@ func (w *bufferedResponseWriter) WriteHeaderNow() {
 // Flush forwards a flush to the underlying writer. It first gives
 // maybeSwitchToStreaming a chance to flip — covering the (uncommon) case of a
 // handler that flushes before its first body write.
-// SEM@fe66a81c53a1025335c2af395233d4ab46ed6d0f: flush buffered data to the underlying writer, switching to streaming if needed
 func (w *bufferedResponseWriter) Flush() {
 	w.maybeSwitchToStreaming()
 	if w.streaming {
@@ -986,7 +951,6 @@ func (w *bufferedResponseWriter) Flush() {
 // JSONErrorHandler middleware converts plain text error responses to JSON format
 // This catches Gin framework errors that bypass application error handling
 // It uses a buffered response writer to intercept responses before they're sent
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: intercept plain-text error responses and convert them to JSON format
 func JSONErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Create a buffered response writer
@@ -1076,8 +1040,6 @@ var negotiatedMediaTypeRoutes = map[string]map[string]bool{
 // acceptsAnyOf reports whether the Accept header mentions any of the media
 // types. Substring matching, so it tolerates quality parameters and multi-type
 // headers.
-// SEM@0: report whether an Accept header mentions any of the given media types (pure)
-// SEM@2f8bdf4ee323d43b42d14954da7fbbf9544367c7: validate whether an Accept header mentions any of the given media types (pure)
 func acceptsAnyOf(acceptHeader string, mediaTypes []string) bool {
 	for _, t := range mediaTypes {
 		if strings.Contains(acceptHeader, t) {
@@ -1089,7 +1051,6 @@ func acceptsAnyOf(acceptHeader string, mediaTypes []string) bool {
 
 // AcceptHeaderValidation middleware validates that the Accept header is application/json
 // Returns 406 Not Acceptable for unsupported media types
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build middleware that rejects requests with unsupported Accept media types
 func AcceptHeaderValidation() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get logger from context

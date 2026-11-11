@@ -38,7 +38,6 @@ import (
 //
 // The database serves as the persistent store for settings that can be modified
 // at runtime via the admin API, while environment/config values always win.
-// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: manage system settings with three-tier priority (env > config > DB) and optional encryption (mutates shared state)
 type SettingsService struct {
 	gormDB  *gorm.DB
 	redis   *db.RedisDB
@@ -62,7 +61,6 @@ type SettingsService struct {
 }
 
 // settingsCacheEntry represents a cached setting value
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: cache envelope pairing a system setting with its TTL expiry (pure)
 type settingsCacheEntry struct {
 	setting   models.SystemSetting
 	expiresAt time.Time
@@ -75,7 +73,6 @@ const (
 )
 
 // NewSettingsService creates a new settings service
-// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: build a SettingsService wired to the given DB and optional Redis cache (pure)
 func NewSettingsService(gormDB *gorm.DB, redisDB *db.RedisDB) *SettingsService {
 	useMemCache := redisDB == nil
 	return &SettingsService{
@@ -91,7 +88,6 @@ func NewSettingsService(gormDB *gorm.DB, redisDB *db.RedisDB) *SettingsService {
 
 // SetConfigProvider sets the config provider for environment/config file priority lookups.
 // When set, GetWithPriority will check config values before database values.
-// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: register the config provider used for env/config-file priority lookups (mutates shared state)
 func (s *SettingsService) SetConfigProvider(provider ConfigProvider) {
 	s.configSettingsCacheMu.Lock()
 	defer s.configSettingsCacheMu.Unlock()
@@ -102,7 +98,6 @@ func (s *SettingsService) SetConfigProvider(provider ConfigProvider) {
 
 // SetEncryptor sets the encryptor for at-rest encryption of setting values.
 // When set, values are encrypted before writing to the database and decrypted after reading.
-// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: register the at-rest encryptor for setting values (mutates shared state)
 func (s *SettingsService) SetEncryptor(enc *crypto.SettingsEncryptor) {
 	s.encryptor = enc
 }
@@ -112,7 +107,6 @@ func (s *SettingsService) SetEncryptor(enc *crypto.SettingsEncryptor) {
 // same cfg.Auth.BuildMode that warnIfPlaintextSecretsAtRest consults) and
 // falls back to the TMI_BUILD_MODE environment variable, the existing idiom in
 // this package (see auth_flow_rate_limiter.go).
-// SEM@a3e7b116b059fa4c734b5c77def4c2de21df4dbc: report whether the server is running in production build mode (pure)
 func (s *SettingsService) isProductionMode() bool {
 	if ms, ok := s.getConfigSetting("auth.build_mode"); ok {
 		return ms.Value == "production"
@@ -128,7 +122,6 @@ func (s *SettingsService) isProductionMode() bool {
 // for its callers but wrong for GetResolvedString: the converged precedence
 // rule needs to know both what the config layer holds AND whether an operator
 // supplied it, and those are two different questions (#794).
-// SEM@3b682947: fetch a config-layer setting with no precedence filtering, building the cache lazily (pure)
 func (s *SettingsService) getConfigSettingRaw(key string) (MigratableSetting, bool) {
 	if s.configProvider == nil {
 		return MigratableSetting{}, false
@@ -165,7 +158,6 @@ func (s *SettingsService) getConfigSettingRaw(key string) (MigratableSetting, bo
 // getConfigSetting retrieves a setting from the config provider, applying the
 // #415 rule that a bare struct default must not shadow the database.
 // Returns the setting and true when the config layer is authoritative.
-// SEM@3b682947: fetch a config-layer setting, yielding to the database for bare defaults (pure)
 func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool) {
 	setting, found := s.getConfigSettingRaw(key)
 	if !found {
@@ -198,7 +190,6 @@ func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool)
 }
 
 // Get retrieves a setting by key, checking cache first
-// SEM@3b682947: fetch a system setting by key, cache-first with negative caching and decryption (reads DB)
 func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSetting, error) {
 	logger := slogging.Get()
 
@@ -251,7 +242,6 @@ func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSe
 
 // GetString retrieves a string setting value.
 // Priority: environment/config file > database (see SettingsService documentation).
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: fetch a string setting applying env/config-file priority over the database (reads DB)
 func (s *SettingsService) GetString(ctx context.Context, key string) (string, error) {
 	// Check config provider first (environment > config file)
 	if configSetting, found := s.getConfigSetting(key); found {
@@ -303,7 +293,6 @@ func (s *SettingsService) GetString(ctx context.Context, key string) (string, er
 // request hot paths (e.g. /oauth2/authorize) where an unretried ADB blip
 // (ORA-02396/03113/12537 class) would otherwise surface as a hard failure
 // PG testing cannot reproduce (oracle-db-admin review of #767).
-// SEM@3b682947: resolve a string setting across config and database by the converged precedence rule (reads DB)
 func (s *SettingsService) GetResolvedString(ctx context.Context, key string) (string, bool, error) {
 	cfg, cfgFound := s.getConfigSettingRaw(key)
 
@@ -360,7 +349,6 @@ func (s *SettingsService) GetResolvedString(ctx context.Context, key string) (st
 
 // GetInt retrieves an integer setting value.
 // Priority: environment/config file > database (see SettingsService documentation).
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: fetch and parse an integer setting applying env/config-file priority over the database (reads DB)
 func (s *SettingsService) GetInt(ctx context.Context, key string) (int, error) {
 	// Check config provider first (environment > config file)
 	if configSetting, found := s.getConfigSetting(key); found {
@@ -388,7 +376,6 @@ func (s *SettingsService) GetInt(ctx context.Context, key string) (int, error) {
 
 // GetBool retrieves a boolean setting value.
 // Priority: environment/config file > database (see SettingsService documentation).
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: fetch and parse a boolean setting applying env/config-file priority over the database (reads DB)
 func (s *SettingsService) GetBool(ctx context.Context, key string) (bool, error) {
 	// Check config provider first (environment > config file)
 	if configSetting, found := s.getConfigSetting(key); found {
@@ -416,7 +403,6 @@ func (s *SettingsService) GetBool(ctx context.Context, key string) (bool, error)
 
 // GetJSON retrieves a JSON setting value and unmarshals it into the target.
 // Priority: environment/config file > database (see SettingsService documentation).
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: fetch a JSON setting and unmarshal it into the target applying env/config-file priority (reads DB)
 func (s *SettingsService) GetJSON(ctx context.Context, key string, target any) error {
 	// Check config provider first (environment > config file)
 	if configSetting, found := s.getConfigSetting(key); found {
@@ -441,7 +427,6 @@ func (s *SettingsService) GetJSON(ctx context.Context, key string, target any) e
 }
 
 // List retrieves all settings
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: list all system settings ordered by key with decryption applied (reads DB)
 func (s *SettingsService) List(ctx context.Context) ([]models.SystemSetting, error) {
 	logger := slogging.Get()
 
@@ -467,7 +452,6 @@ func (s *SettingsService) List(ctx context.Context) ([]models.SystemSetting, err
 
 // ListByPrefix returns all database settings whose key starts with the given prefix.
 // Results are decrypted if an encryptor is configured.
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: list system settings whose key shares a given prefix, decrypting values (reads DB)
 func (s *SettingsService) ListByPrefix(ctx context.Context, prefix string) ([]models.SystemSetting, error) {
 	if s.gormDB == nil {
 		return nil, nil
@@ -528,7 +512,6 @@ var settingSemanticValidators = map[string]func(value string, productionMode boo
 // ValidateSettingSemantics applies the per-key semantic validator for key, if
 // any; keys without a validator pass. Exported so writers that bypass
 // SettingsService.Set (cmd/dbtool) enforce the same rules (#1108).
-// SEM@05d35fa239ce471ca0d0d0c324c69e93e1c8c21c: validate a setting value against its key-specific semantic rules (pure)
 func ValidateSettingSemantics(key, value string, productionMode bool) error {
 	validate, ok := settingSemanticValidators[key]
 	if !ok {
@@ -538,13 +521,11 @@ func ValidateSettingSemantics(key, value string, productionMode bool) error {
 }
 
 // validateSettingSemantics applies the per-key validator for the setting, if any.
-// SEM@05d35fa239ce471ca0d0d0c324c69e93e1c8c21c: validate a system setting's value using the service's production-mode semantic rules (pure)
 func (s *SettingsService) validateSettingSemantics(setting *models.SystemSetting) error {
 	return ValidateSettingSemantics(string(setting.SettingKey), string(setting.Value), s.isProductionMode())
 }
 
 // Set creates or updates a setting
-// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: store or update a system setting, stamping explicit origin, with type validation, encryption, and cache invalidation (reads DB)
 func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting) error {
 	logger := slogging.Get()
 
@@ -621,7 +602,6 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 }
 
 // Delete removes a setting
-// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: delete a system setting by key and invalidate its cache entry (reads DB)
 func (s *SettingsService) Delete(ctx context.Context, key string) error {
 	logger := slogging.Get()
 
@@ -638,7 +618,6 @@ func (s *SettingsService) Delete(ctx context.Context, key string) error {
 }
 
 // SeedDefaults seeds the default settings if they don't exist
-// SEM@3b682947: insert default system settings, stamped seeded origin, if they do not already exist (reads DB)
 func (s *SettingsService) SeedDefaults(ctx context.Context) error {
 	logger := slogging.Get()
 	defaults := models.DefaultSystemSettings()
@@ -713,7 +692,6 @@ func (s *SettingsService) SeedDefaults(ctx context.Context) error {
 }
 
 // SettingError represents an error for a specific setting during re-encryption.
-// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: error value capturing key and message for a failed per-setting operation (pure)
 type SettingError struct {
 	Key   string `json:"key"`
 	Error string `json:"error"`
@@ -747,7 +725,6 @@ var errSettingUnreadable = errors.New("setting unreadable")
 // modified_by are left as they were. Rows no key can open are reported in
 // []SettingError and excluded from later batches so the loop always terminates.
 // Returns the number of rows committed so far, also on error.
-// SEM@094904c7a8ba41296e31c7fa9623c72c3f018fa2: update stale setting rows with re-encryption per row; stop at the unreadable-row cap (mutates DB)
 func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 	logger := slogging.Get()
 	if s.encryptor == nil || !s.encryptor.IsEnabled() {
@@ -805,7 +782,6 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError
 // reEncryptOne rewrites one row's ciphertext under the current key inside its
 // own transaction, holding a row lock on PostgreSQL/Oracle so a concurrent
 // SettingsService.Set cannot be overwritten.
-// SEM@3b682947: re-encrypt a single setting row under a row lock in one transaction (writes DB)
 func (s *SettingsService) reEncryptOne(ctx context.Context, key string) error {
 	// READ COMMITTED, not the SERIALIZABLE default: under SERIALIZABLE, Oracle
 	// fails SELECT ... FOR UPDATE on a row committed after the tx start SCN
@@ -849,7 +825,6 @@ func (s *SettingsService) reEncryptOne(ctx context.Context, key string) error {
 
 // CountValuesWithContextID counts rows still encrypted under the given key id;
 // the rotator uses it to decide when the previous key can be dropped.
-// SEM@3b682947: count setting rows whose envelope carries a given key id (reads DB)
 func (s *SettingsService) CountValuesWithContextID(ctx context.Context, id int) (int64, error) {
 	var n int64
 	err := db.WithRetryableGormRead(ctx, db.DefaultRetryConfig(), func() error {
@@ -866,7 +841,6 @@ func (s *SettingsService) CountValuesWithContextID(ctx context.Context, id int) 
 // without the ENC: prefix, i.e. rows written before settings encryption was
 // enabled that ReEncryptAll would convert. It reads the raw rows (List and Get
 // decrypt, which hides the prefix) and returns key names only, never values.
-// SEM@7430764167888f43111b8fe959e8c73449a4f9af: list setting keys whose stored value is unencrypted, without exposing values (reads DB)
 func (s *SettingsService) PlaintextKeys(ctx context.Context, keys []string) ([]string, error) {
 	if len(keys) == 0 {
 		return nil, nil
@@ -885,7 +859,6 @@ func (s *SettingsService) PlaintextKeys(ctx context.Context, keys []string) ([]s
 }
 
 // validateValue validates that the value matches the declared type
-// SEM@1a4ca5f99be4a25df66b2836e9b9f4c87628184a: validate that a setting value matches its declared type (pure)
 func (s *SettingsService) validateValue(setting *models.SystemSetting) error {
 	switch setting.SettingType {
 	case models.SystemSettingTypeInt:
@@ -918,7 +891,6 @@ func (s *SettingsService) validateValue(setting *models.SystemSetting) error {
 }
 
 // getFromCache retrieves a setting from cache
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: fetch a setting from either in-memory or Redis cache based on configuration (pure)
 func (s *SettingsService) getFromCache(ctx context.Context, key string) (*models.SystemSetting, bool) {
 	if s.useMemCache {
 		return s.getFromMemCache(key)
@@ -927,7 +899,6 @@ func (s *SettingsService) getFromCache(ctx context.Context, key string) (*models
 }
 
 // setInCache stores a setting in cache
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: store a setting in the active cache tier (mutates shared state)
 func (s *SettingsService) setInCache(ctx context.Context, setting *models.SystemSetting) {
 	if s.useMemCache {
 		s.setInMemCache(setting)
@@ -941,7 +912,6 @@ func (s *SettingsService) setInCache(ctx context.Context, setting *models.System
 // On the memory tier invalidation is process-local, so a row written by
 // another replica or by dbtool becomes visible here only when the tombstone
 // expires (up to memCacheTTL), the same window positive entries already have.
-// SEM@3b682947: cache a not-found tombstone for a setting key in the active cache tier (mutates shared state)
 func (s *SettingsService) setMissingInCache(ctx context.Context, key string) {
 	if s.useMemCache {
 		s.memCacheMu.Lock()
@@ -956,7 +926,6 @@ func (s *SettingsService) setMissingInCache(ctx context.Context, key string) {
 }
 
 // invalidateCache removes a setting from cache
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: evict a setting from the active cache tier (mutates shared state)
 func (s *SettingsService) invalidateCache(ctx context.Context, key string) {
 	if s.useMemCache {
 		s.invalidateMemCache(key)
@@ -967,7 +936,6 @@ func (s *SettingsService) invalidateCache(ctx context.Context, key string) {
 
 // Memory cache methods
 
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: fetch a non-expired setting from the in-process memory cache (pure)
 func (s *SettingsService) getFromMemCache(key string) (*models.SystemSetting, bool) {
 	s.memCacheMu.RLock()
 	defer s.memCacheMu.RUnlock()
@@ -982,7 +950,6 @@ func (s *SettingsService) getFromMemCache(key string) (*models.SystemSetting, bo
 	return &entry.setting, true
 }
 
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: store a setting with TTL expiry in the in-process memory cache (mutates shared state)
 func (s *SettingsService) setInMemCache(setting *models.SystemSetting) {
 	s.memCacheMu.Lock()
 	defer s.memCacheMu.Unlock()
@@ -993,7 +960,6 @@ func (s *SettingsService) setInMemCache(setting *models.SystemSetting) {
 	}
 }
 
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: delete a setting entry from the in-process memory cache (mutates shared state)
 func (s *SettingsService) invalidateMemCache(key string) {
 	s.memCacheMu.Lock()
 	defer s.memCacheMu.Unlock()
@@ -1003,7 +969,6 @@ func (s *SettingsService) invalidateMemCache(key string) {
 
 // Redis cache methods
 
-// SEM@cdbe48c974fb76e1161972733b30bb0d1c02c3b1: fetch and deserialize a setting from Redis cache
 func (s *SettingsService) getFromRedisCache(ctx context.Context, key string) (*models.SystemSetting, bool) {
 	logger := slogging.Get()
 	cacheKey := SettingsCacheKey + key
@@ -1026,7 +991,6 @@ func (s *SettingsService) getFromRedisCache(ctx context.Context, key string) (*m
 	return &setting, true
 }
 
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: serialize and store a setting in Redis cache with TTL
 func (s *SettingsService) setInRedisCache(ctx context.Context, setting *models.SystemSetting) {
 	logger := slogging.Get()
 	cacheKey := SettingsCacheKey + string(setting.SettingKey)
@@ -1042,7 +1006,6 @@ func (s *SettingsService) setInRedisCache(ctx context.Context, setting *models.S
 	}
 }
 
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: delete a setting entry from Redis cache
 func (s *SettingsService) invalidateRedisCache(ctx context.Context, key string) {
 	logger := slogging.Get()
 	cacheKey := SettingsCacheKey + key
@@ -1053,7 +1016,6 @@ func (s *SettingsService) invalidateRedisCache(ctx context.Context, key string) 
 }
 
 // InvalidateAll clears all settings from cache
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: flush all settings from the active in-memory cache tier (mutates shared state)
 func (s *SettingsService) InvalidateAll(ctx context.Context) {
 	if s.useMemCache {
 		s.memCacheMu.Lock()

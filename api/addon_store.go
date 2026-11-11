@@ -8,7 +8,6 @@ import (
 )
 
 // Addon represents an add-on in the system
-// SEM@15af4eb93978e65654702a2b47f0ebe20df650dc: domain model for an add-on linking a webhook to optional threat model parameters (pure)
 type Addon struct {
 	ID            uuid.UUID        `json:"id"`
 	CreatedAt     time.Time        `json:"created_at"`
@@ -22,7 +21,6 @@ type Addon struct {
 }
 
 // AddonStore defines the interface for add-on storage operations
-// SEM@6e6f341493ef17352815b59696dcdead01383e70: storage interface for add-on CRUD, update, listing, and invocation count operations
 type AddonStore interface {
 	// Create creates a new add-on
 	Create(ctx context.Context, addon *Addon) error

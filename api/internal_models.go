@@ -8,7 +8,6 @@ import (
 
 // ThreatModelInternal is the internal representation used by stores
 // It stores diagram/threat/document IDs instead of full objects for single source of truth
-// SEM@e28c0cfc627a2162c9550e53fb320facb734179e: internal threat model representation storing related entity IDs instead of full objects (pure)
 type ThreatModelInternal struct {
 	// Core fields
 	Id                   *openapi_types.UUID `json:"id,omitempty"`
@@ -35,7 +34,6 @@ type ThreatModelInternal struct {
 
 // ToThreatModel converts internal representation to external API model
 // This function dynamically loads related entities from their respective stores
-// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: convert the internal threat model to the API DTO, loading related diagrams from stores (reads DB)
 func (tm *ThreatModelInternal) ToThreatModel() (*ThreatModel, error) {
 	result := &ThreatModel{
 		Id:                   tm.Id,
@@ -82,7 +80,6 @@ func (tm *ThreatModelInternal) ToThreatModel() (*ThreatModel, error) {
 }
 
 // FromThreatModel converts external API model to internal representation
-// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: populate the internal threat model from an API DTO, extracting related entity IDs (pure)
 func (tm *ThreatModelInternal) FromThreatModel(external *ThreatModel) {
 	tm.Id = external.Id
 	tm.Name = external.Name

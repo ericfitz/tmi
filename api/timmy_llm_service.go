@@ -75,7 +75,6 @@ Security rules (non-negotiable):
 
 // TimmyLLMService provides LLM chat and embedding capabilities via
 // internal/llm (a thin, provider-agnostic seam; see #754).
-// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: hold LLM chat client, text and code embedders, and service config (pure)
 type TimmyLLMService struct {
 	chatClient   llm.ChatClient
 	textEmbedder llm.Embedder
@@ -90,7 +89,6 @@ type TimmyLLMService struct {
 // chat-completion / embedding traffic through SafeHTTPClient (scheme +
 // SSRF-allowlist + DNS-pinning + body cap) without losing streaming, since
 // FetchStreaming returns the live *http.Response.
-// SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: adapt SafeHTTPClient to the internal/llm HTTP doer interface for SSRF-safe LLM traffic (pure)
 type safeHTTPDoer struct {
 	client  *SafeHTTPClient
 	timeout time.Duration
@@ -99,7 +97,6 @@ type safeHTTPDoer struct {
 // Do extracts URL/method/headers/body from req and dispatches via
 // SafeHTTPClient.FetchStreaming. The returned response is streamed through
 // SafeHTTPClient's response-body cap; SSE chunks are read incrementally.
-// SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: dispatch an HTTP request through SafeHTTPClient with streaming response support
 func (d *safeHTTPDoer) Do(req *http.Request) (*http.Response, error) {
 	opts := SafeFetchOptions{
 		Method:         req.Method,
@@ -116,7 +113,6 @@ func (d *safeHTTPDoer) Do(req *http.Request) (*http.Response, error) {
 // NewTimmyLLMService creates a new LLM service from configuration. validator
 // MUST be non-nil; in production it is built from the operator's Timmy SSRF
 // allowlist (typically containing the configured LLM/embedding endpoint hosts).
-// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build a TimmyLLMService with SSRF-safe HTTP client, chat model, and text/code embedders from config
 func NewTimmyLLMService(cfg config.TimmyConfig, validator *URIValidator) (*TimmyLLMService, error) {
 	if !cfg.IsConfigured() {
 		return nil, fmt.Errorf("timmy LLM/embedding providers not configured")
@@ -192,7 +188,6 @@ func NewTimmyLLMService(cfg config.TimmyConfig, validator *URIValidator) (*Timmy
 // parameters. httpClient satisfies llm.HTTPDoer (implemented by
 // safeHTTPDoer in this file) so embedding traffic flows through
 // SafeHTTPClient.
-// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build a provider Embedder routed through the safe HTTP client (pure)
 func createEmbedder(provider, model, apiKey, baseURL string, httpClient *safeHTTPDoer) (llm.Embedder, error) {
 	embedder, err := llm.NewEmbedder(llm.Config{
 		Provider:   llm.Provider(provider),
@@ -208,7 +203,6 @@ func createEmbedder(provider, model, apiKey, baseURL string, httpClient *safeHTT
 }
 
 // getEmbedder returns the embedder and model name for the given index type.
-// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: return the embedder and model name for the given index type (pure)
 func (s *TimmyLLMService) getEmbedder(indexType string) (llm.Embedder, string, error) {
 	switch indexType {
 	case IndexTypeText:
@@ -224,7 +218,6 @@ func (s *TimmyLLMService) getEmbedder(indexType string) (llm.Embedder, string, e
 }
 
 // EmbedTexts returns embeddings for the given texts using the embedder for the specified index type.
-// SEM@91f0b520737c464edc1a86d1115904dac7df3fb9: convert texts to embedding vectors using the embedder for the given index type
 func (s *TimmyLLMService) EmbedTexts(ctx context.Context, texts []string, indexType string) ([][]float32, error) {
 	embedder, modelName, err := s.getEmbedder(indexType)
 	if err != nil {
@@ -256,7 +249,6 @@ func (s *TimmyLLMService) EmbedTexts(ctx context.Context, texts []string, indexT
 }
 
 // EmbeddingDimension returns the dimension by embedding a test string for the specified index type.
-// SEM@91f0b520737c464edc1a86d1115904dac7df3fb9: fetch the embedding vector dimension for the given index type via a probe call
 func (s *TimmyLLMService) EmbeddingDimension(ctx context.Context, indexType string) (int, error) {
 	vectors, err := s.EmbedTexts(ctx, []string{"dimension test"}, indexType)
 	if err != nil {
@@ -274,7 +266,6 @@ func (s *TimmyLLMService) EmbeddingDimension(ctx context.Context, indexType stri
 // available (openai-go surfaces this via stream_options.include_usage);
 // otherwise it falls back to the stream-chunk count, matching the
 // pre-#754 approximation.
-// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: stream LLM chat completion tokens via callback and return the full response text
 func (s *TimmyLLMService) GenerateStreamingResponse(
 	ctx context.Context,
 	systemPrompt string,
@@ -330,7 +321,6 @@ func (s *TimmyLLMService) GenerateStreamingResponse(
 
 // GenerateResponse sends a single-turn chat request and returns the full response text.
 // This is a convenience wrapper for non-streaming use cases like query decomposition.
-// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: fetch a single-turn LLM completion for a prompt and return the full text
 func (s *TimmyLLMService) GenerateResponse(ctx context.Context, systemPrompt string, userMessage string) (string, error) {
 	messages := []llm.Message{
 		{Role: llm.RoleUser, Text: userMessage},
@@ -340,7 +330,6 @@ func (s *TimmyLLMService) GenerateResponse(ctx context.Context, systemPrompt str
 }
 
 // GetBasePrompt returns the system prompt (base + operator extension)
-// SEM@ff68770739ff3b106b20c0b32e624202137f857f: return the assembled system prompt including operator extension (pure)
 func (s *TimmyLLMService) GetBasePrompt() string {
 	return s.basePrompt
 }

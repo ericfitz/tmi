@@ -19,7 +19,6 @@ const triageAccessVerifiedKey = "triageAccessVerified"
 
 // triageReviewerGroup returns the reviewer group whose members may triage a
 // survey response with the given confidentiality.
-// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: select the reviewer group authorized to triage a response by confidentiality (pure)
 func triageReviewerGroup(isConfidential bool) BuiltInGroup {
 	if isConfidential {
 		return GroupConfidentialProjectReviewers
@@ -32,7 +31,6 @@ func triageReviewerGroup(isConfidential bool) BuiltInGroup {
 // response's confidentiality. A missing response and a denied caller both
 // surface as 404 (non-disclosure, T5 #357). On failure it writes the error
 // and returns (nil, false).
-// SEM@c200ebeeb27cdc988a6ca70a79561a67add75afb: authorize a caller by reviewer-group membership for a survey response's confidentiality, 404 on denial (reads DB)
 func RequireTriageAccess(c *gin.Context, responseID SurveyResponseId) (*SurveyResponse, bool) {
 	logger := slogging.Get().WithContext(c)
 
@@ -75,7 +73,6 @@ func RequireTriageAccess(c *gin.Context, responseID SurveyResponseId) (*SurveyRe
 // caller may triage. hasScope is false when the caller belongs to neither reviewer
 // group; otherwise confidential, when non-nil, is the single permitted value
 // and nil means both.
-// SEM@fea6b3be63afa09c0668f3eaa2f51f933c5e05f1: resolve the confidentiality scope a caller may triage from reviewer group membership (reads DB)
 func triageReviewerScope(c *gin.Context) (confidential *bool, hasScope bool, err error) {
 	mc, err := ResolveMembershipContext(c)
 	if err != nil {

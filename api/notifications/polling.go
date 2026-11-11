@@ -28,7 +28,6 @@ import (
 // NamingStrategy (OracleNamingStrategy on Oracle), so the mapping holds on
 // both engines; hardcoded lowercase tags silently zeroed every field on
 // Oracle (#699).
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: DB row representing a pending or processed notification in the polling queue
 type NotificationQueueEntry struct {
 	ID        models.DBVarchar `gorm:"primaryKey;not null;size:36"`
 	Channel   models.DBVarchar `gorm:"size:255;not null;index"`
@@ -38,14 +37,12 @@ type NotificationQueueEntry struct {
 }
 
 // TableName specifies the table name for NotificationQueueEntry
-// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: return the table name for the notification queue (pure)
 func (NotificationQueueEntry) TableName() string {
 	return "notification_queue"
 }
 
 // PollingNotifier implements NotificationService using database polling
 // This is used for Oracle ADB and other databases that don't support LISTEN/NOTIFY
-// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: DB-polling notification service for databases lacking LISTEN/NOTIFY support (mutates shared state)
 type PollingNotifier struct {
 	db            *gorm.DB
 	pollInterval  time.Duration
@@ -59,7 +56,6 @@ type PollingNotifier struct {
 }
 
 // NewPollingNotifier creates a new polling-based notification service
-// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: build and start a polling notification service against the given DB with the given interval (reads DB)
 func NewPollingNotifier(db *gorm.DB, pollInterval time.Duration) (*PollingNotifier, error) {
 	logger := slogging.Get()
 	logger.Debug("Initializing polling notification service (interval: %v)", pollInterval)
@@ -89,13 +85,11 @@ func NewPollingNotifier(db *gorm.DB, pollInterval time.Duration) (*PollingNotifi
 }
 
 // ensureTable creates the notification queue table if it doesn't exist
-// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: auto-migrate the notification queue table into the DB if absent (reads DB)
 func (p *PollingNotifier) ensureTable() error {
 	return p.db.AutoMigrate(&NotificationQueueEntry{})
 }
 
 // pollLoop continuously polls for new notifications
-// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: background loop that periodically dispatches new-notification processing until stopped (mutates shared state)
 func (p *PollingNotifier) pollLoop() {
 	p.logger.Debug("Starting notification polling loop")
 	ticker := time.NewTicker(p.pollInterval)
@@ -113,7 +107,6 @@ func (p *PollingNotifier) pollLoop() {
 }
 
 // processNewNotifications fetches and processes unprocessed notifications
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: fetch unprocessed notifications for subscribed channels and dispatch them to subscribers (reads DB)
 func (p *PollingNotifier) processNewNotifications() {
 	p.mu.RLock()
 	subscribedChannels := make([]string, 0, len(p.channels))
@@ -174,7 +167,6 @@ func (p *PollingNotifier) processNewNotifications() {
 }
 
 // handleNotification distributes a notification to subscribers
-// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: dispatch a polled notification queue entry to all channel subscribers (mutates shared state)
 func (p *PollingNotifier) handleNotification(entry NotificationQueueEntry) {
 	p.mu.RLock()
 	subscribers, exists := p.channels[string(entry.Channel)]
@@ -195,7 +187,6 @@ func (p *PollingNotifier) handleNotification(entry NotificationQueueEntry) {
 }
 
 // cleanupOldNotifications removes processed notifications older than 1 hour
-// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: delete processed notification rows older than one hour from the queue (reads DB)
 func (p *PollingNotifier) cleanupOldNotifications() {
 	cutoff := time.Now().UTC().Add(-1 * time.Hour)
 	result := p.db.Where("processed = ? AND created_at < ?", true, cutoff).
@@ -208,7 +199,6 @@ func (p *PollingNotifier) cleanupOldNotifications() {
 }
 
 // Subscribe implements NotificationService.Subscribe
-// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: register a channel subscriber and return a notification channel; unsubscribe on context cancellation (mutates shared state)
 func (p *PollingNotifier) Subscribe(ctx context.Context, channel string) (<-chan Notification, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -230,7 +220,6 @@ func (p *PollingNotifier) Subscribe(ctx context.Context, channel string) (<-chan
 }
 
 // unsubscribe removes a subscriber from a channel
-// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: remove a subscriber from a notification channel and close its channel (mutates shared state)
 func (p *PollingNotifier) unsubscribe(channel string, notifyChan chan Notification) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -253,7 +242,6 @@ func (p *PollingNotifier) unsubscribe(channel string, notifyChan chan Notificati
 }
 
 // Notify implements NotificationService.Notify
-// SEM@23998f331524274d028e5ec84e6d6b7d29d4e332: store a notification payload into the DB queue for polling delivery (reads DB)
 func (p *PollingNotifier) Notify(ctx context.Context, channel string, payload string) error {
 	entry := NotificationQueueEntry{
 		ID:        models.DBVarchar(generateUUID()),
@@ -272,7 +260,6 @@ func (p *PollingNotifier) Notify(ctx context.Context, channel string, payload st
 }
 
 // Close implements NotificationService.Close
-// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: stop the polling loop and close all subscriber channels (mutates shared state)
 func (p *PollingNotifier) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -297,7 +284,6 @@ func (p *PollingNotifier) Close() error {
 }
 
 // generateUUID generates a simple UUID for notification entries
-// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: generate a unique identifier for a notification queue entry (pure)
 func generateUUID() string {
 	// Use a simple implementation - in production, use a proper UUID library
 	return fmt.Sprintf("%d", time.Now().UnixNano())

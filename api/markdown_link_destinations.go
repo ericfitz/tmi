@@ -51,13 +51,11 @@ var refDefRe = regexp.MustCompile(`(?m)^[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)*\
 // urlSchemeRe matches a leading URL scheme.
 var urlSchemeRe = regexp.MustCompile(`^([a-z][a-z0-9+.-]*):`)
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: neutralize markdown link, image and reference-definition destinations whose scheme is not allowlisted (pure)
 func neutralizeMarkdownLinkDestinations(content string) string {
 	content = neutralizeInlineDestinations(content)
 	return neutralizeRefDefinitions(content)
 }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: replace unsafe destinations of inline links and images with a fragment (pure)
 func neutralizeInlineDestinations(content string) string {
 	var out strings.Builder
 	last := 0
@@ -84,7 +82,6 @@ func neutralizeInlineDestinations(content string) string {
 	return out.String()
 }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: replace unsafe destinations of markdown reference definitions with a fragment (pure)
 func neutralizeRefDefinitions(content string) string {
 	var out strings.Builder
 	last := 0
@@ -110,7 +107,6 @@ func neutralizeRefDefinitions(content string) string {
 
 // isBackslashEscaped reports whether the byte at i is preceded by an odd
 // number of backslashes.
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: report whether a byte is escaped by an odd run of preceding backslashes (pure)
 func isBackslashEscaped(s string, i int) bool {
 	n := 0
 	for j := i - 1; j >= 0 && s[j] == '\\'; j-- {
@@ -119,7 +115,6 @@ func isBackslashEscaped(s string, i int) bool {
 	return n%2 == 1
 }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: advance past markdown whitespace (pure)
 func skipMarkdownSpace(s string, i int) int {
 	for i < len(s) && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
 		i++
@@ -132,7 +127,6 @@ func skipMarkdownSpace(s string, i int) int {
 // brackets) or a raw run without spaces or control characters in which
 // parentheses balance. ok is false when no destination starts there, including
 // the empty destination, which is always safe.
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: find the end of a markdown link destination, angle-bracketed or raw (pure)
 func scanDestination(s string, start int) (end int, ok bool) {
 	if start >= len(s) {
 		return 0, false
@@ -181,7 +175,6 @@ scan:
 // HTML entities decoded (repeatedly, so double encoding cannot hide a scheme),
 // tabs/newlines removed anywhere, and leading/trailing control characters and
 // spaces trimmed (WHATWG URL parsing).
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: decide whether a markdown link destination is relative or uses an allowlisted scheme (pure)
 func isSafeLinkDestination(dest string) bool {
 	if strings.HasPrefix(dest, "<") && strings.HasSuffix(dest, ">") {
 		dest = dest[1 : len(dest)-1]
@@ -208,7 +201,6 @@ func isSafeLinkDestination(dest string) bool {
 	return safeLinkSchemes[m[1]]
 }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: remove markdown backslash escapes before ASCII punctuation (pure)
 func unescapeMarkdownBackslashes(s string) string {
 	if !strings.Contains(s, `\`) {
 		return s
@@ -223,7 +215,6 @@ func unescapeMarkdownBackslashes(s string) string {
 	return b.String()
 }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: report whether a byte is ASCII punctuation, the only bytes a markdown backslash escapes (pure)
 func isASCIIPunct(c byte) bool {
 	return strings.IndexByte("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", c) >= 0
 }
@@ -259,7 +250,6 @@ var listMarkerRe = regexp.MustCompile(`^(?:[-*+]|[0-9]{1,9}[.)])(?:[ \t]|$)`)
 // markdownNestsTooDeeply reports whether any line's leading container prefix
 // (block quote markers and list markers, ignoring spaces) is deeper than
 // maxMarkdownContainerDepth.
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: report whether any line nests block quotes or list markers deeper than the limit (pure)
 func markdownNestsTooDeeply(content string) bool {
 	for len(content) > 0 {
 		line := content
@@ -277,7 +267,6 @@ func markdownNestsTooDeeply(content string) bool {
 
 // lineContainerDepth counts the block quote and list markers prefixing a line,
 // stopping early once the limit is exceeded.
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: count block quote and list markers prefixing a line, stopping past the limit (pure)
 func lineContainerDepth(line string) int {
 	depth := 0
 	for depth <= maxMarkdownContainerDepth {
@@ -311,7 +300,6 @@ var anySchemeRe = regexp.MustCompile(`([a-z][a-z0-9+.-]*):`)
 // ("Note:", "TODO:", "Step 1:") passes it, so most real notes do reach the
 // gate: the gate's cost limit (markdownGateCheck) protects every note write,
 // not just hostile ones.
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: report whether text contains a colon-terminated token with a non-allowlisted scheme (pure)
 func markdownMayHaveUnsafeLink(content string) bool {
 	norm := content
 	for i := 0; i < 10 && strings.Contains(norm, "&"); i++ {
@@ -340,7 +328,6 @@ func markdownMayHaveUnsafeLink(content string) bool {
 // and reports whether any link, image or autolink has a destination that is
 // not relative or allowlisted. It has no time limit; request paths go through
 // markdownGateCheck.
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: report whether parsed markdown contains a link, image or autolink with a disallowed destination (pure)
 func markdownHasUnsafeLink(content string) bool {
 	return markdownHasUnsafeLinkBefore(content, time.Time{})
 }
@@ -348,7 +335,6 @@ func markdownHasUnsafeLink(content string) bool {
 // markdownHasUnsafeLinkBefore is markdownHasUnsafeLink with a deadline (zero
 // means none): past it, the parse panics with errMarkdownGateDeadline (see
 // gateDeadlineContext).
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: report whether parsed markdown contains a disallowed link destination, aborting the parse at a deadline (pure)
 func markdownHasUnsafeLinkBefore(content string, deadline time.Time) bool {
 	src := []byte(content)
 	var opts []parser.ParseOption
@@ -417,7 +403,6 @@ type gateDeadlineContext struct {
 	calls    uint32
 }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: abort the gate parse with a sentinel panic once its deadline has passed, checking the clock every few calls
 func (c *gateDeadlineContext) tick() {
 	c.calls++
 	if c.calls&7 == 0 && time.Now().After(c.deadline) {
@@ -429,52 +414,41 @@ func (c *gateDeadlineContext) tick() {
 // inline parsers (links, code spans, autolinks, raw HTML) and the
 // link-reference paragraph transformer call as they work.
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: read a parse-context value after a deadline check
 func (c *gateDeadlineContext) Get(k parser.ContextKey) any { c.tick(); return c.Context.Get(k) }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: compute or read a parse-context value after a deadline check
 func (c *gateDeadlineContext) ComputeIfAbsent(k parser.ContextKey, f func() any) any {
 	c.tick()
 	return c.Context.ComputeIfAbsent(k, f)
 }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: store a parse-context value after a deadline check
 func (c *gateDeadlineContext) Set(k parser.ContextKey, v any) { c.tick(); c.Context.Set(k, v) }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: record a link reference definition after a deadline check
 func (c *gateDeadlineContext) AddReference(r parser.Reference) { c.tick(); c.Context.AddReference(r) }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: look up a link reference definition after a deadline check
 func (c *gateDeadlineContext) Reference(label string) (parser.Reference, bool) {
 	c.tick()
 	return c.Context.Reference(label)
 }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: read the block offset after a deadline check
 func (c *gateDeadlineContext) BlockOffset() int { c.tick(); return c.Context.BlockOffset() }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: read the block indent after a deadline check
 func (c *gateDeadlineContext) BlockIndent() int { c.tick(); return c.Context.BlockIndent() }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: read the open block stack after a deadline check
 func (c *gateDeadlineContext) OpenedBlocks() []parser.Block {
 	c.tick()
 	return c.Context.OpenedBlocks()
 }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: replace the open block stack after a deadline check
 func (c *gateDeadlineContext) SetOpenedBlocks(b []parser.Block) {
 	c.tick()
 	c.Context.SetOpenedBlocks(b)
 }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: read the innermost open block after a deadline check
 func (c *gateDeadlineContext) LastOpenedBlock() parser.Block {
 	c.tick()
 	return c.Context.LastOpenedBlock()
 }
 
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: report whether the parser is inside a link label after a deadline check
 func (c *gateDeadlineContext) IsInLinkLabel() bool { c.tick(); return c.Context.IsInLinkLabel() }
 
 // markdownGateResult is the outcome of markdownGateCheck.
@@ -493,7 +467,6 @@ const (
 // deadline, so abandoned parses cannot accumulate; there is deliberately no
 // concurrency cap, which would turn a few slow requests into rejections for
 // every other user (#1013 review).
-// SEM@de5e53297c79d385fbda14590a12a8289d3301c9: run the markdown link gate under a cancelling deadline, reporting too-complex on overrun or panic
 func markdownGateCheck(content string) markdownGateResult {
 	deadline := time.Now().Add(markdownGateBudget)
 	timer := time.NewTimer(markdownGateBudget)

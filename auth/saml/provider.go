@@ -29,7 +29,6 @@ import (
 )
 
 // TokenResponse represents the tokens returned by SAML (stub for interface compatibility)
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: stub token response struct for SAML interface compatibility (pure)
 type TokenResponse struct {
 	AccessToken  string
 	RefreshToken string
@@ -38,7 +37,6 @@ type TokenResponse struct {
 }
 
 // IDTokenClaims represents claims from an ID token (stub for interface compatibility)
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: stub ID token claims struct for SAML interface compatibility (pure)
 type IDTokenClaims struct {
 	Subject       string
 	Email         string
@@ -47,7 +45,6 @@ type IDTokenClaims struct {
 }
 
 // SAMLProvider implements the Provider interface for SAML authentication
-// SEM@0dcfe60d024e5cd95a40b61fc489253e670af6ce: SAML service provider holding config, SP descriptor, and IdP metadata (pure)
 type SAMLProvider struct {
 	config          *SAMLConfig
 	serviceProvider *saml.ServiceProvider
@@ -55,7 +52,6 @@ type SAMLProvider struct {
 }
 
 // NewSAMLProvider creates a new SAML provider
-// SEM@d90c40114705e5560d91377af5101409dd78f88e: build and configure a SAMLProvider from SP key/cert and fetched IdP metadata
 func NewSAMLProvider(config *SAMLConfig) (*SAMLProvider, error) {
 	if config == nil {
 		return nil, fmt.Errorf("SAML config is nil")
@@ -118,13 +114,11 @@ func NewSAMLProvider(config *SAMLConfig) (*SAMLProvider, error) {
 }
 
 // GetOAuth2Config returns nil as SAML doesn't use OAuth2
-// SEM@0dcfe60d024e5cd95a40b61fc489253e670af6ce: return nil to satisfy the provider interface; SAML does not use OAuth2 (pure)
 func (p *SAMLProvider) GetOAuth2Config() *oauth2.Config {
 	return nil
 }
 
 // GetAuthorizationURL generates a SAML authentication request URL
-// SEM@85ed60a219cd0aba38e90907408068f8235d4cc1: build a SAML HTTP-redirect SSO URL with relay state for the configured IdP (pure)
 func (p *SAMLProvider) GetAuthorizationURL(state string) (string, error) {
 	// Create authentication request
 	req, err := p.serviceProvider.MakeAuthenticationRequest(
@@ -149,7 +143,6 @@ func (p *SAMLProvider) GetAuthorizationURL(state string) (string, error) {
 // with ForceAuthn=true set on the AuthnRequest, overriding the configured
 // p.config.ForceAuthn default. Used by /oauth2/step_up (#397) to require a
 // fresh interactive re-authentication at the IdP.
-// SEM@e55d63794c48585aafab36880122df63ab8ab1be: build a SAML SSO URL with ForceAuthn to require fresh IdP authentication (pure)
 func (p *SAMLProvider) GetAuthorizationURLForceAuthn(state string) (string, error) {
 	req, err := p.serviceProvider.MakeAuthenticationRequest(
 		p.serviceProvider.GetSSOBindingLocation(saml.HTTPRedirectBinding),
@@ -173,25 +166,21 @@ func (p *SAMLProvider) GetAuthorizationURLForceAuthn(state string) (string, erro
 }
 
 // ExchangeCode is not applicable for SAML
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: return an error; SAML does not support authorization code exchange (pure)
 func (p *SAMLProvider) ExchangeCode(ctx context.Context, code string) (*TokenResponse, error) {
 	return nil, fmt.Errorf("SAML provider does not support code exchange")
 }
 
 // GetUserInfo is not applicable for SAML (user info comes from assertion)
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: return an error; SAML user info is extracted from the assertion, not via token (pure)
 func (p *SAMLProvider) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
 	return nil, fmt.Errorf("SAML provider does not support GetUserInfo - user info comes from assertion")
 }
 
 // ValidateIDToken is not applicable for SAML
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: return an error; SAML does not issue ID tokens (pure)
 func (p *SAMLProvider) ValidateIDToken(ctx context.Context, idToken string) (*IDTokenClaims, error) {
 	return nil, fmt.Errorf("SAML provider does not support ID tokens")
 }
 
 // ParseResponse parses and validates a SAML response with full signature verification
-// SEM@b50a40200e4338e13e0818ad44b5899a41ffff7b: decode, pre-check, and validate a base64 SAML response, returning a verified assertion; recover panics
 func (p *SAMLProvider) ParseResponse(samlResponse string) (*saml.Assertion, error) {
 	// Decode base64-encoded SAML response
 	decodedResponse, err := base64.StdEncoding.DecodeString(samlResponse)
@@ -241,32 +230,27 @@ func (p *SAMLProvider) ParseResponse(samlResponse string) (*saml.Assertion, erro
 }
 
 // ExtractUserInfoFromAssertion extracts user info from a SAML assertion
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: parse user identity attributes from a verified SAML assertion (pure)
 func (p *SAMLProvider) ExtractUserInfoFromAssertion(assertion *saml.Assertion) (*UserInfo, error) {
 	return ExtractUserInfo(assertion, p.config)
 }
 
 // GetMetadata returns the service provider metadata
-// SEM@0dcfe60d024e5cd95a40b61fc489253e670af6ce: return the SP EntityDescriptor metadata struct (pure)
 func (p *SAMLProvider) GetMetadata() (*saml.EntityDescriptor, error) {
 	return p.serviceProvider.Metadata(), nil
 }
 
 // GetMetadataXML returns the service provider metadata as XML
-// SEM@0dcfe60d024e5cd95a40b61fc489253e670af6ce: serialize the SP metadata to indented XML bytes (pure)
 func (p *SAMLProvider) GetMetadataXML() ([]byte, error) {
 	metadata := p.serviceProvider.Metadata()
 	return xml.MarshalIndent(metadata, "", "  ")
 }
 
 // GetConfig returns the SAML configuration
-// SEM@0dcfe60d024e5cd95a40b61fc489253e670af6ce: return the SAML provider configuration (pure)
 func (p *SAMLProvider) GetConfig() *SAMLConfig {
 	return p.config
 }
 
 // GenerateMetadata returns the SP metadata XML string
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: return the SP metadata as an XML string (pure)
 func (p *SAMLProvider) GenerateMetadata() (string, error) {
 	metadata, err := p.GetMetadataXML()
 	if err != nil {
@@ -276,7 +260,6 @@ func (p *SAMLProvider) GenerateMetadata() (string, error) {
 }
 
 // InitiateLogin creates a SAML authentication request
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: generate a SAML authentication URL and relay state for a new login flow (pure)
 func (p *SAMLProvider) InitiateLogin(clientCallback *string) (string, string, error) {
 	// Generate a random state for CSRF protection
 	state := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -310,7 +293,6 @@ const (
 // SECURITY: the request is only trusted after its enveloped XML signature has
 // been verified against the IdP signing certificate(s) from metadata.
 // Unsigned requests are rejected outright.
-// SEM@b50a40200e4338e13e0818ad44b5899a41ffff7b: validate signature, NameID namespace, and fields of a base64 SAML logout request from the IdP (pure)
 func (p *SAMLProvider) ProcessLogoutRequest(samlRequest string) (*saml.LogoutRequest, error) {
 	// Decode base64-encoded SAML logout request
 	decodedRequest, err := base64.StdEncoding.DecodeString(samlRequest)
@@ -412,7 +394,6 @@ func (p *SAMLProvider) ProcessLogoutRequest(samlRequest string) (*saml.LogoutReq
 // metadata (mirrors crewjam/saml's unexported getIDPSigningCerts).
 // Certificates marked use="signing" are preferred; if none are marked,
 // certificates with no use attribute are accepted, per the metadata spec.
-// SEM@bbf626f42894b3914617abadecf11fccd86a73b1: extract and parse IdP signing certificates from metadata (pure)
 func (p *SAMLProvider) idpSigningCerts() ([]*x509.Certificate, error) {
 	var certStrs []string
 	for _, idpSSODescriptor := range p.idpMetadata.IDPSSODescriptors {
@@ -463,7 +444,6 @@ func (p *SAMLProvider) idpSigningCerts() ([]*x509.Certificate, error) {
 }
 
 // MakeLogoutResponse creates a SAML logout response
-// SEM@f4f52c4150b0113a1db8646f6327c385ab0ec2b1: build and base64-encode a SAML logout response for the IdP (pure)
 func (p *SAMLProvider) MakeLogoutResponse(inResponseTo string, status string) (string, error) {
 	// Create logout response
 	logoutResponse := &saml.LogoutResponse{
@@ -494,7 +474,6 @@ func (p *SAMLProvider) MakeLogoutResponse(inResponseTo string, status string) (s
 }
 
 // loadKeyAndCert loads the SP private key and certificate
-// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: load and parse the SP RSA private key and X.509 certificate from config (pure)
 func loadKeyAndCert(config *SAMLConfig) (*rsa.PrivateKey, *x509.Certificate, error) {
 	var keyPEM, certPEM []byte
 	var err error
@@ -560,7 +539,6 @@ func loadKeyAndCert(config *SAMLConfig) (*rsa.PrivateKey, *x509.Certificate, err
 }
 
 // fetchIDPMetadata fetches and parses IdP metadata with security validation
-// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: fetch and validate IdP metadata from URL or base64 XML in config
 func fetchIDPMetadata(config *SAMLConfig) (*saml.EntityDescriptor, error) {
 	var metadataXML []byte
 	var err error
@@ -620,7 +598,6 @@ func fetchIDPMetadata(config *SAMLConfig) (*saml.EntityDescriptor, error) {
 // blocking an internal/private metadata URL (e.g. 169.254.169.254, RFC1918,
 // loopback) at dial time (SSRF). TLS 1.2 minimum is enforced by the hardened
 // client.
-// SEM@e55d63794c48585aafab36880122df63ab8ab1be: fetch IdP metadata XML from a URL via a hardened SSRF-resistant HTTP client
 func fetchMetadataFromURL(metadataURL string) ([]byte, error) {
 	client := safehttp.NewHardenedClient(safehttp.HardenedClientOptions{
 		Timeout: 30 * time.Second,
@@ -645,7 +622,6 @@ func fetchMetadataFromURL(metadataURL string) ([]byte, error) {
 }
 
 // CreateMiddleware creates SAML middleware for HTTP handlers
-// SEM@85ed60a219cd0aba38e90907408068f8235d4cc1: build a SAML SP middleware from provider config and IdP metadata
 func (p *SAMLProvider) CreateMiddleware(opts samlsp.Options) (*samlsp.Middleware, error) {
 	opts.IDPMetadata = p.idpMetadata
 	opts.Key = p.serviceProvider.Key

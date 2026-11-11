@@ -18,7 +18,6 @@ import (
 // If run against a non-empty schema that triggers an "object already exists"
 // error, the error surfaces loudly — the operator should drop and recreate
 // the schema first.
-// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: lock migrations, then migrate the database schema and seed system data (writes DB)
 func runSchema(ctx context.Context, db *testdb.TestDB, dryRun, verbose bool) error {
 	if dryRun {
 		return runSchemaDryRun(db, verbose)
@@ -44,7 +43,6 @@ func runSchema(ctx context.Context, db *testdb.TestDB, dryRun, verbose bool) err
 
 // runSchemaLocked performs the schema migration and system seed. Always called
 // with the cross-replica migration advisory lock held (see runSchema).
-// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: migrate the database schema, upgrade legacy indexes, and seed system data (writes DB)
 func runSchemaLocked(ctx context.Context, db *testdb.TestDB) error {
 	log := slogging.Get()
 
@@ -188,7 +186,6 @@ func runSchemaLocked(ctx context.Context, db *testdb.TestDB) error {
 }
 
 // runSchemaDryRun reports what schema changes would be made without writing.
-// SEM@7a8bf8de72c6d39387df00ec0eb9901653555db8: report schema health and missing tables without applying any changes (reads DB)
 func runSchemaDryRun(db *testdb.TestDB, _ bool) error {
 	log := slogging.Get()
 	log.Info("[DRY RUN] Checking schema status...")

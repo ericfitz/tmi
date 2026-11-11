@@ -12,14 +12,12 @@ import (
 // GroupMembershipEnricher implements auth.ClaimsEnricher by checking
 // effective membership in built-in groups (Administrators, Security Reviewers)
 // and resolving the user's TMI-managed group names for inclusion in the JWT groups claim.
-// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: JWT claims enricher that resolves a user's built-in group memberships from the DB
 type GroupMembershipEnricher struct {
 	memberStore GroupMemberRepository
 	db          *gorm.DB
 }
 
 // NewGroupMembershipEnricher creates a new enricher for JWT claims.
-// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: build a GroupMembershipEnricher backed by the given group member repository (pure)
 func NewGroupMembershipEnricher(memberStore GroupMemberRepository, db *gorm.DB) *GroupMembershipEnricher {
 	return &GroupMembershipEnricher{
 		memberStore: memberStore,
@@ -29,14 +27,12 @@ func NewGroupMembershipEnricher(memberStore GroupMemberRepository, db *gorm.DB) 
 
 // IsAdministrator reports whether the user is an administrator directly or via
 // a nested TMI-managed group, independent of any IdP group list (#856).
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: validate Administrators membership for a user id including nested TMI groups (reads DB)
 func (e *GroupMembershipEnricher) IsAdministrator(ctx context.Context, userInternalUUID string) (bool, error) {
 	return IsEffectiveAdministratorByUUID(ctx, e.memberStore, userInternalUUID)
 }
 
 // EnrichClaims checks whether the user is a member of the Administrators and
 // Security Reviewers built-in groups, and returns the user's TMI-managed group names.
-// SEM@d73e23609ca9cefd9ef2feb0e43d87e4286ea6d6: resolve admin/security-reviewer flags and TMI group names for a user's JWT claims (reads DB)
 func (e *GroupMembershipEnricher) EnrichClaims(ctx context.Context, userInternalUUID string, provider string, groupNames []string) (bool, bool, []string, error) {
 	logger := slogging.Get()
 
