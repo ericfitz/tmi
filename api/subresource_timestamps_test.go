@@ -198,9 +198,10 @@ func TestGormAssetRepository_ReturnsStoredTimestamps(t *testing.T) {
 // upperColumnNamer mimics gorm-oracle's naming: column names are uppercase,
 // so field.DBName is "MODIFIED_AT" rather than "modified_at". SQLite folds
 // identifier case, so the schema still migrates and queries still run.
+// SEM@5cad12a346cfa1d9fe080a6273953ebc72bfb2e3: naming strategy that uppercases column names like the Oracle dialect
 type upperColumnNamer struct{ schema.NamingStrategy }
 
-// SEM@0000000: convert a column name to uppercase like the Oracle dialect (pure)
+// SEM@5cad12a346cfa1d9fe080a6273953ebc72bfb2e3: convert a column name to uppercase like the Oracle dialect (pure)
 func (n upperColumnNamer) ColumnName(table, column string) string {
 	return strings.ToUpper(n.NamingStrategy.ColumnName(table, column))
 }
@@ -209,7 +210,7 @@ func (n upperColumnNamer) ColumnName(table, column string) string {
 // map key would not stop GORM's autoUpdateTime injector (it checks field.Name
 // and field.DBName), so the UPDATE would assign the column twice and Oracle
 // would reject it with ORA-00957 while PostgreSQL passed.
-// SEM@0000000: test that asset update assigns modified_at exactly once under Oracle-style column names
+// SEM@5cad12a346cfa1d9fe080a6273953ebc72bfb2e3: test that asset update assigns modified_at once under Oracle-style column names
 func TestGormAssetRepository_UpdateAssignsModifiedAtOnce(t *testing.T) {
 	ctx := context.Background()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{

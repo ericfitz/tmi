@@ -174,7 +174,7 @@ func (s *GormAssetRepository) Get(ctx context.Context, id string) (*Asset, error
 
 // update runs the asset content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update asset fields and cache, optionally CAS-guarded, in one transaction (reads DB)
+// SEM@5cad12a346cfa1d9fe080a6273953ebc72bfb2e3: update an asset's fields with an explicit truncated modified_at, refresh cache (mutates DB)
 func (s *GormAssetRepository) update(ctx context.Context, asset *Asset, threatModelID string, expectedVersion *int) (int, error) {
 	logger := slogging.Get()
 	logger.Debug("Updating asset: %s", asset.Id)
