@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,7 +10,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
+	"gorm.io/gorm/schema"
 )
 
 // #1150: repository, document and asset writes must return (and cache) the
@@ -189,4 +193,55 @@ func TestGormAssetRepository_ReturnsStoredTimestamps(t *testing.T) {
 			assertStoredTimes(t, db, &models.Asset{}, a.Id.String(), a.CreatedAt, a.ModifiedAt)
 		}
 	})
+}
+
+// upperColumnNamer mimics gorm-oracle's naming: column names are uppercase,
+// so field.DBName is "MODIFIED_AT" rather than "modified_at". SQLite folds
+// identifier case, so the schema still migrates and queries still run.
+type upperColumnNamer struct{ schema.NamingStrategy }
+
+// SEM@0000000: convert a column name to uppercase like the Oracle dialect (pure)
+func (n upperColumnNamer) ColumnName(table, column string) string {
+	return strings.ToUpper(n.NamingStrategy.ColumnName(table, column))
+}
+
+// An Oracle-only failure guard: with hooks enabled, a lowercase "modified_at"
+// map key would not stop GORM's autoUpdateTime injector (it checks field.Name
+// and field.DBName), so the UPDATE would assign the column twice and Oracle
+// would reject it with ORA-00957 while PostgreSQL passed.
+// SEM@0000000: test that asset update assigns modified_at exactly once under Oracle-style column names
+func TestGormAssetRepository_UpdateAssignsModifiedAtOnce(t *testing.T) {
+	ctx := context.Background()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger:                                   gormlogger.Discard,
+		DisableForeignKeyConstraintWhenMigrating: true,
+		NamingStrategy:                           upperColumnNamer{},
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&models.Asset{}, &models.Metadata{}, &models.AliasCounter{}))
+
+	var updateSQL []string
+	require.NoError(t, db.Callback().Update().After("gorm:update").Register("test:capture_sql",
+		func(tx *gorm.DB) { updateSQL = append(updateSQL, tx.Statement.SQL.String()) }))
+
+	store := NewGormAssetRepository(db, nil, nil)
+	tm := uuid.New().String()
+	id := uuid.New()
+	require.NoError(t, store.Create(ctx, &Asset{Id: &id, Name: "asset", Type: AssetTypeData}, tm))
+	updateSQL = nil
+	require.NoError(t, store.Update(ctx, &Asset{Id: &id, Name: "renamed", Type: AssetTypeData}, tm))
+
+	var assetUpdates int
+	for _, q := range updateSQL {
+		if !strings.Contains(strings.ToUpper(q), "UPDATE `ASSETS`") && !strings.Contains(strings.ToUpper(q), `UPDATE "ASSETS"`) {
+			continue
+		}
+		assetUpdates++
+		set := strings.ToUpper(q)
+		if i := strings.Index(set, " WHERE "); i >= 0 {
+			set = set[:i]
+		}
+		assert.Equal(t, 1, strings.Count(set, "MODIFIED_AT"), "modified_at must be assigned exactly once: %s", q)
+	}
+	require.Equal(t, 1, assetUpdates, "expected one UPDATE on assets, captured: %v", updateSQL)
 }

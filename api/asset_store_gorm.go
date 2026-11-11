@@ -186,7 +186,6 @@ func (s *GormAssetRepository) update(ctx context.Context, asset *Asset, threatMo
 	}
 
 	// Build update map with ALL fields unconditionally so nil values write NULL
-	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	var classificationValue any
 	if asset.Classification != nil {
 		classificationValue = models.StringArray(*asset.Classification)
@@ -208,7 +207,22 @@ func (s *GormAssetRepository) update(ctx context.Context, asset *Asset, threatMo
 	// constructor so Value() gets a chance to normalize empty string to NULL
 	// (#700); a raw *string in the map bypasses the Valuer and would persist
 	// "" verbatim.
+	//
+	// modified_at is set explicitly, truncated to microseconds (the resolution
+	// TIMESTAMP(6) and timestamptz store; see repository_store_gorm.go), rather
+	// than left to the autoUpdateTime tag: GORM's NowFunc carries nanoseconds
+	// on Linux, so the value it mirrors back would not match the next read
+	// (#1150).
+	//
+	// The key is the Go field name "ModifiedAt", NOT "modified_at": this
+	// Updates runs with hooks enabled, and the autoUpdateTime injector skips a
+	// field only when the map holds value[field.Name] or value[field.DBName].
+	// DBName is "MODIFIED_AT" on Oracle, so a lowercase key would match
+	// neither and GORM would append a second assignment (ORA-00957), while
+	// PostgreSQL stayed green. LookUpField resolves "ModifiedAt" by field name
+	// and the emitted SQL uses DBName on every dialect.
 	updates := map[string]any{
+		"ModifiedAt":        time.Now().UTC().Truncate(time.Microsecond),
 		"name":              asset.Name,
 		"type":              string(asset.Type),
 		"description":       models.NewNullableDBText(asset.Description),
