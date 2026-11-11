@@ -129,6 +129,12 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 		return fmt.Errorf("failed to convert response: %w", err)
 	}
 
+	// Microseconds: the resolution TIMESTAMP(6) and timestamptz store, so the
+	// values mirrored onto the response match a later GET (#1153).
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	model.CreatedAt = now
+	model.ModifiedAt = now
+
 	// Start transaction (with retry on transient errors)
 	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err = authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
