@@ -156,6 +156,8 @@ func (h *DiagramOperationRequestHandler) HandleMessage(session *DiagramSession, 
 	if applied {
 		// Save the modified diagram to the database. WebSocket update path
 		// uses context.Background(); see #334.
+		// Stamp a fresh modified_at; the store persists the caller's value (#1155).
+		UpdateTimestamps(&diagram, false)
 		if err := DiagramStore.Update(context.Background(), session.DiagramID, diagram); err != nil {
 			slogging.Get().Error("Failed to save diagram after operation - Session: %s, OperationID: %s, Error: %v",
 				session.ID, req.OperationID, err)

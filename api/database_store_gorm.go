@@ -938,6 +938,10 @@ func (s *GormThreatModelStore) Create(ctx context.Context, item ThreatModel, idS
 
 // update runs the threat model content write inside one retryable
 // transaction, CAS-guarded first when expectedVersion is non-nil (#594).
+// update persists a threat model. Contract: callers must stamp ModifiedAt
+// (UpdateTimestamps) before calling; the stored modified_at is exactly the
+// caller's value, so a stale value is stored as stale. A nil ModifiedAt falls
+// back to the current microsecond instant (#1155).
 func (s *GormThreatModelStore) update(ctx context.Context, id string, item ThreatModel, expectedVersion *int) (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -1788,6 +1792,9 @@ func (s *GormDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, str
 }
 
 // update runs the diagram content write inside one retryable transaction,
+// persisting the caller's ModifiedAt: callers must stamp it first
+// (UpdateTimestamps); nil falls back to now (#1155).
+//
 // CAS-guarded first when expectedVersion is non-nil (#594).
 func (s *GormDiagramStore) update(ctx context.Context, id string, item DfdDiagram, expectedVersion *int) (int, error) {
 	s.mutex.Lock()

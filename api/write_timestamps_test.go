@@ -246,7 +246,9 @@ func TestWriteTimestamps_ThreatModel(t *testing.T) {
 	status := "In Review"
 	update.Status = &status
 	require.NoError(t, store.Update(ctx, id, update))
-	assertTime(t, "status_updated (update)", storedTime(t, db, &models.ThreatModel{}, "id", id, "status_updated"), storedTime(t, db, &models.ThreatModel{}, "id", id, "status_updated"))
+	statusUpdated := storedTime(t, db, &models.ThreatModel{}, "id", id, "status_updated")
+	assert.Zero(t, statusUpdated.Nanosecond()%1000, "status_updated must carry microsecond resolution")
+	assert.True(t, statusUpdated.After(*created.StatusUpdated), "status_updated must advance when the status changes")
 }
 
 func TestWriteTimestamps_Diagram(t *testing.T) {

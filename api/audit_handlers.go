@@ -239,6 +239,10 @@ func (h *AuditHandler) rollbackThreatModel(ctx context.Context, entry *AuditEntr
 		return ServerError(fmt.Sprintf("Failed to deserialize threat model snapshot: %v", err))
 	}
 
+	// The snapshot carries its historical modified_at; stamp a fresh one so the
+	// rollback registers as a modification (#1155).
+	UpdateTimestamps(&tm, false)
+
 	if entry.ChangeType == models.ChangeTypeDeleted {
 		// Try to restore the tombstone first; fall back to create if already hard-deleted
 		if err := ThreatModelStore.Restore(entry.ObjectID); err == nil {
@@ -255,6 +259,9 @@ func (h *AuditHandler) rollbackDiagram(ctx context.Context, entry *AuditEntryRes
 	if err := json.Unmarshal(snapshotData, &diagram); err != nil {
 		return ServerError(fmt.Sprintf("Failed to deserialize diagram snapshot: %v", err))
 	}
+
+	// Stamp a fresh modified_at instead of the snapshot's historical one (#1155).
+	UpdateTimestamps(&diagram, false)
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
 		if err := DiagramStore.Restore(entry.ObjectID); err == nil {
