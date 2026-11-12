@@ -26,7 +26,6 @@ func setupStampedStores(t *testing.T) (*GormThreatModelStore, *GormDiagramStore,
 	tmStore := NewGormThreatModelStore(db)
 	tm, err := tmStore.Create(context.Background(), newWriteTimestampThreatModel(user), tmIDSetter)
 	require.NoError(t, err)
-	t.Cleanup(func() {})
 	return tmStore, NewGormDiagramStore(db), user, tm.Id.String()
 }
 
@@ -63,12 +62,14 @@ func TestCellOperationProcessor_AdvancesModifiedAt(t *testing.T) {
 }
 
 func TestAuditRollback_StampsFreshModifiedAt(t *testing.T) {
-	tmStore, ds, user, tmID := setupStampedStores(t)
+	tmStore, ds, _, tmID := setupStampedStores(t)
 	origTM, origDiagram := ThreatModelStore, DiagramStore
 	defer func() { ThreatModelStore, DiagramStore = origTM, origDiagram }()
 	ThreatModelStore, DiagramStore = tmStore, ds
 	h := &AuditHandler{}
-	ctx := context.Background()
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("POST", "/", nil)
 	db := ds.db
 
 	t.Run("threat model", func(t *testing.T) {
@@ -80,9 +81,11 @@ func TestAuditRollback_StampsFreshModifiedAt(t *testing.T) {
 		backdate(t, db, &models.ThreatModel{}, tmID, tsOld)
 
 		entry := &AuditEntryResponse{ObjectID: tmID, ObjectType: models.ObjectTypeThreatModel, ChangeType: models.ChangeTypeUpdated}
-		require.NoError(t, h.rollbackThreatModel(ctx, entry, snapshot))
-		assert.True(t, storedTime(t, db, &models.ThreatModel{}, "id", tmID, "modified_at").After(tsOld))
-		_ = user
+		restored, err := h.performRollback(c, entry, snapshot)
+		require.NoError(t, err)
+		stored := storedTime(t, db, &models.ThreatModel{}, "id", tmID, "modified_at")
+		assert.True(t, stored.After(tsOld))
+		assertRestoredModifiedAt(t, restored, stored)
 	})
 
 	t.Run("diagram", func(t *testing.T) {
@@ -94,8 +97,11 @@ func TestAuditRollback_StampsFreshModifiedAt(t *testing.T) {
 		backdate(t, db, &models.Diagram{}, id, tsOld)
 
 		entry := &AuditEntryResponse{ObjectID: id, ThreatModelID: tmID, ObjectType: models.ObjectTypeDiagram, ChangeType: models.ChangeTypeUpdated}
-		require.NoError(t, h.rollbackDiagram(ctx, entry, snapshot))
-		assert.True(t, storedTime(t, db, &models.Diagram{}, "id", id, "modified_at").After(tsOld))
+		restored, err := h.performRollback(c, entry, snapshot)
+		require.NoError(t, err)
+		stored := storedTime(t, db, &models.Diagram{}, "id", id, "modified_at")
+		assert.True(t, stored.After(tsOld))
+		assertRestoredModifiedAt(t, restored, stored)
 	})
 }
 
@@ -153,4 +159,15 @@ func TestThreatModelPut_ResponseModifiedAtEqualsStored(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
 	require.NotNil(t, got.ModifiedAt)
 	assertTime(t, "modified_at", *got.ModifiedAt, storedTime(t, ds.db, &models.ThreatModel{}, "id", tmID, "modified_at"))
+}
+
+// assertRestoredModifiedAt checks the rollback response entity carries the
+// stored modified_at as it would serialize it, not the snapshot's old value.
+func assertRestoredModifiedAt(t *testing.T, restored map[string]any, stored time.Time) {
+	t.Helper()
+	raw, err := json.Marshal(restored["modified_at"])
+	require.NoError(t, err)
+	var got time.Time
+	require.NoError(t, json.Unmarshal(raw, &got))
+	assertTime(t, "restored modified_at", got, stored)
 }

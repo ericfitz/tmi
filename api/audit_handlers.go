@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -215,9 +216,19 @@ func (h *AuditHandler) performRollback(c *gin.Context, entry *AuditEntryResponse
 
 	switch entry.ObjectType {
 	case models.ObjectTypeThreatModel:
-		return restoredMap, h.rollbackThreatModel(ctx, entry, snapshotData)
+		// The stored row carries the fresh modified_at stamped by the rollback,
+		// not the snapshot's historical one; report the stored value (#1155).
+		modifiedAt, err := h.rollbackThreatModel(ctx, entry, snapshotData)
+		if err == nil {
+			restoredMap["modified_at"] = modifiedAt
+		}
+		return restoredMap, err
 	case models.ObjectTypeDiagram:
-		return restoredMap, h.rollbackDiagram(ctx, entry, snapshotData)
+		modifiedAt, err := h.rollbackDiagram(ctx, entry, snapshotData)
+		if err == nil {
+			restoredMap["modified_at"] = modifiedAt
+		}
+		return restoredMap, err
 	case models.ObjectTypeThreat:
 		return restoredMap, h.rollbackThreat(ctx, entry, snapshotData)
 	case models.ObjectTypeAsset:
@@ -233,10 +244,18 @@ func (h *AuditHandler) performRollback(c *gin.Context, entry *AuditEntryResponse
 	}
 }
 
-func (h *AuditHandler) rollbackThreatModel(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
+// stamped pairs the modified_at a rollback stored with the store call's error.
+func stamped(modifiedAt *time.Time, err error) (time.Time, error) {
+	if err != nil || modifiedAt == nil {
+		return time.Time{}, err
+	}
+	return *modifiedAt, nil
+}
+
+func (h *AuditHandler) rollbackThreatModel(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) (time.Time, error) {
 	var tm ThreatModel
 	if err := json.Unmarshal(snapshotData, &tm); err != nil {
-		return ServerError(fmt.Sprintf("Failed to deserialize threat model snapshot: %v", err))
+		return time.Time{}, ServerError(fmt.Sprintf("Failed to deserialize threat model snapshot: %v", err))
 	}
 
 	// The snapshot carries its historical modified_at; stamp a fresh one so the
@@ -246,18 +265,18 @@ func (h *AuditHandler) rollbackThreatModel(ctx context.Context, entry *AuditEntr
 	if entry.ChangeType == models.ChangeTypeDeleted {
 		// Try to restore the tombstone first; fall back to create if already hard-deleted
 		if err := ThreatModelStore.Restore(entry.ObjectID); err == nil {
-			return ThreatModelStore.Update(ctx, entry.ObjectID, tm)
+			return stamped(tm.ModifiedAt, ThreatModelStore.Update(ctx, entry.ObjectID, tm))
 		}
 		_, err := ThreatModelStore.Create(ctx, tm, func(t ThreatModel, id string) ThreatModel { return t })
-		return err
+		return stamped(tm.ModifiedAt, err)
 	}
-	return ThreatModelStore.Update(ctx, entry.ObjectID, tm)
+	return stamped(tm.ModifiedAt, ThreatModelStore.Update(ctx, entry.ObjectID, tm))
 }
 
-func (h *AuditHandler) rollbackDiagram(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
+func (h *AuditHandler) rollbackDiagram(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) (time.Time, error) {
 	var diagram DfdDiagram
 	if err := json.Unmarshal(snapshotData, &diagram); err != nil {
-		return ServerError(fmt.Sprintf("Failed to deserialize diagram snapshot: %v", err))
+		return time.Time{}, ServerError(fmt.Sprintf("Failed to deserialize diagram snapshot: %v", err))
 	}
 
 	// Stamp a fresh modified_at instead of the snapshot's historical one (#1155).
@@ -265,12 +284,12 @@ func (h *AuditHandler) rollbackDiagram(ctx context.Context, entry *AuditEntryRes
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
 		if err := DiagramStore.Restore(entry.ObjectID); err == nil {
-			return DiagramStore.Update(ctx, entry.ObjectID, diagram)
+			return stamped(diagram.ModifiedAt, DiagramStore.Update(ctx, entry.ObjectID, diagram))
 		}
 		_, err := DiagramStore.CreateWithThreatModel(diagram, entry.ThreatModelID, func(d DfdDiagram, id string) DfdDiagram { return d })
-		return err
+		return stamped(diagram.ModifiedAt, err)
 	}
-	return DiagramStore.Update(ctx, entry.ObjectID, diagram)
+	return stamped(diagram.ModifiedAt, DiagramStore.Update(ctx, entry.ObjectID, diagram))
 }
 
 func (h *AuditHandler) rollbackThreat(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
