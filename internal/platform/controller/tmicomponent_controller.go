@@ -22,7 +22,6 @@ import (
 // Pre-creating the stream and consumer is required for KEDA scale-from-zero:
 // KEDA reads the consumer's pending depth to decide when to scale the worker
 // up from zero, so the consumer must exist before any worker pod runs.
-// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: Kubernetes reconciler that converges a TMIComponent into its Deployment, NetworkPolicy, and ScaledObject children
 type TMIComponentReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
@@ -33,14 +32,12 @@ type TMIComponentReconciler struct {
 }
 
 // Reconcile is the controller-runtime entrypoint.
-// SEM@50b942b21c528f6a4405c3ce2dccedfdd379012a: controller-runtime entrypoint; delegates to ReconcileComponent
 func (r *TMIComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	return r.ReconcileComponent(ctx, req.NamespacedName)
 }
 
 // ReconcileComponent renders and applies the child objects for one component.
 // Split out from Reconcile so tests can drive it directly.
-// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: render and apply all child objects for a TMIComponent, provisioning JetStream if configured
 func (r *TMIComponentReconciler) ReconcileComponent(ctx context.Context, key types.NamespacedName) (ctrl.Result, error) {
 	var comp platformv1alpha1.TMIComponent
 	if err := r.Get(ctx, key, &comp); err != nil {
@@ -112,8 +109,6 @@ func (r *TMIComponentReconciler) ReconcileComponent(ctx context.Context, key typ
 //     the rendered one. Without this, an Update fires even when nothing
 //     changed, and because SetupWithManager Owns(&appsv1.Deployment{}), that
 //     write re-triggers the watch, which reconciles, which writes again.
-//
-// SEM@057904fdab6d441170cccc6d204c153786d9b992: create a Kubernetes object, or update it only when live does not already satisfy it
 func (r *TMIComponentReconciler) apply(ctx context.Context, obj client.Object) error {
 	err := r.Create(ctx, obj)
 	if err == nil {
@@ -147,7 +142,6 @@ func (r *TMIComponentReconciler) apply(ctx context.Context, obj client.Object) e
 // Deployment that does not set one, so an Update cannot clobber the value the
 // autoscaler owns. A renderer that DOES set replicas is left alone — that is
 // an explicit intent to control the count.
-// SEM@057904fdab6d441170cccc6d204c153786d9b992: copy the live replica count onto a rendered Deployment that leaves it unset (pure)
 func preserveAutoscaledReplicas(rendered, live client.Object) {
 	d, ok := rendered.(*appsv1.Deployment)
 	if !ok || d.Spec.Replicas != nil {
@@ -173,7 +167,6 @@ func preserveAutoscaledReplicas(rendered, live client.Object) {
 // need to clear anything, so the trade is sound here. An unrecognised type
 // returns false — always update — because a wrong "no change" is a stuck
 // controller, while a redundant update is merely wasteful.
-// SEM@6b7b976: report whether a live object already matches the rendered spec and Reloader annotation (pure)
 func liveSatisfies(rendered, live client.Object) bool {
 	switch d := rendered.(type) {
 	case *appsv1.Deployment:
@@ -189,7 +182,6 @@ func liveSatisfies(rendered, live client.Object) bool {
 }
 
 // SetupWithManager registers the reconciler and its owned child types.
-// SEM@50b942b21c528f6a4405c3ce2dccedfdd379012a: register the reconciler with the controller-runtime manager and declare owned child types
 func (r *TMIComponentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Owns the typed children so the controller re-reconciles on child drift.
 	// The KEDA ScaledObject is unstructured and not watched here; drift

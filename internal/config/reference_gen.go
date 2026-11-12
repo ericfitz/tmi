@@ -18,7 +18,6 @@ import (
 // conditionally-emitted settings for database-seeding reasons, and the
 // reference doubles as the TMI_* env-var allowlist, so it must name every
 // setting the server can read (#810).
-// SEM@4077bab0af75093efb1660aa34801b2c752c9c0f: build the wiki configuration reference as Markdown from the full registry, with a precedence explainer, bootstrap/operational tables and a process-environment section (pure)
 func GenerateReferenceMarkdown() ([]byte, error) {
 	cfg := getDefaultConfig()
 	cfg.Server.TLSSubjectName = "localhost" // deterministic — must not embed the build host's name
@@ -79,7 +78,6 @@ func GenerateReferenceMarkdown() ([]byte, error) {
 // declares with a fallback class (database.oracle_wallet_location,
 // content_token_encryption_key) have no classification entry and would
 // otherwise land in neither table.
-// SEM@2b405dc298a9b163f65c46256419a34afb630280: project every config-delivered registry setting into documentation rows, unfiltered (pure)
 func referenceSettings(cfg *Config) []MigratableSetting {
 	defs := AllSettingDefs()
 	out := make([]MigratableSetting, 0, len(defs))
@@ -103,7 +101,6 @@ func referenceSettings(cfg *Config) []MigratableSetting {
 // the system_settings database row) wins for a given key, placed above the
 // tables so an operator debugging a config problem doesn't have to read
 // source to find the rule. See #794.
-// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: render the config/env-vs-database precedence rule as a Markdown section (pure)
 func precedenceSection() string {
 	return "## Precedence\n\n" +
 		"A setting's value can come from a YAML config file, an environment " +
@@ -140,7 +137,6 @@ func precedenceSection() string {
 // processEnvSection renders the hand-maintained ProcessEnvVars inventory as
 // the "Process environment" section: fixed names grouped by binary in
 // first-appearance order, then the prefix patterns in their own table.
-// SEM@4077bab0af75093efb1660aa34801b2c752c9c0f: render env vars read outside the config registry as Markdown tables grouped by binary (pure)
 func processEnvSection() string {
 	var order []string
 	byBinary := map[string][]ProcessEnvVar{}
@@ -180,14 +176,12 @@ func processEnvSection() string {
 	return b.String()
 }
 
-// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: format a bootstrap config setting as a Markdown table row (pure)
 func bootstrapRow(s MigratableSetting) string {
 	return fmt.Sprintf("| `%s` | %s | %s | %s | %s | %s | %s | %s |\n",
 		s.Key, codeOrDash(s.EnvVar), s.Type, defaultCell(s),
 		yesNo(s.Class.Required), yesNo(s.Class.Secret), precedenceCell(s), sanitizeCell(s.Description))
 }
 
-// SEM@422a0d3e8f849483ac9c195e4a2bc39c06fc9c6b: format an operational config setting as a Markdown table row (pure)
 func operationalRow(s MigratableSetting) string {
 	return fmt.Sprintf("| `%s` | %s | %s | %s | %s | %s | %s | %s | %s |\n",
 		s.Key, codeOrDash(s.EnvVar), s.Type, defaultCell(s), declaredMutability(s),
@@ -201,7 +195,6 @@ func operationalRow(s MigratableSetting) string {
 // s.Class.Mutability here would therefore print the pre-audit default rather
 // than the declared value. Generated provider keys have no registry def and
 // keep the projected value.
-// SEM@422a0d3e8f849483ac9c195e4a2bc39c06fc9c6b: resolve a setting's declared restart semantics from the registry (pure)
 func declaredMutability(s MigratableSetting) string {
 	if d, ok := DefFor(s.Key); ok {
 		return d.Class.Mutability.String()
@@ -211,7 +204,6 @@ func declaredMutability(s MigratableSetting) string {
 
 // precedenceCell renders the terse per-row precedence summary; the full rule
 // is spelled out once in precedenceSection rather than repeated per row.
-// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: summarize which source wins for a setting's category as a table cell (pure)
 func precedenceCell(s MigratableSetting) string {
 	if s.Class.Category == CategoryBootstrap {
 		return "config/env only"
@@ -219,7 +211,6 @@ func precedenceCell(s MigratableSetting) string {
 	return "db unless config explicit"
 }
 
-// SEM@15870ed6c51c35dd0b30cf6f7a777a7010b1b69e: format a config setting's default value, masking secrets as placeholder (pure)
 func defaultCell(s MigratableSetting) string {
 	if s.Class.Secret {
 		return "_(secret)_"
@@ -230,7 +221,6 @@ func defaultCell(s MigratableSetting) string {
 	return "`" + sanitizeCell(s.Value) + "`"
 }
 
-// SEM@15870ed6c51c35dd0b30cf6f7a777a7010b1b69e: format a string as inline code or an em-dash when empty (pure)
 func codeOrDash(v string) string {
 	if v == "" {
 		return "—"
@@ -238,7 +228,6 @@ func codeOrDash(v string) string {
 	return "`" + v + "`"
 }
 
-// SEM@15870ed6c51c35dd0b30cf6f7a777a7010b1b69e: convert a boolean to 'yes' or 'no' (pure)
 func yesNo(b bool) string {
 	if b {
 		return "yes"
@@ -246,7 +235,6 @@ func yesNo(b bool) string {
 	return "no"
 }
 
-// SEM@15870ed6c51c35dd0b30cf6f7a777a7010b1b69e: escape Markdown table-breaking characters in a config cell value (pure)
 func sanitizeCell(s string) string {
 	s = strings.ReplaceAll(s, "|", "\\|")
 	s = strings.ReplaceAll(s, "\n", " ")

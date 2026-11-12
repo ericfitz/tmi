@@ -4,7 +4,6 @@ import "encoding/json"
 
 // SeedSpecFile is the top-level envelope for the seed-spec format.
 // This format is the contract between tmi-ux (E2E tests) and tmi-dbtool (seeding).
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: top-level envelope for a seed specification file shared between tmi-ux and dbtool (pure)
 type SeedSpecFile struct {
 	Version         string                  `json:"version"`
 	Description     string                  `json:"description,omitempty"`
@@ -20,14 +19,12 @@ type SeedSpecFile struct {
 }
 
 // SeedSpecOutput configures reference file generation after seeding.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: reference file output paths generated after seeding completes (pure)
 type SeedSpecOutput struct {
 	ReferenceFile string `json:"reference_file,omitempty"`
 	ReferenceYAML string `json:"reference_yaml,omitempty"`
 }
 
 // SeedSpecUser defines a test user to seed.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: test user definition including identity, roles, and quota for seeding (pure)
 type SeedSpecUser struct {
 	ID            string            `json:"id"`
 	Email         string            `json:"email,omitempty"`
@@ -38,21 +35,18 @@ type SeedSpecUser struct {
 }
 
 // SeedSpecUserRoles defines role flags for a user.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: role flags (admin, security reviewer) assigned to a seed user (pure)
 type SeedSpecUserRoles struct {
 	IsAdmin            bool `json:"is_admin,omitempty"`
 	IsSecurityReviewer bool `json:"is_security_reviewer,omitempty"`
 }
 
 // SeedSpecQuota defines API rate limits for a user.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: API rate limit (RPM/RPH) definition for a seeded user (pure)
 type SeedSpecQuota struct {
 	RPM int `json:"rpm,omitempty"`
 	RPH int `json:"rph,omitempty"`
 }
 
 // SeedSpecTeam defines a team to seed.
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: team definition with fields, members, parties, metadata and notes for seeding (pure)
 type SeedSpecTeam struct {
 	Name               string                    `json:"name"`
 	Status             string                    `json:"status,omitempty"`
@@ -66,14 +60,12 @@ type SeedSpecTeam struct {
 }
 
 // SeedSpecTeamMember defines a team member, or a team/project responsible party.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: user membership entry within a seeded team (pure)
 type SeedSpecTeamMember struct {
 	UserID string `json:"user_id"`
 	Role   string `json:"role,omitempty"`
 }
 
 // SeedSpecProject defines a project to seed.
-// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: project definition with team, fields, parties, metadata and notes for seeding (pure)
 type SeedSpecProject struct {
 	Name               string                    `json:"name"`
 	Team               string                    `json:"team,omitempty"`
@@ -88,7 +80,6 @@ type SeedSpecProject struct {
 // SeedSpecTeamProjectNote defines a note nested within a team or project.
 // Distinct from SeedSpecNote (threat-model notes): TeamProjectNoteBase
 // requires both name and content, and has no include_in_report field.
-// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: note entry attached to a team or project for seeding (pure)
 type SeedSpecTeamProjectNote struct {
 	Name        string `json:"name"`
 	Content     string `json:"content"`
@@ -96,7 +87,6 @@ type SeedSpecTeamProjectNote struct {
 }
 
 // SeedSpecFeedback defines a content-feedback entry on a threat model.
-// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: content-feedback entry targeting a seeded artifact (pure)
 type SeedSpecFeedback struct {
 	Sentiment  string `json:"sentiment"`
 	TargetType string `json:"target_type"`
@@ -108,14 +98,12 @@ type SeedSpecFeedback struct {
 }
 
 // SeedSpecTriageNote defines a triage note on a survey response.
-// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: triage note attached to a survey response for seeding (pure)
 type SeedSpecTriageNote struct {
 	Name    string `json:"name"`
 	Content string `json:"content"`
 }
 
 // SeedSpecThreatModel defines a threat model with all nested children.
-// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: threat model definition with all nested children for seeding (pure)
 type SeedSpecThreatModel struct {
 	Name                 string               `json:"name"`
 	Description          string               `json:"description,omitempty"`
@@ -139,14 +127,12 @@ type SeedSpecThreatModel struct {
 }
 
 // SeedSpecAuthz defines an authorization entry on a threat model.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: authorization entry assigning a role on a threat model to a user (pure)
 type SeedSpecAuthz struct {
 	UserID string `json:"user_id"`
 	Role   string `json:"role"`
 }
 
 // SeedSpecThreat defines a threat nested within a threat model.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: threat entry with severity, CVSS scores, and mitigation for seeding (pure)
 type SeedSpecThreat struct {
 	Name            string         `json:"name"`
 	Description     string         `json:"description,omitempty"`
@@ -164,7 +150,6 @@ type SeedSpecThreat struct {
 }
 
 // SeedSpecCVSS defines a CVSS score entry.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: CVSS score entry with version, vector, and numeric score (pure)
 type SeedSpecCVSS struct {
 	Version string  `json:"version"`
 	Vector  string  `json:"vector"`
@@ -172,7 +157,6 @@ type SeedSpecCVSS struct {
 }
 
 // SeedSpecAsset defines an asset nested within a threat model.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: asset definition with type, criticality, and classification for seeding (pure)
 type SeedSpecAsset struct {
 	Name            string   `json:"name"`
 	Description     string   `json:"description,omitempty"`
@@ -184,7 +168,6 @@ type SeedSpecAsset struct {
 }
 
 // SeedSpecDocument defines a document nested within a threat model.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: document reference with URI and report inclusion flag for seeding (pure)
 type SeedSpecDocument struct {
 	Name            string `json:"name"`
 	URI             string `json:"uri,omitempty"`
@@ -193,7 +176,6 @@ type SeedSpecDocument struct {
 }
 
 // SeedSpecRepository defines a repository nested within a threat model.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: repository reference with type and URI for seeding (pure)
 type SeedSpecRepository struct {
 	Name        string `json:"name,omitempty"`
 	Type        string `json:"type,omitempty"`
@@ -202,7 +184,6 @@ type SeedSpecRepository struct {
 }
 
 // SeedSpecNote defines a note nested within a threat model.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: note entry with content and report inclusion flag for seeding (pure)
 type SeedSpecNote struct {
 	Name            string `json:"name"`
 	Content         string `json:"content,omitempty"`
@@ -211,7 +192,6 @@ type SeedSpecNote struct {
 }
 
 // SeedSpecDiagram defines a diagram with simplified node/edge format.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: diagram definition with simplified node and edge lists for seeding (pure)
 type SeedSpecDiagram struct {
 	Name        string         `json:"name"`
 	Type        string         `json:"type,omitempty"`
@@ -221,7 +201,6 @@ type SeedSpecDiagram struct {
 }
 
 // SeedSpecNode defines a node in the simplified diagram format.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: diagram node definition with type, label, and position for seeding (pure)
 type SeedSpecNode struct {
 	ID     string  `json:"id"`
 	Type   string  `json:"type"`
@@ -232,7 +211,6 @@ type SeedSpecNode struct {
 }
 
 // SeedSpecEdge defines an edge in the simplified diagram format.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: diagram edge connecting two nodes by source and target ID for seeding (pure)
 type SeedSpecEdge struct {
 	Source string `json:"source"`
 	Target string `json:"target"`
@@ -240,7 +218,6 @@ type SeedSpecEdge struct {
 }
 
 // SeedSpecSurvey defines a survey to seed.
-// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: survey definition with questions JSON and settings for seeding (pure)
 type SeedSpecSurvey struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
@@ -251,7 +228,6 @@ type SeedSpecSurvey struct {
 }
 
 // SeedSpecSurveyResp defines a survey response to seed.
-// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: survey response entry linking a user response to a survey for seeding (pure)
 type SeedSpecSurveyResp struct {
 	Survey      string               `json:"survey"`
 	User        string               `json:"user,omitempty"`
@@ -261,7 +237,6 @@ type SeedSpecSurveyResp struct {
 }
 
 // SeedSpecAdmin groups admin-only entities.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: container for admin-only seed entities including groups, webhooks, and addons (pure)
 type SeedSpecAdmin struct {
 	Groups                []SeedSpecGroup       `json:"groups,omitempty"`
 	Quotas                []SeedSpecAdminQuota  `json:"quotas,omitempty"`
@@ -273,14 +248,12 @@ type SeedSpecAdmin struct {
 }
 
 // SeedSpecGroup defines a group with members.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: group definition with member list for seeding (pure)
 type SeedSpecGroup struct {
 	Name    string   `json:"name"`
 	Members []string `json:"members,omitempty"`
 }
 
 // SeedSpecAdminQuota defines a quota in the admin_entities section.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: admin-managed rate quota assigned to a user with period and limit (pure)
 type SeedSpecAdminQuota struct {
 	User      string `json:"user"`
 	RateLimit int    `json:"rate_limit"`
@@ -288,7 +261,6 @@ type SeedSpecAdminQuota struct {
 }
 
 // SeedSpecWebhook defines a webhook subscription.
-// SEM@869f9bc78ec9e1c5d66cf3ac70991b70d07f20e1: webhook subscription definition with URL, events, and HMAC secret for seeding (pure)
 type SeedSpecWebhook struct {
 	Name       string   `json:"name"`
 	URL        string   `json:"url"`
@@ -304,7 +276,6 @@ type SeedSpecWebhook struct {
 }
 
 // SeedSpecAddon defines an addon.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: addon definition linking a webhook to a threat model for seeding (pure)
 type SeedSpecAddon struct {
 	Name        string `json:"name"`
 	Webhook     string `json:"webhook,omitempty"`
@@ -312,7 +283,6 @@ type SeedSpecAddon struct {
 }
 
 // SeedSpecClientCred defines a client credential.
-// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: define a client credential for seeding with direct_write flag and addon link (pure)
 type SeedSpecClientCred struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
@@ -321,13 +291,11 @@ type SeedSpecClientCred struct {
 }
 
 // SeedSpecWebhookTest defines a webhook test delivery trigger.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: webhook test delivery trigger referencing a named webhook (pure)
 type SeedSpecWebhookTest struct {
 	Webhook string `json:"webhook"`
 }
 
 // SeedSpecMetadataEntry defines a standalone metadata entry.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: standalone metadata key-value entry targeting a named resource for seeding (pure)
 type SeedSpecMetadataEntry struct {
 	Target     string `json:"target"`
 	TargetKind string `json:"target_kind"`
@@ -336,7 +304,6 @@ type SeedSpecMetadataEntry struct {
 }
 
 // SeedSpecKV is a simple key-value pair used for metadata and settings.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: generic key-value pair for metadata and settings in a seed spec (pure)
 type SeedSpecKV struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`

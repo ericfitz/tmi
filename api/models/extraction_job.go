@@ -24,7 +24,6 @@ const (
 // Components (workers) never touch this table. document_ref is indexed but
 // has no database-level foreign key, so a document deleted mid-job does not
 // cause a constraint violation; the result-consumer tolerates the missing row.
-// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: GORM model tracking the status lifecycle of one async extraction job (pure)
 type ExtractionJob struct {
 	JobID DBVarchar `gorm:"primaryKey;not null;size:36"`
 	// DocumentRef is the document being extracted. NOT NULL with no DB-level FK.
@@ -45,7 +44,6 @@ type ExtractionJob struct {
 }
 
 // TableName returns the prefixed table name.
-// SEM@d8b4a7f6b4c480a8020df9e796e1deabb7f0fdb7: return the prefixed database table name for extraction jobs (pure)
 func (ExtractionJob) TableName() string {
 	return tableName("extraction_jobs")
 }
@@ -53,7 +51,6 @@ func (ExtractionJob) TableName() string {
 // BeforeCreate is a gorm hook required to satisfy the gorm.DB interface.
 // JobID is always supplied by the caller (it is the envelope job_id) so it
 // is never generated here.
-// SEM@d8b4a7f6b4c480a8020df9e796e1deabb7f0fdb7: GORM hook that no-ops before insert since job ID is always caller-supplied (pure)
 func (j *ExtractionJob) BeforeCreate(_ *gorm.DB) error {
 	return nil
 }

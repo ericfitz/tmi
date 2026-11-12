@@ -213,28 +213,24 @@ import (
 )
 
 // JWTSigningKey is the private half the server signs with.
-// SEM@<sha>: signing key entry of the JWT keyring: kid and PKCS8 PEM (pure)
 type JWTSigningKey struct {
 	KID        string `json:"kid"`
 	PrivatePEM string `json:"private_pem"`
 }
 
 // JWTVerifyKey is one public key clients and the server verify with.
-// SEM@<sha>: verify key entry of the JWT keyring: kid and PKIX PEM (pure)
 type JWTVerifyKey struct {
 	KID       string `json:"kid"`
 	PublicPEM string `json:"public_pem"`
 }
 
 // JWTKeyring is the TMI_JWT_KEYRING document (#965): ES256 only.
-// SEM@<sha>: rotatable set of JWT keys: one signing key plus the verify set (pure)
 type JWTKeyring struct {
 	Signing JWTSigningKey  `json:"signing"`
 	Verify  []JWTVerifyKey `json:"verify"`
 }
 
 // GenerateJWTKeyPair makes a fresh P-256 pair; kid is the RFC 7638 thumbprint.
-// SEM@<sha>: generate a P-256 key pair encoded as keyring entries (pure)
 func GenerateJWTKeyPair() (JWTSigningKey, JWTVerifyKey, error) {
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -243,7 +239,6 @@ func GenerateJWTKeyPair() (JWTSigningKey, JWTVerifyKey, error) {
 	return keyPairFrom(priv)
 }
 
-// SEM@<sha>: encode an ECDSA private key as keyring signing and verify entries (pure)
 func keyPairFrom(priv *ecdsa.PrivateKey) (JWTSigningKey, JWTVerifyKey, error) {
 	kid, err := JWKThumbprint(&priv.PublicKey)
 	if err != nil {
@@ -262,7 +257,6 @@ func keyPairFrom(priv *ecdsa.PrivateKey) (JWTSigningKey, JWTVerifyKey, error) {
 }
 
 // NewJWTKeyring returns a keyring with one fresh pair.
-// SEM@<sha>: build a single-key JWT keyring (pure)
 func NewJWTKeyring() (*JWTKeyring, error) {
 	sk, vk, err := GenerateJWTKeyPair()
 	if err != nil {
@@ -272,14 +266,12 @@ func NewJWTKeyring() (*JWTKeyring, error) {
 }
 
 // String renders compact JSON (one line; PEM newlines are JSON-escaped).
-// SEM@<sha>: serialize the keyring as compact JSON (pure)
 func (k *JWTKeyring) String() string {
 	b, _ := json.Marshal(k)
 	return string(b)
 }
 
 // ParseJWTKeyring parses and validates a keyring document.
-// SEM@<sha>: parse and validate a JWT keyring document: P-256, thumbprint kids, verifiable signing key (pure)
 func ParseJWTKeyring(doc string) (*JWTKeyring, error) {
 	doc = strings.TrimSpace(doc)
 	if doc == "" {
@@ -314,7 +306,6 @@ func ParseJWTKeyring(doc string) (*JWTKeyring, error) {
 	return &k, nil
 }
 
-// SEM@<sha>: decode the signing key PEM as a P-256 private key (pure)
 func (k *JWTKeyring) SigningPrivateKey() (*ecdsa.PrivateKey, error) {
 	block, _ := pem.Decode([]byte(k.Signing.PrivatePEM))
 	if block == nil {
@@ -340,7 +331,6 @@ func (k *JWTKeyring) SigningPrivateKey() (*ecdsa.PrivateKey, error) {
 	return priv, nil
 }
 
-// SEM@<sha>: decode every verify key PEM, keyed by kid, checking curve and thumbprint (pure)
 func (k *JWTKeyring) VerifyPublicKeys() (map[string]*ecdsa.PublicKey, error) {
 	out := make(map[string]*ecdsa.PublicKey, len(k.Verify))
 	for _, v := range k.Verify {
@@ -373,7 +363,6 @@ func (k *JWTKeyring) VerifyPublicKeys() (map[string]*ecdsa.PublicKey, error) {
 
 // JWKThumbprint implements RFC 7638 for EC keys: SHA-256 over the canonical
 // JSON {"crv","kty","x","y"} in lexicographic member order, base64url unpadded.
-// SEM@<sha>: compute the RFC 7638 JWK thumbprint of a P-256 public key (pure)
 func JWKThumbprint(pub *ecdsa.PublicKey) (string, error) {
 	if pub.Curve != elliptic.P256() {
 		return "", errors.New("thumbprint: only P-256 is supported")
@@ -384,7 +373,6 @@ func JWKThumbprint(pub *ecdsa.PublicKey) (string, error) {
 	return sha256B64URL([]byte(canon)), nil
 }
 
-// SEM@<sha>: base64url-encode the SHA-256 of bytes (pure)
 func sha256B64URL(b []byte) string {
 	h := sha256.Sum256(b)
 	return base64.RawURLEncoding.EncodeToString(h[:])
@@ -542,14 +530,12 @@ import (
 )
 
 // JWTPublicKey is one entry of the verify set, for JWKS.
-// SEM@<sha>: kid plus P-256 public key of a verify entry (pure)
 type JWTPublicKey struct {
 	KID string
 	Key *ecdsa.PublicKey
 }
 
 // JWTKeyManager signs with the keyring's signing key and verifies by kid.
-// SEM@<sha>: ES256 signer and kid-dispatched verifier over the JWT keyring (pure)
 type JWTKeyManager struct {
 	signingKID string
 	signingKey *ecdsa.PrivateKey
@@ -559,7 +545,6 @@ type JWTKeyManager struct {
 var es256Only = jwt.WithValidMethods([]string{jwt.SigningMethodES256.Alg()})
 
 // NewJWTKeyManager parses config.Keyring; there is no default key.
-// SEM@<sha>: build a JWT key manager from the configured keyring document, refusing to run without one
 func NewJWTKeyManager(config JWTConfig) (*JWTKeyManager, error) {
 	logger := slogging.Get()
 	if config.Keyring == "" {
@@ -581,7 +566,6 @@ func NewJWTKeyManager(config JWTConfig) (*JWTKeyManager, error) {
 	return &JWTKeyManager{signingKID: kr.Signing.KID, signingKey: priv, verify: pubs}, nil
 }
 
-// SEM@<sha>: sign claims with ES256 and the signing key, stamping its kid (pure)
 func (m *JWTKeyManager) CreateToken(claims jwt.Claims) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
 	token.Header["kid"] = m.signingKID
@@ -594,7 +578,6 @@ func (m *JWTKeyManager) CreateToken(claims jwt.Claims) (string, error) {
 }
 
 // VerifyToken accepts only ES256 tokens whose kid names a verify key.
-// SEM@<sha>: validate an ES256 JWT by its kid against the verify set; reject other algs or unknown kids (pure)
 func (m *JWTKeyManager) VerifyToken(tokenString string, claims jwt.Claims) (*jwt.Token, error) {
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (any, error) {
 		kid, _ := t.Header["kid"].(string)
@@ -617,10 +600,8 @@ func (m *JWTKeyManager) VerifyToken(tokenString string, claims jwt.Claims) (*jwt
 	return token, nil
 }
 
-// SEM@<sha>: return the kid tokens are currently signed with (pure)
 func (m *JWTKeyManager) SigningKID() string { return m.signingKID }
 
-// SEM@<sha>: list the verify set sorted by kid, for the JWKS endpoint (pure)
 func (m *JWTKeyManager) VerifyKeys() []JWTPublicKey {
 	out := make([]JWTPublicKey, 0, len(m.verify))
 	for kid, k := range m.verify {
@@ -661,7 +642,6 @@ Env defaults (line ~190): `Keyring: envutil.Get("TMI_JWT_KEYRING", "")`; delete 
 
 ```go
 // testKeyringJSON returns a fresh single-key keyring document for tests.
-// SEM@<sha>: build a throwaway JWT keyring document for tests (pure)
 func testKeyringJSON(t testing.TB) string {
 	t.Helper()
 	kr, err := NewJWTKeyring()
@@ -781,7 +761,6 @@ Expected: fails (RSA-era `createJWKFromPublicKey` signature / `GetPublicKey` mis
 
 ```go
 // createJWKFromPublicKey renders one verify key as a JWK.
-// SEM@<sha>: convert a P-256 public key and its kid to a signature-use JWK (pure)
 func createJWKFromPublicKey(kid string, key *ecdsa.PublicKey) (*JWK, error) {
 	if key.Curve.Params().Name != "P-256" {
 		return nil, fmt.Errorf("unsupported ECDSA curve: %s", key.Curve.Params().Name)
@@ -793,7 +772,6 @@ func createJWKFromPublicKey(kid string, key *ecdsa.PublicKey) (*JWK, error) {
 	}, nil
 }
 
-// SEM@<sha>: handle GET /.well-known/jwks.json with every verify key of the keyring
 func (h *Handlers) GetJWKS(c *gin.Context) {
 	jwks := JWKSResponse{Keys: []JWK{}}
 	for _, vk := range h.service.keyManager.VerifyKeys() {
@@ -1073,18 +1051,14 @@ const (
 var ErrGraceTooShort = errors.New("jwt previous-key grace must be at least 1h (longer than auth.jwt.expiration_seconds)")
 
 // JWTKeyringRotation rotates the ES256 keyring one phase per run: stage, promote, drop.
-// SEM@<sha>: phased JWT keyring rotation advancing one phase per run
 type JWTKeyringRotation struct{ previousGrace time.Duration }
 
-// SEM@<sha>: build a JWTKeyringRotation (pure)
 func NewJWTKeyringRotation(previousGrace time.Duration) *JWTKeyringRotation {
 	return &JWTKeyringRotation{previousGrace: previousGrace}
 }
 
-// SEM@<sha>: return the rotation name (pure)
 func (r *JWTKeyringRotation) Name() string { return jwtRotationName }
 
-// SEM@<sha>: advance the JWT keyring rotation by one phase from its recorded state
 func (r *JWTKeyringRotation) Run(ctx context.Context, env *Env) error {
 	if r.previousGrace < minJWTGrace {
 		return ErrGraceTooShort

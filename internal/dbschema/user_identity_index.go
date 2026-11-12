@@ -63,7 +63,6 @@ import (
 // `tmi-dbtool --schema` run by an admin-privileged user, retries. The
 // alternative -- crash-looping a server over an index it may not be
 // privileged to touch -- is a larger outage than the missing constraint.
-// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: upgrade the users provider-lookup index to UNIQUE, recreating it if needed (writes DB)
 func EnsureUserProviderLookupUnique(ctx context.Context, db *gorm.DB) error {
 	usersTable := (&models.User{}).TableName()
 	present, err := requireMigrationTable(db, usersTable, "users provider-lookup unique-index upgrade (#732)")
@@ -271,7 +270,6 @@ func EnsureUserProviderLookupUnique(ctx context.Context, db *gorm.DB) error {
 // having silently failed to do the one thing the operator ran it for is the
 // wrong outcome (oracle-db-admin review, #732). Returns false, not an error,
 // when the users table does not exist.
-// SEM@605e29546fe60dc8ac69862013475720a74dea8b: report whether the users provider-lookup index is currently valid and unique (reads DB)
 func UserProviderLookupIndexIsUnique(db *gorm.DB) (bool, error) {
 	usersTable := (&models.User{}).TableName()
 	present, err := migrationTableExists(db, usersTable)
@@ -311,7 +309,6 @@ func UserProviderLookupIndexIsUnique(db *gorm.DB) (bool, error) {
 // ALL_CONSTRAINTS as well as ALL_INDEXES -- which cuts against
 // api/models/models.go being the single source of truth for the schema
 // (oracle-db-admin review, #732).
-// SEM@30424a23a3e8112b8be171d3d0fcb5cb63ca48a1: build the drop, create-unique, and restore DDL for the provider-lookup index per dialect (pure)
 func userProviderLookupDDL(dialect, usersTable string) (drop, createUnique, restore string) {
 	name := userProviderLookupIndexName
 	table := usersTable
@@ -359,7 +356,6 @@ func userProviderLookupDDL(dialect, usersTable string) (drop, createUnique, rest
 // userProviderLookupIndexExists does -- gorm's HasIndex is unusable on Oracle
 // (see that function) -- and filters to the session's CURRENT_SCHEMA rather
 // than the connected user's own objects (#736).
-// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: probe whether the users provider-lookup index exists with its intended definition, per dialect (reads DB)
 func userProviderLookupIndexState(db *gorm.DB, usersTable string) (exists, unique bool, err error) {
 	switch db.Name() {
 	case "oracle":
@@ -480,7 +476,6 @@ func userProviderLookupIndexState(db *gorm.DB, usersTable string) (exists, uniqu
 // that appears on more than one users row. Shared by
 // CheckDuplicateUserProviderIdentities (#724), which reports them, and
 // EnsureUserProviderLookupUnique (#732), which is gated on there being none.
-// SEM@637f0bdb33357d5c2d47d7c06b0e6e214c1962e6: fetch duplicate (provider, provider_user_id) pairs from the users table (reads DB)
 func findDuplicateUserIdentities(db *gorm.DB, usersTable string) ([]userDupKey, error) {
 	var dups []userDupKey
 	err := withMigrationRetry("users duplicate-identity check", func() error {
@@ -515,7 +510,6 @@ func findDuplicateUserIdentities(db *gorm.DB, usersTable string) ([]userDupKey, 
 // which for several providers is an email address; an unbounded list would let
 // a badly-merged database dump an arbitrarily long line of PII into the
 // startup log.
-// SEM@637f0bdb33357d5c2d47d7c06b0e6e214c1962e6: format duplicate user identity pairs into a capped, PII-bounded log string (pure)
 func formatUserDupPairs(dups []userDupKey) string {
 	const maxReportedPairs = 20
 	shown := dups

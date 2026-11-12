@@ -9,7 +9,6 @@ import (
 )
 
 // QuotaCache provides in-memory caching for quota lookups with TTL
-// SEM@f5e41f0bdd3e5075ef62036d28d486bd0ef0286b: in-memory TTL cache for user API and webhook quota lookups (mutates shared state)
 type QuotaCache struct {
 	userAPIQuotas map[string]*cachedUserAPIQuota
 	webhookQuotas map[string]*cachedWebhookQuota
@@ -19,20 +18,17 @@ type QuotaCache struct {
 	stopCleanup   chan bool
 }
 
-// SEM@f5e41f0bdd3e5075ef62036d28d486bd0ef0286b: internal cache entry pairing a user API quota with its expiry time
 type cachedUserAPIQuota struct {
 	quota     UserAPIQuota
 	expiresAt time.Time
 }
 
-// SEM@b985c4183889477cf4e9dca2fc574b3cbaececec: internal cache entry pairing a webhook quota with its expiry time
 type cachedWebhookQuota struct {
 	quota     DBWebhookQuota
 	expiresAt time.Time
 }
 
 // NewQuotaCache creates a new quota cache with the specified TTL
-// SEM@f5e41f0bdd3e5075ef62036d28d486bd0ef0286b: build a quota cache with TTL and start its background cleanup goroutine (mutates shared state)
 func NewQuotaCache(ttl time.Duration) *QuotaCache {
 	cache := &QuotaCache{
 		userAPIQuotas: make(map[string]*cachedUserAPIQuota),
@@ -49,7 +45,6 @@ func NewQuotaCache(ttl time.Duration) *QuotaCache {
 }
 
 // GetUserAPIQuota retrieves a user API quota from cache or store
-// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: fetch a user API quota from cache, falling back to the store on miss (reads DB)
 func (c *QuotaCache) GetUserAPIQuota(ctx context.Context, userID string, store UserAPIQuotaStoreInterface) UserAPIQuota {
 	c.mutex.RLock()
 	cached, exists := c.userAPIQuotas[userID]
@@ -75,7 +70,6 @@ func (c *QuotaCache) GetUserAPIQuota(ctx context.Context, userID string, store U
 }
 
 // GetWebhookQuota retrieves a webhook quota from cache or store
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: fetch a webhook quota from cache, falling back to the store on miss (reads DB)
 func (c *QuotaCache) GetWebhookQuota(ctx context.Context, userID string, store WebhookQuotaStoreInterface) DBWebhookQuota {
 	c.mutex.RLock()
 	cached, exists := c.webhookQuotas[userID]
@@ -101,7 +95,6 @@ func (c *QuotaCache) GetWebhookQuota(ctx context.Context, userID string, store W
 }
 
 // InvalidateUserAPIQuota removes a user API quota from cache
-// SEM@f5e41f0bdd3e5075ef62036d28d486bd0ef0286b: evict a user's API quota entry from cache (mutates shared state)
 func (c *QuotaCache) InvalidateUserAPIQuota(userID string) {
 	c.mutex.Lock()
 	delete(c.userAPIQuotas, userID)
@@ -109,7 +102,6 @@ func (c *QuotaCache) InvalidateUserAPIQuota(userID string) {
 }
 
 // InvalidateWebhookQuota removes a webhook quota from cache
-// SEM@f5e41f0bdd3e5075ef62036d28d486bd0ef0286b: evict a user's webhook quota entry from cache (mutates shared state)
 func (c *QuotaCache) InvalidateWebhookQuota(userID string) {
 	c.mutex.Lock()
 	delete(c.webhookQuotas, userID)
@@ -117,7 +109,6 @@ func (c *QuotaCache) InvalidateWebhookQuota(userID string) {
 }
 
 // InvalidateAll clears all cached quotas
-// SEM@f5e41f0bdd3e5075ef62036d28d486bd0ef0286b: evict all quota entries from cache (mutates shared state)
 func (c *QuotaCache) InvalidateAll() {
 	c.mutex.Lock()
 	c.userAPIQuotas = make(map[string]*cachedUserAPIQuota)
@@ -126,7 +117,6 @@ func (c *QuotaCache) InvalidateAll() {
 }
 
 // cleanupExpired removes expired entries from cache
-// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: periodically delete expired quota cache entries for users and webhooks (mutates shared state)
 func (c *QuotaCache) cleanupExpired() {
 	periodic.RunCleanup(c.cleanupTicker, c.stopCleanup, func() {
 		now := time.Now()
@@ -150,7 +140,6 @@ func (c *QuotaCache) cleanupExpired() {
 }
 
 // Stop stops the cleanup goroutine
-// SEM@f5e41f0bdd3e5075ef62036d28d486bd0ef0286b: stop the quota cache cleanup goroutine (mutates shared state)
 func (c *QuotaCache) Stop() {
 	c.cleanupTicker.Stop()
 	close(c.stopCleanup)
@@ -160,7 +149,6 @@ func (c *QuotaCache) Stop() {
 var GlobalQuotaCache *QuotaCache
 
 // InitializeQuotaCache initializes the global quota cache
-// SEM@f5e41f0bdd3e5075ef62036d28d486bd0ef0286b: initialize the global quota cache singleton with the given TTL (mutates shared state)
 func InitializeQuotaCache(ttl time.Duration) {
 	GlobalQuotaCache = NewQuotaCache(ttl)
 }

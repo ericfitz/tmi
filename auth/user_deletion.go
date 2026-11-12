@@ -13,7 +13,6 @@ import (
 )
 
 // DeletionResult contains statistics about the user deletion operation
-// SEM@bd740ab90ce24a669adc1fa8b8153efbd33bac10: summary of transferred and deleted threat models produced by a user deletion (pure)
 type DeletionResult struct {
 	ThreatModelsTransferred int    `json:"threat_models_transferred"`
 	ThreatModelsDeleted     int    `json:"threat_models_deleted"`
@@ -21,14 +20,12 @@ type DeletionResult struct {
 }
 
 // DeletionChallenge contains challenge information for user deletion
-// SEM@bd740ab90ce24a669adc1fa8b8153efbd33bac10: confirmation challenge text and expiry issued to a user before self-deletion (pure)
 type DeletionChallenge struct {
 	ChallengeText string    `json:"challenge_text"`
 	ExpiresAt     time.Time `json:"expires_at"`
 }
 
 // GenerateDeletionChallenge creates a challenge token for user deletion
-// SEM@a37a0039279be689bb07be2113fe86024a410a4b: generate and store a one-time deletion confirmation challenge for the user (mutates shared state)
 func (s *Service) GenerateDeletionChallenge(ctx context.Context, userEmail string) (*DeletionChallenge, error) {
 	// Generate random challenge token
 	b := make([]byte, 32)
@@ -65,7 +62,6 @@ func (s *Service) GenerateDeletionChallenge(ctx context.Context, userEmail strin
 }
 
 // ValidateDeletionChallenge verifies the challenge string matches the stored token
-// SEM@bd740ab90ce24a669adc1fa8b8153efbd33bac10: validate the user's deletion challenge response against the stored token (reads DB)
 func (s *Service) ValidateDeletionChallenge(ctx context.Context, userEmail, challengeText string) error {
 	// Retrieve stored token from Redis
 	challengeKey := fmt.Sprintf("user_deletion_challenge:%s", userEmail)
@@ -109,7 +105,6 @@ func (s *Service) ValidateDeletionChallenge(ctx context.Context, userEmail, chal
 
 // DeleteUserAndData deletes a user by email and handles ownership transfer for threat models.
 // Used by the self-deletion flow (DELETE /me) where identity comes from JWT email.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: delete a user by email and their data after revoking tokens and credentials
 func (s *Service) DeleteUserAndData(ctx context.Context, userEmail string) (*DeletionResult, error) {
 	// Resolve email → internal UUID so the pre-delete sweeps can query by user ID.
 	if user, err := s.userRepo.GetByEmail(ctx, userEmail); err == nil {
@@ -136,7 +131,6 @@ func (s *Service) DeleteUserAndData(ctx context.Context, userEmail string) (*Del
 // BEFORE the DB delete so the rows are still present to read, and is
 // best-effort: failures are logged and never block deletion. Revoking before a
 // delete that then fails only costs a re-mint.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: revoke a user's session tokens and client credentials before deletion
 func (s *Service) preUserDeleteSweep(ctx context.Context, internalUUID string) {
 	if s.preUserDeleteHook != nil {
 		s.preUserDeleteHook.RevokeUserTokens(ctx, internalUUID)
@@ -158,7 +152,6 @@ func (s *Service) preUserDeleteSweep(ctx context.Context, internalUUID string) {
 
 // DeleteUserByInternalUUID deletes a user by internal UUID and handles ownership transfer.
 // Used by admin deletion to avoid multi-hop identity resolution that can target the wrong user.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: delete a user by internal ID and their data after revoking tokens
 func (s *Service) DeleteUserByInternalUUID(ctx context.Context, internalUUID string) (*DeletionResult, error) {
 	s.preUserDeleteSweep(ctx, internalUUID)
 

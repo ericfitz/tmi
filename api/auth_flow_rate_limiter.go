@@ -48,13 +48,11 @@ const (
 const envForceAuthFlowRateLimiting = "TMI_TEST_FORCE_AUTH_FLOW_RATE_LIMITING"
 
 // AuthFlowRateLimiter implements multi-scope rate limiting for OAuth/SAML auth flows
-// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: enforce sliding-window rate limits on OAuth/SAML auth flows across session, IP, and user scopes (mutates shared state)
 type AuthFlowRateLimiter struct {
 	SlidingWindowRateLimiter
 }
 
 // NewAuthFlowRateLimiter creates a new auth flow rate limiter
-// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: build an AuthFlowRateLimiter backed by a Redis client (pure)
 func NewAuthFlowRateLimiter(redisClient *redis.Client) *AuthFlowRateLimiter {
 	return &AuthFlowRateLimiter{
 		SlidingWindowRateLimiter: SlidingWindowRateLimiter{RedisClient: redisClient},
@@ -62,7 +60,6 @@ func NewAuthFlowRateLimiter(redisClient *redis.Client) *AuthFlowRateLimiter {
 }
 
 // RateLimitResult represents the result of a rate limit check
-// SEM@f5e41f0bdd3e5075ef62036d28d486bd0ef0286b: carry the outcome of a rate limit check including scope, remaining quota, and retry timing (pure)
 type RateLimitResult struct {
 	Allowed        bool
 	BlockedByScope string // "session", "ip", or "user"
@@ -75,7 +72,6 @@ type RateLimitResult struct {
 // ResetUserRateLimit clears the user identifier rate limit counter.
 // Called after a successful login so that prior failed/exploratory attempts
 // don't lock a legitimate user out for the remainder of the hour window.
-// SEM@c70d49ed2d6089c24d05f8bc287ba5711c73abde: clear the user-scoped rate limit counter after a successful login (mutates shared state)
 func (r *AuthFlowRateLimiter) ResetUserRateLimit(ctx context.Context, userIdentifier string) {
 	if userIdentifier == "" || r.RedisClient == nil {
 		return
@@ -90,14 +86,12 @@ func (r *AuthFlowRateLimiter) ResetUserRateLimit(ctx context.Context, userIdenti
 // CheckRateLimit checks all three scopes and returns the most restrictive result.
 // Scopes are evaluated most-specific-first: session (100/min), user identifier
 // (50/min), IP (100/min).
-// SEM@e65e22eda9c7f823a595b68e0d38a22fae13d1ee: validate auth-flow session, user, and IP rate limits and return the most restrictive result (reads cache)
 func (r *AuthFlowRateLimiter) CheckRateLimit(ctx context.Context, sessionID string, ipAddress string, userIdentifier string) (*RateLimitResult, error) {
 	return r.checkRateLimitWithIPLimit(ctx, sessionID, ipAddress, userIdentifier, authFlowDefaultIPLimit)
 }
 
 // CheckRateLimitForTokenEndpoint checks rate limits for the token endpoint
 // Uses the same per-IP limit as other auth endpoints
-// SEM@e65e22eda9c7f823a595b68e0d38a22fae13d1ee: validate token endpoint rate limits using the standard per-IP limit (reads cache)
 func (r *AuthFlowRateLimiter) CheckRateLimitForTokenEndpoint(ctx context.Context, sessionID string, ipAddress string, userIdentifier string) (*RateLimitResult, error) {
 	return r.checkRateLimitWithIPLimit(ctx, sessionID, ipAddress, userIdentifier, authFlowDefaultIPLimit)
 }
@@ -106,7 +100,6 @@ func (r *AuthFlowRateLimiter) CheckRateLimitForTokenEndpoint(ctx context.Context
 // Scopes are checked most-specific-first (session -> user -> IP) so that the
 // most narrowly-scoped counter is the one attributed when several would trip,
 // and so the lower per-user limit engages before the shared per-IP limit.
-// SEM@e65e22eda9c7f823a595b68e0d38a22fae13d1ee: validate session, user, then IP rate limit scopes with a configurable IP limit (reads cache)
 func (r *AuthFlowRateLimiter) checkRateLimitWithIPLimit(ctx context.Context, sessionID string, ipAddress string, userIdentifier string, ipLimit int) (*RateLimitResult, error) {
 	logger := slogging.Get()
 

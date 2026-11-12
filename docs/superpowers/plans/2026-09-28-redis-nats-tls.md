@@ -30,7 +30,7 @@ None of these block starting Tasks 1-4. Each has the default the plan assumes; s
 - **Make targets only**: `make build-server`, `make lint`, `make test-unit name=TestX count1=true`, `make test-integration`, `make generate-config-example`, `make generate-config-docs`. Never `go run`, `go test`, `./bin/...` for the server. The integration runner (`scripts/run-integration-tests.py`) may itself invoke `go build`/`go run`, as it already does for `worker-probe`.
 - **`name=` with alternation must be double-quoted inside the single quotes**: `make test-unit name='"TestLoad|TestNATSFromEnv"' count1=true` (the recipe expands `--name $(name)` unquoted, so a bare `|` becomes a shell pipe). Verified: `make -n test-unit name='"A|B"'` prints `--name "A|B"`.
 - **Logging**: `github.com/ericfitz/tmi/internal/slogging` only; never `log` or `fmt.Println`.
-- **SEM markers**: every new or behaviour-changed Go function/method/type gets a one-line `// SEM@new: <intent>` comment directly above it (`new` is the placeholder anchor; Task 8 step 1 replaces anchors with `/dev:sem-annotate --update` after the commits exist).
+- **SEM markers**: every new or behaviour-changed Go function/method/type gets a one-line `// SEM-new: <intent>` comment directly above it (`new` is the placeholder anchor; Task 8 step 1 replaces anchors with `/dev:sem-annotate --update` after the commits exist).
 - **Secret safety**: no secret value on a command line, in an env var of a long-lived process, in a log, or in the model's context. Passwords go through `umask 077` files + `--from-file` / `--env-file` / bind mounts.
 - **Terraform owns infra/bootstrap objects; kustomize overlays own workloads.** cert-manager, Reloader, PKI, NATS, KEDA are applied with kubectl by `scripts/lib/deploy.py` and `scripts/deploy-aws.sh` (like `keda.yml`), never by Terraform.
 - **Code defaults stay off** (spec §3): with no `TMI_*_TLS_*` env vars, every client connects in plaintext exactly as today. Every shipped manifest turns TLS on.
@@ -123,7 +123,6 @@ import (
 )
 
 // PKI is a throwaway CA rooted at Dir (Dir/ca.crt).
-// SEM@new: throwaway certificate authority for tests, writing PEM files under one directory
 type PKI struct {
 	Dir    string
 	caCert *x509.Certificate
@@ -131,7 +130,6 @@ type PKI struct {
 }
 
 // New creates a CA valid for one year and writes dir/ca.crt.
-// SEM@new: create a throwaway CA and write its certificate to a directory
 func New(dir string) (*PKI, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
@@ -165,7 +163,6 @@ func New(dir string) (*PKI, error) {
 
 // WriteServer writes Dir/<name>.crt and Dir/<name>.key for a server with the
 // given DNS and IP SANs (server auth usage).
-// SEM@new: issue and write a server certificate with DNS and IP SANs signed by the test CA
 func (p *PKI) WriteServer(name string, dnsNames []string, ips []net.IP) error {
 	return p.write(name, &x509.Certificate{
 		Subject:     pkix.Name{CommonName: name},
@@ -179,7 +176,6 @@ func (p *PKI) WriteServer(name string, dnsNames []string, ips []net.IP) error {
 // WriteClient writes Dir/<name>.crt and Dir/<name>.key for a client with
 // CN=cn (client auth usage). Calling it again with the same name overwrites
 // both files, which is how tests simulate a cert-manager renewal.
-// SEM@new: issue and write a client-auth certificate with the given CN signed by the test CA
 func (p *PKI) WriteClient(name, cn string) error {
 	return p.write(name, &x509.Certificate{
 		Subject:     pkix.Name{CommonName: cn},
@@ -188,7 +184,6 @@ func (p *PKI) WriteClient(name, cn string) error {
 	})
 }
 
-// SEM@new: sign a leaf template with the CA and write its cert and key PEM files
 func (p *PKI) write(name string, tmpl *x509.Certificate) error {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -211,7 +206,6 @@ func (p *PKI) write(name string, tmpl *x509.Certificate) error {
 	return writePEM(filepath.Join(p.Dir, name+".key"), "EC PRIVATE KEY", keyDER)
 }
 
-// SEM@new: write one DER blob as a PEM file, world-readable for container bind mounts
 func writePEM(path, typ string, der []byte) error {
 	// 0644 on purpose: see the package comment.
 	return os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: typ, Bytes: der}), 0o644) // #nosec G306 -- throwaway test PKI
@@ -398,7 +392,6 @@ const (
 // Load builds a client TLS config that trusts only caFile. When certFile and
 // keyFile are both set the config presents that client certificate,
 // re-reading the pair on every handshake.
-// SEM@new: build a CA-pinned client TLS config, re-reading the client cert per handshake
 func Load(caFile, certFile, keyFile string) (*tls.Config, error) {
 	if caFile == "" {
 		return nil, fmt.Errorf("tlsconfig: CA file path is empty")
@@ -436,7 +429,6 @@ func Load(caFile, certFile, keyFile string) (*tls.Config, error) {
 // NATSFromEnv returns the NATS client TLS config described by the
 // TMI_NATS_TLS_* variables, or (nil, nil) when TMI_NATS_TLS_CA_FILE is unset
 // (plaintext, the code default). Callers pass a non-nil result to nats.Secure.
-// SEM@new: build the NATS client TLS config from TMI_NATS_TLS_* env vars; nil when unset (reads env)
 func NATSFromEnv() (*tls.Config, error) {
 	ca := os.Getenv(EnvNATSCAFile)
 	if ca == "" {
@@ -658,7 +650,7 @@ Validation: in the function holding the `c.Database.Redis.URL == "" && c.Databas
 	}
 ```
 
-Update that function's `// SEM@...` line to `// SEM@new: validate database URL, Redis coordinates, and that Redis TLS names a CA file (pure)`.
+Update that function's `// SEM-...` line to `// SEM-new: validate database URL, Redis coordinates, and that Redis TLS names a CA file (pure)`.
 
 - [ ] **Step 4: go-redis options builder**
 
@@ -666,7 +658,6 @@ Update that function's `// SEM@...` line to `// SEM@new: validate database URL, 
 
 ```go
 // RedisConfig holds the configuration for Redis connection
-// SEM@new: Redis connection coordinates, credentials, and CA-pinned TLS settings (pure)
 type RedisConfig struct {
 	Host       string
 	Port       string
@@ -678,7 +669,6 @@ type RedisConfig struct {
 
 // redisOptions builds the go-redis client options for cfg. With TLS on, the
 // only trusted CA is cfg.TLSCAFile and the server name checked is cfg.Host.
-// SEM@new: build go-redis client options, adding CA-pinned TLS when enabled (pure)
 func redisOptions(cfg RedisConfig) (*redis.Options, error) {
 	opts := &redis.Options{
 		Addr:            fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
@@ -720,7 +710,7 @@ In `NewRedisDB`, replace the inline `redis.NewClient(&redis.Options{...})` with:
 	client := redis.NewClient(opts)
 ```
 
-(Keep the existing pool-parameter debug line, OTel instrumentation, and ping.) Update `NewRedisDB`'s SEM line: `// SEM@new: connect to Redis (optionally TLS) with OpenTelemetry instrumentation and verify liveness`.
+(Keep the existing pool-parameter debug line, OTel instrumentation, and ping.) Update `NewRedisDB`'s SEM line: `// SEM-new: connect to Redis (optionally TLS) with OpenTelemetry instrumentation and verify liveness`.
 
 `auth/config.go`: add `TLSEnabled bool` and `TLSCAFile string` to `RedisConfig`; in the env loader block set
 
@@ -729,7 +719,7 @@ In `NewRedisDB`, replace the inline `redis.NewClient(&redis.Options{...})` with:
 			TLSCAFile:  envutil.Get("TMI_REDIS_TLS_CA_FILE", ""),
 ```
 
-and copy both in `ToRedisConfig` (`TLSEnabled: c.Redis.TLSEnabled, TLSCAFile: c.Redis.TLSCAFile`). Update both SEM lines to `SEM@new` with the TLS words added.
+and copy both in `ToRedisConfig` (`TLSEnabled: c.Redis.TLSEnabled, TLSCAFile: c.Redis.TLSCAFile`). Update both SEM lines to `SEM-new` with the TLS words added.
 
 `cmd/server/main.go`, replace `buildRedisConfig` (add `"strings"` to imports if missing):
 
@@ -738,7 +728,6 @@ and copy both in `ToRedisConfig` (`TLSEnabled: c.Redis.TLSEnabled, TLSCAFile: c.
 // If TMI_REDIS_URL is set, it takes precedence over individual fields; a
 // rediss:// scheme turns TLS on (the CA file still comes from
 // TMI_REDIS_TLS_CA_FILE).
-// SEM@new: build a Redis connection config from URL or fields, enabling TLS for rediss URLs (pure)
 func buildRedisConfig(cfg *config.Config) db.RedisConfig {
 	log := slogging.Get()
 	rc := db.RedisConfig{
@@ -863,7 +852,6 @@ Expected: `undefined: natsOptions`; `TestLoadWorker_MissingNATSURLFails` fails o
 ```go
 // natsOptions builds the connect options: client name, unlimited reconnects,
 // optional credentials file, and TLS (nats.Secure) when tlsCfg is non-nil.
-// SEM@new: build NATS connect options from worker config, credentials path, and optional TLS (pure)
 func natsOptions(cfg Config, credsFile string, tlsCfg *tls.Config) []nats.Option {
 	opts := []nats.Option{
 		nats.Name("tmi-" + cfg.ComponentName),
@@ -890,7 +878,7 @@ func Connect(ctx context.Context, cfg Config) (*Conn, error) {
 	nc, err := nats.Connect(cfg.NATSURL, natsOptions(cfg, os.Getenv("TMI_NATS_CREDS"), tlsCfg)...)
 ```
 
-(delete the old `opts := ...`/creds block). Extend `Connect`'s doc comment with: "If TMI_NATS_TLS_CA_FILE is set (see internal/tlsconfig), the connection uses TLS with that CA and, when TMI_NATS_TLS_CERT_FILE/KEY_FILE are set, a client certificate." Update its SEM line to `// SEM@new: connect to NATS (TLS when configured), open JetStream, and ensure the payload object store`.
+(delete the old `opts := ...`/creds block). Extend `Connect`'s doc comment with: "If TMI_NATS_TLS_CA_FILE is set (see internal/tlsconfig), the connection uses TLS with that CA and, when TMI_NATS_TLS_CERT_FILE/KEY_FILE are set, a client certificate." Update its SEM line to `// SEM-new: connect to NATS (TLS when configured), open JetStream, and ensure the payload object store`.
 
 `internal/platform/controller/jetstream_provisioner.go` (import `tlsconfig`):
 
@@ -916,7 +904,7 @@ func NewNATSProvisioner(url string) (*NATSProvisioner, error) {
 	// ... unchanged JetStream context ...
 ```
 
-SEM line: `// SEM@new: connect to NATS with retry and optional TLS, returning a JetStream provisioner`. In the type comment above, change the in-cluster URL example to `tls://nats.tmi-platform.svc:4222`.
+SEM line: `// SEM-new: connect to NATS with retry and optional TLS, returning a JetStream provisioner`. In the type comment above, change the in-cluster URL example to `tls://nats.tmi-platform.svc:4222`.
 
 `cmd/worker-probe/main.go` step 2 (import `tlsconfig`):
 
@@ -934,9 +922,9 @@ SEM line: `// SEM@new: connect to NATS with retry and optional TLS, returning a 
 	nc, err := nats.Connect(wb.NATSURL, natsOpts...)
 ```
 
-Update `run`'s SEM line to `// SEM@new: bootstrap, connect to NATS (TLS when configured), receive one probe job, and publish the result`.
+Update `run`'s SEM line to `// SEM-new: bootstrap, connect to NATS (TLS when configured), receive one probe job, and publish the result`.
 
-`internal/config/bootstrap/bootstrap.go`: `TMI_WORKER_NATS_URL` → `TMI_NATS_URL` (both the `Getenv` and the error string); struct comment `NATSURL is the JetStream connection URL (env TMI_NATS_URL, shared with internal/worker).`; `LoadWorker` SEM line → `SEM@new`.
+`internal/config/bootstrap/bootstrap.go`: `TMI_WORKER_NATS_URL` → `TMI_NATS_URL` (both the `Getenv` and the error string); struct comment `NATSURL is the JetStream connection URL (env TMI_NATS_URL, shared with internal/worker).`; `LoadWorker` SEM line → `SEM-new`.
 
 `internal/config/process_env.go`: delete the `TMI_WORKER_NATS_URL` row; change the `TMI_NATS_URL` purpose to `"NATS endpoint (tls:// or nats://). Required by every worker (internal/worker and internal/config/bootstrap); also read by the server (extraction wiring) and component-controller (JetStream provisioning)"`; add after `TMI_NATS_CREDS`:
 
@@ -1087,14 +1075,12 @@ const (
 // natsClientSecretName maps a component to its cert-manager client-cert
 // Secret: nats-client-<name without the tmi- prefix>, e.g. tmi-extractor ->
 // nats-client-extractor, matching deployments/k8s/platform/pki.yml.
-// SEM@new: derive the NATS client-cert Secret name for a component (pure)
 func natsClientSecretName(c *platformv1alpha1.TMIComponent) string {
 	return "nats-client-" + strings.TrimPrefix(c.Name, "tmi-")
 }
 
 // natsTLSEnv points internal/worker.Connect (via tlsconfig.NATSFromEnv) at
 // the mounted client cert.
-// SEM@new: build the TMI_NATS_TLS_* env vars for the mounted client cert (pure)
 func natsTLSEnv() []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{Name: "TMI_NATS_TLS_CA_FILE", Value: natsTLSMountPath + "/ca.crt"},
@@ -1122,7 +1108,7 @@ In `RenderDeployment`: `env = append(env, natsTLSEnv()...)` after `secretEnv`; c
 	})
 ```
 
-and set `Annotations: map[string]string{reloaderAutoAnnotation: "true"}` in the Deployment's `ObjectMeta`. SEM line → `// SEM@new: build a hardened worker Deployment with NATS client-cert mount and Reloader annotation (pure)`.
+and set `Annotations: map[string]string{reloaderAutoAnnotation: "true"}` in the Deployment's `ObjectMeta`. SEM line → `// SEM-new: build a hardened worker Deployment with NATS client-cert mount and Reloader annotation (pure)`.
 
 `tmicomponent_controller.go`, `liveSatisfies` Deployment case:
 
@@ -1133,7 +1119,7 @@ and set `Annotations: map[string]string{reloaderAutoAnnotation: "true"}` in the 
 			lv.Annotations[reloaderAutoAnnotation] == d.Annotations[reloaderAutoAnnotation]
 ```
 
-SEM line → `// SEM@new: report whether a live object already matches the rendered spec and Reloader annotation (pure)`.
+SEM line → `// SEM-new: report whether a live object already matches the rendered spec and Reloader annotation (pure)`.
 
 - [ ] **Step 4: Run the tests**
 
@@ -1801,7 +1787,6 @@ func main() {
 	}
 }
 
-// SEM@new: generate the harness CA, server/client certs, redis.conf and secrets.env once (writes files)
 func run(dir string) error {
 	if _, err := os.Stat(filepath.Join(dir, "ca.crt")); err == nil {
 		return nil // already generated
@@ -1957,7 +1942,6 @@ def ensure_nats(project_root: Path, tls_dir: Path) -> bool:
 // is set (scripts/run-integration-tests.py sets all of them). Without the CA
 // variable it is a plaintext client, for a developer pointing the tests at an
 // ad-hoc Redis.
-// SEM@new: build go-redis options for the harness Redis from TEST_REDIS_* env (reads env)
 func RedisOptions() (*redis.Options, error) {
 	host := getEnvOrDefault("TEST_REDIS_HOST", "localhost")
 	opts := &redis.Options{
@@ -1997,7 +1981,6 @@ import (
 // TMI_NATS_TLS_* env vars (scripts/run-integration-tests.py sets them to the
 // harness PKI); nil when TMI_NATS_TLS_CA_FILE is unset, so a developer's
 // ad-hoc plaintext NATS still works. Same contract as internal/worker.
-// SEM@new: build NATS mTLS connect options from the TMI_NATS_TLS_* env contract (reads env)
 func NATSTLSOptions(t *testing.T) []nats.Option {
 	t.Helper()
 	cfg, err := tlsconfig.NATSFromEnv()
@@ -2138,7 +2121,7 @@ Integration; the worker-probe contract test now runs every time."
 
 - [ ] **Step 1: Replace SEM placeholders**
 
-Run `/dev:sem-annotate --update` over every Go file touched in Tasks 1-7 (`git diff --name-only main -- '*.go'`), then `rg -n "SEM@new" --glob '*.go' .` must print nothing. Commit: `chore(sem): anchor SEM markers for the Redis/NATS TLS change`.
+Run `/dev:sem-annotate --update` over every Go file touched in Tasks 1-7 (`git diff --name-only main -- '*.go'`), then `rg -n "SEM-new" --glob '*.go' .` must print nothing. Commit: `chore(sem): anchor SEM markers for the Redis/NATS TLS change`.
 
 - [ ] **Step 2: Full local gates**
 

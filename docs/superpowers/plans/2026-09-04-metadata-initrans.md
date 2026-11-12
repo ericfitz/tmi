@@ -18,7 +18,7 @@
 - **Oracle catalog probes use `ALL_TABLES` / `ALL_INDEXES` / `ALL_CONSTRAINTS` filtered on `oracleCurrentSchema`** (`internal/dbschema/catalog_probe.go:37`), never `USER_*` views. Oracle folds unquoted identifiers to upper case: every name bound into a catalog query or DDL is `strings.ToUpper`ed.
 - **INITRANS target is 16** (`metadataInitransTarget`). Surviving Oracle index names: the system-named primary-key index (discovered from `ALL_CONSTRAINTS`), `IDX_METADATA_UNIQUE`, `IDX_METADATA_ENTITY_TYPE_ID`, `IDX_METADATA_ENTITY_ID`, `IDX_METADATA_KEY`, `IDX_METADATA_KEY_VALUE`. Retired names: `idx_metadata_created`, `idx_metadata_modified`, `idx_metadata_entity_created`, `idx_metadata_entity_modified`.
 - **Never fatal on DDL failure.** An ensure-step returns an error only when it cannot read the catalog at all. A failed DDL logs ERROR and returns nil.
-- **SEM markers.** Every new function, method, type, or package-level var/const block that other code calls gets a one-line `// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: <intent, <=12 words, lead with a canonical verb>` comment directly above it (current HEAD sha). An existing function whose behavior changes gets its description text updated but keeps its existing sha. Unchanged functions are left alone.
+- **SEM markers.** Every new function, method, type, or package-level var/const block that other code calls gets a one-line `// SEM-2e43fddcc4f977a73637e4f1a1d5798b170d79ed: <intent, <=12 words, lead with a canonical verb>` comment directly above it (current HEAD sha). An existing function whose behavior changes gets its description text updated but keeps its existing sha. Unchanged functions are left alone.
 - **Logging:** `github.com/ericfitz/tmi/internal/slogging` only (`slogging.Get()`); never `log` or `fmt.Println`.
 - **gofmt** formatting; imports grouped stdlib / external / internal. `make lint` must pass before every commit.
 - **Commits:** conventional commits, imperative mood. Every commit message ends with these two trailer lines:
@@ -104,7 +104,6 @@ import (
 // state every database created before #784 is in. The real model is used
 // rather than a test-local mirror because the point of these tests is the
 // model's own index set.
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: build an in-memory SQLite DB with the metadata table and its pre-#784 retired indexes (pure)
 func newMetadataIndexTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -234,7 +233,6 @@ var metadataInitransIndexes = []string{
 	"idx_metadata_key_value",
 }
 
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: build the per-dialect DROP INDEX statement for a retired metadata index (pure)
 func retiredMetadataIndexDropDDL(dialect, indexName string) string {
 	if dialect == "oracle" {
 		// No IF EXISTS on Oracle index DDL; the caller probes the catalog
@@ -244,7 +242,6 @@ func retiredMetadataIndexDropDDL(dialect, indexName string) string {
 	return "DROP INDEX IF EXISTS " + indexName
 }
 
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: build the ALTER TABLE statements that raise INITRANS and rewrite existing blocks (pure)
 func metadataTableInitransDDL(upperTable string) []string {
 	// INITRANS on a table applies only to blocks formatted afterwards; MOVE
 	// ONLINE rewrites the existing blocks with the new setting while keeping
@@ -257,7 +254,6 @@ func metadataTableInitransDDL(upperTable string) []string {
 	}
 }
 
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: build the ALTER INDEX statement that rebuilds an index online with the target INITRANS (pure)
 func metadataIndexInitransDDL(upperIndex string) string {
 	return fmt.Sprintf("ALTER INDEX %s REBUILD ONLINE INITRANS %d", upperIndex, metadataInitransTarget)
 }
@@ -271,7 +267,6 @@ func metadataIndexInitransDDL(upperIndex string) string {
 // PostgreSQL and SQLite have no such split. gorm's HasIndex is not used for
 // the reason userProviderLookupIndexExists gives: on Oracle it binds the
 // lowercase tag name against the uppercase catalog and always answers absent.
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: probe whether a named index exists on a table in the current schema, per dialect (reads DB)
 func metadataIndexExists(db *gorm.DB, indexName, tableName string) (bool, error) {
 	var cnt int64
 	var err error
@@ -368,7 +363,7 @@ Update the comment block directly above the struct (currently the two lines begi
 // such indexes only concentrated writes on one leaf block (#783).
 ```
 
-Keep the existing `// SEM@db6c3b75...` line unchanged: the struct's intent ("DB model for arbitrary key-value metadata on any entity") did not change.
+Keep the existing `// SEM-db6c3b75...` line unchanged: the struct's intent ("DB model for arbitrary key-value metadata on any entity") did not change.
 
 - [ ] **Step 3: Run the tests**
 
@@ -483,7 +478,6 @@ Append to `internal/dbschema/metadata_index.go`:
 // Never aborts startup on a DDL failure, only on a failure to read the
 // catalog: a retired index that survives is a write-cost nuisance, not a
 // correctness problem, and the next boot or `tmi-dbtool --schema` retries.
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: drop the retired metadata timestamp indexes if present, else warn and continue (mutates DB)
 func DropRetiredMetadataIndexes(db *gorm.DB) error {
 	table := (&models.Metadata{}).TableName()
 	present, err := requireMigrationTable(db, table, "retired metadata index drop (#784)")
@@ -642,13 +636,11 @@ Add `"sort"` to the stdlib import group of `internal/dbschema/metadata_index.go`
 // catalog name and holds only the indexes the catalog actually returned; a
 // surviving index that is missing from the catalog is warned about by the
 // caller and otherwise ignored, since there is nothing to rebuild.
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: hold the catalog INITRANS values of the metadata table and its indexes (pure)
 type metadataInitransState struct {
 	Table   int64
 	Indexes map[string]int64
 }
 
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: report which of the table and its indexes sit below the INITRANS target (pure)
 func (s metadataInitransState) below() (tableBelow bool, indexesBelow []string) {
 	tableBelow = s.Table < metadataInitransTarget
 	for name, ini := range s.Indexes {
@@ -670,7 +662,6 @@ func (s metadataInitransState) below() (tableBelow bool, indexesBelow []string) 
 // labels and an untagged field's DBName follows the active dialect's naming
 // strategy, so IndexName binds to INDEX_NAME and IniTrans to INI_TRANS (the
 // same convention as userProviderLookupIndexState).
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: fetch INITRANS of the metadata table, PK index, and named indexes from the Oracle catalog (reads DB)
 func metadataInitransProbe(db *gorm.DB, table string) (metadataInitransState, error) {
 	state := metadataInitransState{Indexes: map[string]int64{}}
 	upperTable := strings.ToUpper(table)
@@ -739,7 +730,6 @@ func metadataInitransProbe(db *gorm.DB, table string) (metadataInitransState, er
 // was (each statement is its own transaction) and the next boot or
 // `tmi-dbtool --schema` retries. The outcome is decided by re-reading the
 // catalog after the DDL, not by trusting the DDL's error.
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: raise INITRANS on the Oracle metadata table and its indexes to the target, else warn and continue (mutates DB)
 func EnsureMetadataInitrans(db *gorm.DB) error {
 	if db.Name() != "oracle" {
 		return nil
@@ -881,7 +871,7 @@ In `migrateSchema`, directly after the closing brace of the `if err := dbschema.
 	}
 ```
 
-Leave the `// SEM@72dd09a3...` marker on `migrateSchema` as is: its description ("run the schema-evolution sequence: AutoMigrate, backfills, index upgrades, and seeding") still covers the new steps.
+Leave the `// SEM-72dd09a3...` marker on `migrateSchema` as is: its description ("run the schema-evolution sequence: AutoMigrate, backfills, index upgrades, and seeding") still covers the new steps.
 
 - [ ] **Step 2: Wire `auth/config_adapter.go`**
 
@@ -902,7 +892,7 @@ In `migrateSchemaForConfigAdapter`, directly after the closing brace of the `if 
 	}
 ```
 
-Leave the `// SEM@ebd32e78...` marker on `migrateSchemaForConfigAdapter` unchanged.
+Leave the `// SEM-ebd32e78...` marker on `migrateSchemaForConfigAdapter` unchanged.
 
 - [ ] **Step 3: Wire `cmd/dbtool/schema.go`**
 
@@ -924,7 +914,7 @@ In `runSchemaLocked`, directly after the closing brace of the `if err := dbschem
 	}
 ```
 
-Leave the `// SEM@5abf61d0...` marker on `runSchemaLocked` unchanged.
+Leave the `// SEM-5abf61d0...` marker on `runSchemaLocked` unchanged.
 
 - [ ] **Step 4: Build, unit tests, lint**
 
@@ -1127,7 +1117,7 @@ Expected: all PASS. If any fails, fix the cause, commit with a `fix(...)` messag
 - [ ] **Step 2: Refresh SEM markers on the touched files**
 
 Run: `/sem-annotate --update internal/dbschema/metadata_index.go internal/dbschema/metadata_index_test.go api/models/models.go cmd/server/main.go auth/config_adapter.go cmd/dbtool/schema.go api/metadata_bulk_oracle_test.go`
-Expected: only entities that are new or whose logic changed are (re)written; the hand-written `SEM@2e43fddc...` markers from the tasks above are accepted or normalized. If the tool changes anything, `make lint`, then commit as `chore(sem): refresh intent markers for metadata INITRANS change` with the standard trailers.
+Expected: only entities that are new or whose logic changed are (re)written; the hand-written `SEM-2e43fddc...` markers from the tasks above are accepted or normalized. If the tool changes anything, `make lint`, then commit as `chore(sem): refresh intent markers for metadata INITRANS change` with the standard trailers.
 
 - [ ] **Step 3: Security review**
 

@@ -26,8 +26,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from openapi_examples import SpecWalker, iter_response_examples  # noqa: E402
-from tmi_common import (  # noqa: E402
+from openapi_examples import SpecWalker, iter_response_examples
+from tmi_common import (
     get_project_root,
     log_error,
     log_info,
@@ -38,7 +38,6 @@ SPEC_PATH = "api-schema/tmi-openapi.json"
 BASELINE_PATH = "api-schema/response-example-baseline.json"
 
 
-# SEM@746aa587013953beb72c3f38c9643442ca4cca0d: validate response examples cover declared schema properties against a baseline
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(

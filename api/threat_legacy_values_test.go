@@ -11,7 +11,6 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// SEM@0009f617a671a8b1d6ad8d25e96274ad7368888e: verify legacy threat field values map to canonical and free-form values pass through (pure)
 func TestCanonicalThreatValue(t *testing.T) {
 	tests := []struct{ column, in, want string }{
 		{"severity", "0", "critical"}, // old numeric keys run opposite to rank
@@ -38,7 +37,6 @@ func TestCanonicalThreatValue(t *testing.T) {
 	}
 }
 
-// SEM@0009f617a671a8b1d6ad8d25e96274ad7368888e: verify the startup migration rewrites stored legacy threat values once and is idempotent (reads DB)
 func TestMigrateLegacyThreatValues(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	require.NoError(t, err)
@@ -88,7 +86,6 @@ func TestMigrateLegacyThreatValues(t *testing.T) {
 	assert.Zero(t, n, "second run must be a no-op")
 }
 
-// SEM@0009f617a671a8b1d6ad8d25e96274ad7368888e: verify a written retired severity is stored as unset and "none" as informational (pure)
 func TestCanonicalizeThreatValuesRetiresUnknown(t *testing.T) {
 	unknown, none := "Unknown", "none"
 	threat := &Threat{Severity: &unknown}

@@ -15,7 +15,6 @@ import (
 )
 
 // TeamNoteStoreInterface defines the store interface for team notes
-// SEM@f860641a78901543e88ebd0a603a69bd4db1d696: CRUD and list contract for persisted team notes (pure)
 type TeamNoteStoreInterface interface {
 	Create(ctx context.Context, note *TeamNote, teamID string) (*TeamNote, error)
 	Get(ctx context.Context, id string) (*TeamNote, error)
@@ -30,19 +29,16 @@ type TeamNoteStoreInterface interface {
 }
 
 // GormTeamNoteStore implements TeamNoteStoreInterface using GORM
-// SEM@f860641a78901543e88ebd0a603a69bd4db1d696: GORM-backed implementation of TeamNoteStoreInterface (pure)
 type GormTeamNoteStore struct {
 	db *gorm.DB
 }
 
 // NewGormTeamNoteStore creates a new GORM-backed team note store
-// SEM@f860641a78901543e88ebd0a603a69bd4db1d696: build a GormTeamNoteStore wrapping the provided DB connection (pure)
 func NewGormTeamNoteStore(db *gorm.DB) *GormTeamNoteStore {
 	return &GormTeamNoteStore{db: db}
 }
 
 // teamNoteToRecord converts an API TeamNote to a GORM record
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert an API TeamNote to its GORM database record (pure)
 func teamNoteToRecord(note *TeamNote, teamID string) *models.TeamNoteRecord {
 	record := &models.TeamNoteRecord{
 		TeamID:  models.DBVarchar(teamID),
@@ -71,7 +67,6 @@ func teamNoteToRecord(note *TeamNote, teamID string) *models.TeamNoteRecord {
 }
 
 // teamNoteFromRecord converts a GORM record to an API TeamNote
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a GORM TeamNote record to its API DTO (pure)
 func teamNoteFromRecord(record *models.TeamNoteRecord) *TeamNote {
 	id := uuid.MustParse(string(record.ID))
 	sharable := bool(record.Sharable)
@@ -92,7 +87,6 @@ func teamNoteFromRecord(record *models.TeamNoteRecord) *TeamNote {
 }
 
 // teamNoteListItemFromRecord converts a GORM record to an API TeamNoteListItem
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a GORM TeamNote record to a list-item summary DTO (pure)
 func teamNoteListItemFromRecord(record *models.TeamNoteRecord) TeamNoteListItem {
 	id := uuid.MustParse(string(record.ID))
 	sharable := bool(record.Sharable)
@@ -112,7 +106,6 @@ func teamNoteListItemFromRecord(record *models.TeamNoteRecord) TeamNoteListItem 
 }
 
 // Create creates a new team note
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: persist a new team note under a verified parent team (reads DB)
 func (s *GormTeamNoteStore) Create(ctx context.Context, note *TeamNote, teamID string) (*TeamNote, error) {
 	logger := slogging.Get()
 
@@ -153,7 +146,6 @@ func (s *GormTeamNoteStore) Create(ctx context.Context, note *TeamNote, teamID s
 }
 
 // Get retrieves a team note by ID
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a team note by ID (reads DB)
 func (s *GormTeamNoteStore) Get(ctx context.Context, id string) (*TeamNote, error) {
 	logger := slogging.Get()
 
@@ -172,7 +164,6 @@ func (s *GormTeamNoteStore) Get(ctx context.Context, id string) (*TeamNote, erro
 }
 
 // Update replaces a team note
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: replace all mutable fields of an existing team note (reads DB)
 func (s *GormTeamNoteStore) Update(ctx context.Context, id string, note *TeamNote, teamID string) (*TeamNote, error) {
 	logger := slogging.Get()
 
@@ -219,7 +210,6 @@ func (s *GormTeamNoteStore) Update(ctx context.Context, id string, note *TeamNot
 }
 
 // Delete deletes a team note
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: delete a team note by ID (reads DB)
 func (s *GormTeamNoteStore) Delete(ctx context.Context, id string) error {
 	logger := slogging.Get()
 
@@ -240,7 +230,6 @@ func (s *GormTeamNoteStore) Delete(ctx context.Context, id string) error {
 
 // Patch applies JSON Patch operations to a team note, runs check on the
 // result, and persists it.
-// SEM@d276bf5e1126f3d0a1dcda0c73c3a265feffa704: apply JSON Patch operations to a team note, validate the result with a caller check, and persist it (reads DB)
 func (s *GormTeamNoteStore) Patch(ctx context.Context, id string, operations []PatchOperation, check func(before, after *TeamNote) error) (*TeamNote, error) {
 	logger := slogging.Get()
 
@@ -280,7 +269,6 @@ func (s *GormTeamNoteStore) Patch(ctx context.Context, id string, operations []P
 }
 
 // List returns a paginated list of team notes for a team
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: list paginated team notes for a team with optional non-sharable inclusion (reads DB)
 func (s *GormTeamNoteStore) List(ctx context.Context, teamID string, offset, limit int, includeNonSharable bool) ([]TeamNoteListItem, int, error) {
 	logger := slogging.Get()
 
@@ -317,7 +305,6 @@ func (s *GormTeamNoteStore) List(ctx context.Context, teamID string, offset, lim
 }
 
 // Count returns the number of team notes for a team
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: count team notes for a team with optional non-sharable inclusion (reads DB)
 func (s *GormTeamNoteStore) Count(ctx context.Context, teamID string, includeNonSharable bool) (int, error) {
 	logger := slogging.Get()
 

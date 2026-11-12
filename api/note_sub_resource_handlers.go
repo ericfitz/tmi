@@ -14,7 +14,6 @@ import (
 const patchPathContent = "/content"
 
 // NoteSubResourceHandler provides handlers for note sub-resource operations
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: handler struct holding note store, DB, cache, and cache invalidator dependencies
 type NoteSubResourceHandler struct {
 	noteStore        NoteRepository
 	db               *sql.DB
@@ -23,7 +22,6 @@ type NoteSubResourceHandler struct {
 }
 
 // NewNoteSubResourceHandler creates a new note sub-resource handler
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build a NoteSubResourceHandler wired to the given store and cache dependencies (pure)
 func NewNoteSubResourceHandler(noteStore NoteRepository, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *NoteSubResourceHandler {
 	return &NoteSubResourceHandler{
 		noteStore:        noteStore,
@@ -35,7 +33,6 @@ func NewNoteSubResourceHandler(noteStore NoteRepository, db *sql.DB, cache *Cach
 
 // GetNotes retrieves all notes for a threat model with pagination
 // GET /threat_models/{threat_model_id}/notes
-// SEM@bc62d8f9ad73ff264054d6fd71bc9a58f19b37e7: list paginated notes for a threat model and return them with total count (reads DB)
 func (h *NoteSubResourceHandler) GetNotes(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetNotes - retrieving notes for threat model")
@@ -121,7 +118,6 @@ func (h *NoteSubResourceHandler) GetNotes(c *gin.Context) {
 
 // GetNote retrieves a specific note by ID
 // GET /threat_models/{threat_model_id}/notes/{note_id}
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch a single note by ID within a threat model (reads DB)
 func (h *NoteSubResourceHandler) GetNote(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetNote - retrieving specific note")
@@ -162,7 +158,6 @@ func (h *NoteSubResourceHandler) GetNote(c *gin.Context) {
 
 // CreateNote creates a new note in a threat model
 // POST /threat_models/{threat_model_id}/notes
-// SEM@bc62d8f9ad73ff264054d6fd71bc9a58f19b37e7: store a new sanitized note under a threat model, emit audit record, and invalidate caches (mutates shared state)
 func (h *NoteSubResourceHandler) CreateNote(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateNote - creating new note")
@@ -238,7 +233,6 @@ func (h *NoteSubResourceHandler) CreateNote(c *gin.Context) {
 
 // UpdateNote updates an existing note
 // PUT /threat_models/{threat_model_id}/notes/{note_id}
-// SEM@bc62d8f9ad73ff264054d6fd71bc9a58f19b37e7: replace an existing note with sanitized content, emit audit record, and invalidate caches (mutates shared state)
 func (h *NoteSubResourceHandler) UpdateNote(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateNote - updating existing note")
@@ -317,7 +311,6 @@ func (h *NoteSubResourceHandler) UpdateNote(c *gin.Context) {
 
 // DeleteNote deletes a note
 // DELETE /threat_models/{threat_model_id}/notes/{note_id}
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: delete a note by ID, emit audit record, and invalidate threat model caches (mutates shared state)
 func (h *NoteSubResourceHandler) DeleteNote(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteNote - deleting note")
@@ -368,7 +361,6 @@ func (h *NoteSubResourceHandler) DeleteNote(c *gin.Context) {
 
 // PatchNote applies JSON patch operations to a note
 // PATCH /threat_models/{threat_model_id}/notes/{note_id}
-// SEM@d276bf5e1126f3d0a1dcda0c73c3a265feffa704: apply authorized JSON patch operations to a note, sanitizing the patched content, and emit audit record (mutates shared state)
 func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchNote - applying patch operations to note")

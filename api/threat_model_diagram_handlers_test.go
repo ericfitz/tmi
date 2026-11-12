@@ -17,7 +17,6 @@ import (
 )
 
 // setupThreatModelDiagramRouter returns a router with threat model diagram handlers registered for the owner user
-// SEM@4d750df7cba8874ee1c0b9172e3ae8613e95b736: build a test router with threat model diagram handlers registered (test helper)
 func setupThreatModelDiagramRouter() *gin.Engine {
 	// Initialize test fixtures first
 	InitTestFixtures()
@@ -25,7 +24,6 @@ func setupThreatModelDiagramRouter() *gin.Engine {
 }
 
 // setupThreatModelDiagramRouterWithUser returns a router with threat model diagram handlers registered and specified user
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: build a test router with diagram handlers and an authenticated user
 func setupThreatModelDiagramRouterWithUser(userName string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -89,7 +87,6 @@ func setupThreatModelDiagramRouterWithUser(userName string) *gin.Engine {
 }
 
 // createTestThreatModelWithDiagram creates a test threat model with a diagram and returns both
-// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: build a threat model containing a diagram in the store (test helper)
 func createTestThreatModelWithDiagram(t *testing.T, router *gin.Engine, tmName, tmDescription, diagName, diagDescription string) (ThreatModel, DfdDiagram) {
 	// First create a threat model
 	tmReqBody, _ := json.Marshal(map[string]any{
@@ -130,7 +127,6 @@ func createTestThreatModelWithDiagram(t *testing.T, router *gin.Engine, tmName, 
 }
 
 // TestGetThreatModelDiagrams tests listing diagrams within a threat model
-// SEM@503212a05958ba0c15d423fab4dbceb92b747ed9: validate listing diagrams of a threat model via handler (test)
 func TestGetThreatModelDiagrams(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -169,7 +165,6 @@ func TestGetThreatModelDiagrams(t *testing.T) {
 }
 
 // TestCreateThreatModelDiagram tests creating a diagram within a threat model
-// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: verify diagram creation under a threat model handles valid and invalid requests (test)
 func TestCreateThreatModelDiagram(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -243,7 +238,6 @@ func TestCreateThreatModelDiagram(t *testing.T) {
 }
 
 // TestGetThreatModelDiagramByID tests retrieving a specific diagram from a threat model
-// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: test fetching a diagram by ID within a threat model
 func TestGetThreatModelDiagramByID(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -270,7 +264,6 @@ func TestGetThreatModelDiagramByID(t *testing.T) {
 }
 
 // TestUpdateThreatModelDiagram tests updating a diagram within a threat model
-// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: test the handler that updates a threat model's diagram (test)
 func TestUpdateThreatModelDiagram(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -310,7 +303,6 @@ func TestUpdateThreatModelDiagram(t *testing.T) {
 }
 
 // TestPatchThreatModelDiagram tests partially updating a diagram within a threat model
-// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: validate patching a threat model diagram via handler (test)
 func TestPatchThreatModelDiagram(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -355,7 +347,6 @@ func TestPatchThreatModelDiagram(t *testing.T) {
 }
 
 // TestDeleteThreatModelDiagram tests deleting a diagram from a threat model
-// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: verify diagram deletion under a threat model handles existing and missing diagrams (test)
 func TestDeleteThreatModelDiagram(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -403,7 +394,6 @@ func TestDeleteThreatModelDiagram(t *testing.T) {
 }
 
 // TestThreatModelDiagramNotFound tests behavior when a diagram is not found
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: test diagram endpoints return not found for missing diagrams
 func TestThreatModelDiagramNotFound(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -442,7 +432,6 @@ func TestThreatModelDiagramNotFound(t *testing.T) {
 }
 
 // TestThreatModelNotFound tests behavior when a threat model is not found
-// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: test diagram handlers return not found for a missing threat model (test)
 func TestThreatModelNotFound(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -464,7 +453,6 @@ func TestThreatModelNotFound(t *testing.T) {
 }
 
 // TestDiagramNotInThreatModel tests behavior when a diagram ID is valid but not associated with the threat model
-// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: validate diagram access is rejected when it belongs to another threat model (test)
 func TestDiagramNotInThreatModel(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -491,7 +479,6 @@ func TestDiagramNotInThreatModel(t *testing.T) {
 }
 
 // TestThreatModelDiagramReadWriteDeletePermissions tests access levels for different operations
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: verify diagram read, write and delete authorization across reader, writer and owner roles (test)
 func TestThreatModelDiagramReadWriteDeletePermissions(t *testing.T) {
 	// Reset stores to ensure clean state
 
@@ -602,7 +589,6 @@ func TestThreatModelDiagramReadWriteDeletePermissions(t *testing.T) {
 }
 
 // TestGetThreatModelDiagramCollaborate tests retrieving collaboration session status
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: test fetching the collaboration session for a diagram
 func TestGetThreatModelDiagramCollaborate(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -646,7 +632,6 @@ func TestGetThreatModelDiagramCollaborate(t *testing.T) {
 }
 
 // TestPostThreatModelDiagramCollaborate tests joining/starting a collaboration session
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: test the handler that starts a diagram collaboration session (test)
 func TestPostThreatModelDiagramCollaborate(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -691,7 +676,6 @@ func TestPostThreatModelDiagramCollaborate(t *testing.T) {
 }
 
 // TestDeleteThreatModelDiagramCollaborate tests leaving a collaboration session
-// SEM@4d750df7cba8874ee1c0b9172e3ae8613e95b736: validate deleting a diagram with active collaboration session is rejected (test)
 func TestDeleteThreatModelDiagramCollaborate(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -710,7 +694,6 @@ func TestDeleteThreatModelDiagramCollaborate(t *testing.T) {
 
 // TestDeleteThreatModelDiagramCollaborateImmediateDisconnection tests that when host deletes a session,
 // all participants are immediately disconnected and the session is fully cleaned up
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: verify deleting a diagram's collaboration session immediately disconnects participants (test)
 func TestDeleteThreatModelDiagramCollaborateImmediateDisconnection(t *testing.T) {
 	// Create a specific WebSocket hub for this test so we can access it directly
 	wsHub := NewWebSocketHubForTests()
@@ -820,7 +803,6 @@ func TestDeleteThreatModelDiagramCollaborateImmediateDisconnection(t *testing.T)
 }
 
 // TestCreateDiagramTimmyEnabledDefault tests that creating a diagram without timmy_enabled works correctly
-// SEM@028bb54799856ef996e1cae672ecb155cd91edef: test new diagrams get the default Timmy-enabled setting
 func TestCreateDiagramTimmyEnabledDefault(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -864,7 +846,6 @@ func TestCreateDiagramTimmyEnabledDefault(t *testing.T) {
 }
 
 // TestUpdateDiagramTimmyEnabledExplicitFalse tests that updating a diagram with timmy_enabled=false preserves the value
-// SEM@028bb54799856ef996e1cae672ecb155cd91edef: test that updating a diagram keeps an explicit false assistant-enabled flag (test)
 func TestUpdateDiagramTimmyEnabledExplicitFalse(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -899,7 +880,6 @@ func TestUpdateDiagramTimmyEnabledExplicitFalse(t *testing.T) {
 }
 
 // TestImageUpdateVectorLogic tests that image.update_vector is automatically set when SVG is provided but update_vector is not
-// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: validate diagram image update and vector handling rules (test)
 func TestImageUpdateVectorLogic(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -1006,7 +986,6 @@ func TestImageUpdateVectorLogic(t *testing.T) {
 
 // setupThreatModelDiagramRouterWithServiceAccount returns a router that additionally sets
 // isServiceAccount in the gin context, used to verify the auto_generated flag.
-// SEM@f24c94ac3b48082482bcf5b8e9642017897fe3b6: build a test router with diagram handlers authenticated as a service account (test helper)
 func setupThreatModelDiagramRouterWithServiceAccount(isServiceAccount bool) *gin.Engine {
 	InitTestFixtures()
 	gin.SetMode(gin.TestMode)
@@ -1067,7 +1046,6 @@ func setupThreatModelDiagramRouterWithServiceAccount(isServiceAccount bool) *gin
 
 // TestCreateDiagram_SetsAutoGeneratedForServiceAccount verifies that creating a diagram with a
 // service-account principal sets auto_generated=true in the create response.
-// SEM@f24c94ac3b48082482bcf5b8e9642017897fe3b6: test diagrams created by a service account are flagged auto-generated
 func TestCreateDiagram_SetsAutoGeneratedForServiceAccount(t *testing.T) {
 	r := setupThreatModelDiagramRouterWithServiceAccount(true)
 
@@ -1108,7 +1086,6 @@ func TestCreateDiagram_SetsAutoGeneratedForServiceAccount(t *testing.T) {
 
 // TestCreateDiagram_DoesNotSetAutoGeneratedForRegularUser verifies that creating a diagram with a
 // regular user principal leaves auto_generated absent (false/omitted).
-// SEM@f24c94ac3b48082482bcf5b8e9642017897fe3b6: test that diagrams created by regular users are not marked auto-generated (test)
 func TestCreateDiagram_DoesNotSetAutoGeneratedForRegularUser(t *testing.T) {
 	r := setupThreatModelDiagramRouterWithServiceAccount(false)
 

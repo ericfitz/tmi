@@ -24,8 +24,14 @@ from pathlib import Path
 import cluster
 import portfwd
 from tmi_common import (
-    check_tool, get_project_root,
-    log_error, log_info, log_success, log_warn, run_cmd, wait_for_port,
+    check_tool,
+    get_project_root,
+    log_error,
+    log_info,
+    log_success,
+    log_warn,
+    run_cmd,
+    wait_for_port,
 )
 
 # ---------------------------------------------------------------------------
@@ -130,7 +136,6 @@ DD_BASE_IMAGES = (DD_POSTGRES_IMAGE, DD_REDIS_IMAGE)
 _active_context: str | None = None
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: set the active Kubernetes cluster context for deployment (mutates shared state)
 def set_active_context(cluster_target: str) -> str:
     """Resolve and pin the kube context for this process from CLUSTER.
 
@@ -145,7 +150,6 @@ def set_active_context(cluster_target: str) -> str:
     return _active_context
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: pin the ambient kube context to the target cluster (mutates shared state)
 def pin_ambient_context() -> str:
     """Pin whatever kube context is CURRENTLY active, for callers that have no
     CLUSTER of their own and have always operated against "whatever cluster is
@@ -163,7 +167,6 @@ def pin_ambient_context() -> str:
     return _active_context
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: validate that an active cluster context is set; reject if missing
 def _require_active_context() -> str:
     """Return the pinned context, failing loudly if nothing pinned it yet."""
     if _active_context is None:
@@ -178,7 +181,6 @@ def _require_active_context() -> str:
 # Pure helpers
 # ---------------------------------------------------------------------------
 
-# SEM@853c02e236aeede6adf0dddac14262a5c86a314d: list container images to build for a database flavor (pure)
 def image_builds_for(db: str) -> list[tuple[str, str, dict]]:
     """Return the (name, dockerfile, build_args) tuples for the chosen DB flavor.
 
@@ -197,7 +199,6 @@ def image_builds_for(db: str) -> list[tuple[str, str, dict]]:
     ]
 
 
-# SEM@02dbf9ba4f3e0b9761454c43cbccc2f4f61bc0d4: compute the kustomize overlay directory for a cluster and database flavor (pure)
 def overlay_dir_for(db: str, cluster_target: str = "docker-desktop") -> str:
     """Return the kustomize overlay directory path for the chosen cluster + DB flavor.
 
@@ -214,7 +215,6 @@ def overlay_dir_for(db: str, cluster_target: str = "docker-desktop") -> str:
     raise ValueError(f"unknown cluster target: {cluster_target!r}")
 
 
-# SEM@a9938a8b543f0fdbc240594d11f85b3ce0f03e24: list base images to import for a database flavor (pure)
 def dd_base_images_for(db: str) -> tuple[str, ...]:
     """Public base images to pre-import into the docker-desktop node for the given
     DB flavor (#517). Redis is always deployed; in-cluster Postgres is deployed
@@ -223,13 +223,11 @@ def dd_base_images_for(db: str) -> tuple[str, ...]:
     return (DD_REDIS_IMAGE,) if db == "oracle" else DD_BASE_IMAGES
 
 
-# SEM@853c02e236aeede6adf0dddac14262a5c86a314d: compute a content hash of text (pure)
 def content_hash(text: str) -> str:
     """Stable 12-char hex digest of text (for config-change annotations)."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
 
 
-# SEM@02dbf9ba4f3e0b9761454c43cbccc2f4f61bc0d4: build commands to save and import a container image into a cluster node (pure)
 def save_import_cmds(ref: str, node: str) -> tuple[list[str], list[str]]:
     """Return the (docker save, docker exec ctr import) argv pair that streams a
     locally-built image straight into a cluster node's containerd (k8s.io ns).
@@ -241,7 +239,6 @@ def save_import_cmds(ref: str, node: str) -> tuple[list[str], list[str]]:
     )
 
 
-# SEM@a9938a8b543f0fdbc240594d11f85b3ce0f03e24: import a local container image into a cluster node
 def import_image_to_node(ref: str, node: str) -> None:
     """Stream `ref` from the host Docker into `node`'s containerd via a pipe."""
     save_cmd, import_cmd = save_import_cmds(ref, node)
@@ -279,7 +276,6 @@ def import_image_to_node(ref: str, node: str) -> None:
 IN_CLUSTER_DB_HOST = "host.docker.internal"
 
 
-# SEM@02dbf9ba4f3e0b9761454c43cbccc2f4f61bc0d4: compute the database host name used inside the cluster (pure)
 def in_cluster_db_host(cluster_target: str = "docker-desktop") -> str:
     """Host the in-cluster server uses to reach Postgres for the given cluster.
 
@@ -294,7 +290,6 @@ def in_cluster_db_host(cluster_target: str = "docker-desktop") -> str:
 _DB_URL_HOST_RE = re.compile(r"(postgres://[^\"'\s]*@)(localhost|127\.0\.0\.1)(?=[:/])")
 
 
-# SEM@f47410c1792840e1fe5efba9e5e79e4399da033a: rewrite a database URL host to the in-cluster service (pure)
 def rewrite_db_host_for_incluster(config_text: str, *, db_host: str = IN_CLUSTER_DB_HOST) -> str:
     """Rewrite a postgres:// URL's localhost/127.0.0.1 host to db_host.
 
@@ -306,7 +301,6 @@ def rewrite_db_host_for_incluster(config_text: str, *, db_host: str = IN_CLUSTER
     return _DB_URL_HOST_RE.sub(rf"\1{db_host}", config_text)
 
 
-# SEM@853c02e236aeede6adf0dddac14262a5c86a314d: build ConfigMap YAML embedding a config file and its hash (pure)
 def render_configmap_yaml(*, name: str, namespace: str, file_key: str, content: str) -> str:
     """Render a ConfigMap manifest embedding `content` under `file_key`.
 
@@ -332,7 +326,6 @@ def render_configmap_yaml(*, name: str, namespace: str, file_key: str, content: 
 # Shell wrappers (not unit-tested; exercised against a live cluster)
 # ---------------------------------------------------------------------------
 
-# SEM@853c02e236aeede6adf0dddac14262a5c86a314d: fetch the current kubectl context name (reads kubeconfig)
 def current_kube_context() -> str:
     """Return the active kubectl context name (empty string if none)."""
     try:
@@ -345,7 +338,6 @@ def current_kube_context() -> str:
         return ""
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: run a kubectl command against the active cluster context
 def kubectl(args: list[str], *, check: bool = True, capture: bool = False,
             input_text: str | None = None):
     """Run kubectl pinned to the active context (see set_active_context()).
@@ -367,7 +359,6 @@ def kubectl(args: list[str], *, check: bool = True, capture: bool = False,
 # Preflight + context guard
 # ---------------------------------------------------------------------------
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: validate deployment prerequisites before running
 def _preflight() -> None:
     """Verify the tools exist and the PINNED (active) context's cluster is
     reachable. Callers must call set_active_context() first -- this checks
@@ -380,7 +371,6 @@ def _preflight() -> None:
         sys.exit(1)
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: validate the kube context matches the expected cluster; abort otherwise
 def _guard_context(skip: bool, cluster_target: str = "docker-desktop") -> str:
     """Advisory sanity check only: warns/fails if the AMBIENT kubectl context
     looks wrong for CLUSTER=cluster_target, catching operator confusion (a
@@ -404,7 +394,6 @@ def _guard_context(skip: bool, cluster_target: str = "docker-desktop") -> str:
 # Image build + push
 # ---------------------------------------------------------------------------
 
-# SEM@2004edc9f39fd83ac4fcd7a38fee8b850e69cb95: build container images and push or import them into the cluster
 def build_and_push(db: str, cluster_target: str = "docker-desktop") -> None:
     """Build all images and deliver them to the target cluster.
 
@@ -459,7 +448,6 @@ RELOADER_SELECTOR = "app.kubernetes.io/name=reloader,app.kubernetes.io/managed-b
 CERT_MANAGER_DEPLOYMENTS = ("cert-manager", "cert-manager-cainjector", "cert-manager-webhook")
 
 
-# SEM@663417962552d1b180936cab2f93692cef6cb1c6: apply the shared platform base manifests to the cluster
 def apply_platform_base() -> None:
     """Apply the cluster-wide platform in dependency order: cert-manager and
     Reloader, the internal PKI, then NATS, KEDA and the TMIComponent CRD.
@@ -508,7 +496,6 @@ def apply_platform_base() -> None:
     log_success("Platform base applied (cert-manager, Reloader, PKI, NATS, KEDA, CRD)")
 
 
-# SEM@663417962552d1b180936cab2f93692cef6cb1c6: search the cluster for the cert-manager webhook (reads cluster)
 def _find_cert_manager_webhook() -> tuple[str, str] | None:
     """Return (namespace, name) of an existing cert-manager webhook Deployment,
     or None. Helm-managed only; requires the certificates.cert-manager.io CRD too."""
@@ -527,7 +514,6 @@ def _find_cert_manager_webhook() -> tuple[str, str] | None:
     return None
 
 
-# SEM@663417962552d1b180936cab2f93692cef6cb1c6: validate whether the reloader controller exists in the cluster (reads cluster)
 def _reloader_exists() -> bool:
     """True if a Helm-managed Reloader Deployment exists in any namespace."""
     r = kubectl(["get", "deploy", "-A", "-l", RELOADER_SELECTOR, "-o", "name"],
@@ -535,7 +521,6 @@ def _reloader_exists() -> bool:
     return r.returncode == 0 and bool(r.stdout.strip())
 
 
-# SEM@663417962552d1b180936cab2f93692cef6cb1c6: apply manifests to the cluster, retrying on transient failure
 def _apply_with_retry(path: str, attempts: int = 5, delay_s: float = 3.0) -> None:
     """kubectl apply with retries, for objects admitted by a webhook that may
     still be warming up (cert-manager right after its rollout)."""
@@ -550,7 +535,6 @@ def _apply_with_retry(path: str, attempts: int = 5, delay_s: float = 3.0) -> Non
         time.sleep(delay_s)
 
 
-# SEM@853c02e236aeede6adf0dddac14262a5c86a314d: register the platform namespace in the cluster if missing
 def ensure_namespace() -> None:
     kubectl(
         ["apply", "-f", "-"],
@@ -558,7 +542,6 @@ def ensure_namespace() -> None:
     )
 
 
-# SEM@3b682947: build the Redis password secret in the cluster if missing
 def ensure_redis_password_secret() -> None:
     """Create Secret/tmi-secrets with a random TMI_REDIS_PASSWORD on a dev
     cluster if it does not exist. AWS gets this Secret from Terraform; since
@@ -585,7 +568,6 @@ def ensure_redis_password_secret() -> None:
     log_success("Secret/tmi-secrets created with a random TMI_REDIS_PASSWORD")
 
 
-# SEM@3b682947: validate whether a cluster secret contains a key (reads cluster)
 def _secret_has_key(name: str, key: str) -> bool:
     out = kubectl(["-n", NS, "get", "secret", name, "-o", f"jsonpath={{.data.{key}}}"],
                   check=False, capture=True)
@@ -595,7 +577,6 @@ def _secret_has_key(name: str, key: str) -> bool:
 _DEV_DB_URL_RE = re.compile(r"^\s*url:\s*[\"']?(postgres://[^\"'\s]+)", re.MULTILINE)
 
 
-# SEM@3b682947: build the development database URL (pure)
 def dev_database_url(config_text: str, cluster_target: str) -> str | None:
     """In-cluster Postgres URL from the dev config's database.url, or None (pure)."""
     m = _DEV_DB_URL_RE.search(rewrite_db_host_for_incluster(
@@ -603,7 +584,6 @@ def dev_database_url(config_text: str, cluster_target: str) -> str | None:
     return m.group(1) if m else None
 
 
-# SEM@3b682947: store default keys into the server secret in the cluster
 def seed_tmi_secret_keys(cluster_target: str = "docker-desktop", db: str = "postgres") -> None:
     """Merge the keys tmi-rotator (#965) needs into Secret/tmi-secrets on a dev
     cluster: the settings-encryption key (id 1) and TMI_DATABASE_URL (from
@@ -616,7 +596,6 @@ def seed_tmi_secret_keys(cluster_target: str = "docker-desktop", db: str = "post
         "TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID": lambda: "1",
     }
     if db != "oracle":
-        # SEM@3b682947: build the database URL for seeding (pure)
         def _db_url():
             return dev_database_url((get_project_root() / CONFIG_FILE).read_text(), cluster_target)
         wanted["TMI_DATABASE_URL"] = _db_url
@@ -643,7 +622,6 @@ def seed_tmi_secret_keys(cluster_target: str = "docker-desktop", db: str = "post
     log_success(f"Secret/tmi-secrets seeded with missing keys: {', '.join(sorted(data))}")
 
 
-# SEM@2004edc9f39fd83ac4fcd7a38fee8b850e69cb95: register the local image registry for the k3s cluster
 def ensure_k3s_registry() -> None:
     """Apply the in-cluster registry and wait for it (k3s prerequisite before push).
 
@@ -655,7 +633,6 @@ def ensure_k3s_registry() -> None:
     log_success("In-cluster registry ready")
 
 
-# SEM@02dbf9ba4f3e0b9761454c43cbccc2f4f61bc0d4: apply the in-cluster PostgreSQL manifests to the cluster
 def apply_incluster_postgres(cluster_target: str) -> None:
     """Apply the in-cluster Postgres (k3s and docker-desktop) and wait for it —
     a prerequisite before the server starts AutoMigrate."""
@@ -666,7 +643,6 @@ def apply_incluster_postgres(cluster_target: str) -> None:
     log_success("In-cluster Postgres ready (svc/postgres:5432)")
 
 
-# SEM@02dbf9ba4f3e0b9761454c43cbccc2f4f61bc0d4: store the server config into the cluster as a ConfigMap
 def deliver_config(cluster_target: str = "docker-desktop") -> None:
     content = (get_project_root() / CONFIG_FILE).read_text()
     # The on-disk config points the DB at localhost (for host-side tools); rewrite
@@ -679,7 +655,6 @@ def deliver_config(cluster_target: str = "docker-desktop") -> None:
     log_success(f"Config delivered as ConfigMap/{CONFIGMAP_NAME}")
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: build the embedding credentials secret in the cluster
 def create_embedding_secret() -> None:
     key = os.environ.get("TMI_EMBEDDING_API_KEY", "sk-e2e-placeholder")
     rendered = kubectl(
@@ -690,7 +665,6 @@ def create_embedding_secret() -> None:
     kubectl(["apply", "-f", "-"], input_text=rendered)
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: build the OAuth providers secret in the cluster from env file
 def create_oauth_providers_secret() -> None:
     """Create/refresh Secret/tmi-oauth-providers from .local/oauth-providers.env.
 
@@ -743,7 +717,6 @@ def create_oauth_providers_secret() -> None:
     log_success("OAuth/SAML provider config delivered as Secret/tmi-oauth-providers")
 
 
-# SEM@1a4ca5f99be4a25df66b2836e9b9f4c87628184a: validate env file lines and list invalid ones without leaking values (pure)
 def _invalid_env_file_keys(path: Path) -> list[str]:
     """Return a description of each line of `path` that kubectl --from-env-file
     would reject, identified by line number and key only — never by value."""
@@ -761,7 +734,6 @@ def _invalid_env_file_keys(path: Path) -> list[str]:
     return bad
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: build the Oracle wallet secret in the cluster from a zip
 def create_oracle_wallet_secret() -> None:
     """Create the tmi-oracle-wallet Secret from the developer's wallet zip.
 
@@ -784,7 +756,6 @@ def create_oracle_wallet_secret() -> None:
     log_success("oracle wallet delivered as Secret/tmi-oracle-wallet")
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: build the Oracle database credentials secret in the cluster
 def create_oracle_db_secret() -> None:
     """Create the tmi-oracle-db Secret carrying the ADB connection settings.
 
@@ -815,7 +786,6 @@ def create_oracle_db_secret() -> None:
     log_success("oracle DB connection delivered as Secret/tmi-oracle-db")
 
 
-# SEM@2004edc9f39fd83ac4fcd7a38fee8b850e69cb95: apply the kustomize overlay to the cluster
 def apply_overlay(db: str, cluster_target: str = "docker-desktop") -> None:
     """Apply the dev overlay.
 
@@ -836,7 +806,6 @@ def apply_overlay(db: str, cluster_target: str = "docker-desktop") -> None:
     kubectl(["apply", "-f", "-"], input_text=rendered)
 
 
-# SEM@70c02e3f4b4dd833280d8f3ca9d152b483013ffe: compute the server rollout wait timeout for a database flavor (pure)
 def server_rollout_timeout(db: str) -> str:
     """Rollout-status timeout for the tmi-server Deployment, DB-aware.
 
@@ -851,7 +820,6 @@ def server_rollout_timeout(db: str) -> str:
     return "1200s" if db == "oracle" else "180s"
 
 
-# SEM@02dbf9ba4f3e0b9761454c43cbccc2f4f61bc0d4: wait for the server rollout then start port forwarding
 def wait_and_forward(db: str = "postgres", cluster_target: str = "docker-desktop") -> None:
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-component-controller", "--timeout=120s"])
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", f"--timeout={server_rollout_timeout(db)}"])
@@ -866,7 +834,6 @@ def wait_and_forward(db: str = "postgres", cluster_target: str = "docker-desktop
     log_success(f"Dev environment ready at {SERVER_URL}")
 
 
-# SEM@02dbf9ba4f3e0b9761454c43cbccc2f4f61bc0d4: wait until the server responds healthy over HTTP
 def wait_for_server(*, attempts: int = 30, delay_s: float = 1.0) -> None:
     """Poll the server until it answers (or give up after attempts).
 
@@ -887,7 +854,6 @@ def wait_for_server(*, attempts: int = 30, delay_s: float = 1.0) -> None:
     )
 
 
-# SEM@2b49b1b7cf41eab60154eaee7ec32fe4d8b0f1ec: validate a local port is free or held by a stale forward
 def _preflight_port(port: int) -> None:
     """Reclaim `port` from a squatting kubectl port-forward before spawning a
     fresh supervisor, or refuse to proceed if something else holds it.
@@ -932,7 +898,6 @@ def _preflight_port(port: int) -> None:
             sys.exit(1)
 
 
-# SEM@de0fcc797a87ddd8cfce1d568d15424a91b0639d: start a supervised background kubectl port-forward process
 def _spawn_supervised_forward(argv: list[str], pid_path: str, human_desc: str,
                                *, port: int, context: str) -> None:
     """Start a self-healing kubectl port-forward and record its supervisor PID.
@@ -972,7 +937,6 @@ def _spawn_supervised_forward(argv: list[str], pid_path: str, human_desc: str,
     log_info(f"Port-forward started (PID {proc.pid}): {human_desc}")
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: compute the pidfile path for a port forward (pure)
 def _pidfile_path(kind: str) -> str:
     """Per-context pidfile path for a named forward ("server"/"redis"/"postgres").
 
@@ -985,7 +949,6 @@ def _pidfile_path(kind: str) -> str:
     return f"/tmp/tmi-dev-{kind}-portforward-{_require_active_context()}.pid"
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: start a port forward to the cluster Redis service
 def start_redis_port_forward() -> None:
     """Forward the in-cluster Redis to localhost:6379 for host integration tests.
 
@@ -1017,7 +980,6 @@ def start_redis_port_forward() -> None:
     )
 
 
-# SEM@2004edc9f39fd83ac4fcd7a38fee8b850e69cb95: start a port forward to the cluster server service
 def start_server_port_forward() -> None:
     """Forward the in-cluster server to localhost:8080 (k3s and docker-desktop).
 
@@ -1043,7 +1005,6 @@ def start_server_port_forward() -> None:
     )
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: start a port forward to the cluster PostgreSQL service
 def start_postgres_port_forward() -> None:
     """Forward the in-cluster Postgres to localhost:5432 for host-side seeding.
 
@@ -1081,7 +1042,6 @@ _FORWARDS: dict[str, int] = {
 }
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: validate a port forward is alive and accepting connections
 def _forward_is_healthy(name: str) -> bool:
     """True when the named forward is already up, on-target, and listening.
 
@@ -1106,7 +1066,6 @@ def _forward_is_healthy(name: str) -> bool:
     return bool(portfwd.port_listeners(port))
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: start a port forward if not already healthy
 def ensure_port_forward(name: str) -> None:
     """Ensure the named dev port-forward is up, starting it only if needed.
 
@@ -1145,7 +1104,6 @@ def ensure_port_forward(name: str) -> None:
     wait_for_port(_FORWARDS[name], timeout=30, label=f"{name} port-forward")
 
 
-# SEM@de0fcc797a87ddd8cfce1d568d15424a91b0639d: stop a port forward process recorded in a pidfile
 def _stop_port_forward_pidfile(pid_path: str) -> None:
     record = portfwd.read_pidfile(pid_path)
     if record is not None:
@@ -1171,7 +1129,6 @@ def _stop_port_forward_pidfile(pid_path: str) -> None:
         log_info(f"Reaped {len(reaped)} orphaned port-forward supervisor(s) for {Path(pid_path).name}")
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: stop the port forward for a service
 def stop_port_forward() -> None:
     """Tear down THIS cluster's server/redis/postgres port-forwards only.
 
@@ -1211,14 +1168,12 @@ def stop_port_forward() -> None:
 # New helpers (consumed by devstatus / devenv nuke)
 # ---------------------------------------------------------------------------
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: stream server pod logs from the cluster
 def tail_server_logs(cluster_target: str = "docker-desktop") -> None:
     """Stream the tmi-server pod logs (Ctrl-C to stop)."""
     set_active_context(cluster_target)
     kubectl(["-n", NS, "logs", "-f", "deploy/tmi-server", "--tail=200"], check=False)
 
 
-# SEM@02dbf9ba4f3e0b9761454c43cbccc2f4f61bc0d4: delete the locally built container images
 def remove_local_images(db: str, cluster_target: str = "docker-desktop") -> None:
     """Remove the locally-built dev images (used by `devenv.py nuke`)."""
     for name, _df, _args in image_builds_for(db):
@@ -1226,13 +1181,12 @@ def remove_local_images(db: str, cluster_target: str = "docker-desktop") -> None
                 check=False)
 
 
-# SEM@02dbf9ba4f3e0b9761454c43cbccc2f4f61bc0d4: fetch the HTTP status of the server root endpoint
 def server_http_status() -> tuple[bool, str]:
     """Return (reachable, http_code) for the server at localhost:8080 (via port-forward)."""
     r = subprocess.run(
         ["curl", "-s", "--connect-timeout", "2", "--max-time", "5",
          "-o", "/dev/null", "-w", "%{http_code}", SERVER_URL],
-        capture_output=True, text=True,
+        capture_output=True, text=True, check=False,
     )
     code = r.stdout.strip() or "000"
     return (code in ("200", "429"), code)
@@ -1242,7 +1196,6 @@ def server_http_status() -> tuple[bool, str]:
 # Orchestration entry points
 # ---------------------------------------------------------------------------
 
-# SEM@3b682947: deploy the full dev stack into the cluster and forward ports
 def start(*, db: str, cluster_target: str = "docker-desktop",
           skip_context_guard: bool = False) -> None:
     """Build images, deploy all components, wait for readiness, and start port-forwards."""
@@ -1282,7 +1235,6 @@ def start(*, db: str, cluster_target: str = "docker-desktop",
     restore_dev_config(cluster_target)
 
 
-# SEM@1a4ca5f99be4a25df66b2836e9b9f4c87628184a: compute the file path of the dev config snapshot (pure)
 def dev_config_snapshot_path(cluster_target: str) -> Path:
     """Location of the operational-settings snapshot for a dev cluster.
 
@@ -1293,7 +1245,6 @@ def dev_config_snapshot_path(cluster_target: str) -> Path:
     return get_project_root() / ".local" / f"dev-config-{cluster_target}.yaml"
 
 
-# SEM@1a4ca5f99be4a25df66b2836e9b9f4c87628184a: store a snapshot of the dev server config to a file
 def snapshot_dev_config(cluster_target: str) -> None:
     """Best-effort snapshot of the dev database's operational settings.
 
@@ -1325,7 +1276,6 @@ def snapshot_dev_config(cluster_target: str) -> None:
         )
 
 
-# SEM@1a4ca5f99be4a25df66b2836e9b9f4c87628184a: restore the dev server config from a snapshot file
 def restore_dev_config(cluster_target: str) -> None:
     """Restore the snapshot into a freshly started dev database, if one exists.
 
@@ -1352,7 +1302,6 @@ def restore_dev_config(cluster_target: str) -> None:
         log_warn(f"Could not restore dev settings ({exc}); the stack is up regardless.")
 
 
-# SEM@1a4ca5f99be4a25df66b2836e9b9f4c87628184a: validate whether the database flavor is externally managed (pure)
 def db_flavor_is_external(cluster_target: str) -> bool:
     """True when the dev database is not the in-cluster Postgres we can reach on
     the standard port-forward (currently only the k3s/docker-desktop Postgres
@@ -1361,7 +1310,6 @@ def db_flavor_is_external(cluster_target: str) -> bool:
     return cluster_target not in ("k3s", "docker-desktop")
 
 
-# SEM@3b682947: restart the dev stack workloads in the cluster
 def restart(*, db: str, cluster_target: str = "docker-desktop",
             skip_context_guard: bool = False) -> None:
     """Rebuild the server image, re-deliver config, and roll the server deployment."""
@@ -1396,7 +1344,6 @@ def restart(*, db: str, cluster_target: str = "docker-desktop",
     log_success(f"Server restarted; {SERVER_URL}")
 
 
-# SEM@3b682947: tear down the dev stack, optionally deleting data
 def teardown(*, db: str = "postgres", cluster_target: str = "docker-desktop") -> None:
     """Tear down everything that start() deployed.
 
@@ -1481,7 +1428,6 @@ def teardown(*, db: str = "postgres", cluster_target: str = "docker-desktop") ->
     log_success("Dev environment torn down (cluster left intact)")
 
 
-# SEM@1f715c04cbd750d89c29f11fa383709275d63044: delete the platform namespace from the cluster
 def teardown_namespace(cluster_target: str = "docker-desktop") -> None:
     """Hard reset for a cluster we don't own (k3s, docker-desktop): delete the entire
     tmi-platform namespace (all workloads, the in-cluster registry, and the Postgres

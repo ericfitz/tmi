@@ -13,7 +13,6 @@ import (
 )
 
 // SAMLManager manages SAML providers
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: manage a registry of initialized SAML providers with thread-safe access (mutates shared state)
 type SAMLManager struct {
 	providers  map[string]*saml.SAMLProvider
 	mu         sync.RWMutex
@@ -22,7 +21,6 @@ type SAMLManager struct {
 }
 
 // NewSAMLManager creates a new SAML manager
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: build an empty SAMLManager bound to the given auth service (pure)
 func NewSAMLManager(service *Service) *SAMLManager {
 	return &SAMLManager{
 		providers: make(map[string]*saml.SAMLProvider),
@@ -31,7 +29,6 @@ func NewSAMLManager(service *Service) *SAMLManager {
 }
 
 // InitializeProviders initializes all configured SAML providers
-// SEM@78155d54490599e00095eb72b817575bb1e8da5b: register all enabled SAML providers from config, skipping failures without aborting (mutates shared state)
 func (m *SAMLManager) InitializeProviders(config SAMLConfig, stateStore StateStore) error {
 	logger := slogging.Get()
 
@@ -106,7 +103,6 @@ func (m *SAMLManager) InitializeProviders(config SAMLConfig, stateStore StateSto
 }
 
 // GetProvider returns a SAML provider by ID
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: fetch an initialized SAML provider by ID, returning an error if not found (pure)
 func (m *SAMLManager) GetProvider(id string) (*saml.SAMLProvider, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -120,7 +116,6 @@ func (m *SAMLManager) GetProvider(id string) (*saml.SAMLProvider, error) {
 }
 
 // ListProviders returns a list of configured SAML provider IDs
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: list the IDs of all registered SAML providers (pure)
 func (m *SAMLManager) ListProviders() []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -133,7 +128,6 @@ func (m *SAMLManager) ListProviders() []string {
 }
 
 // IsProviderInitialized checks if a SAML provider was successfully initialized
-// SEM@8af03cfea628820f921f3922831bbb27c7aa2b02: report whether a SAML provider with the given ID has been registered (pure)
 func (m *SAMLManager) IsProviderInitialized(id string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -145,7 +139,6 @@ func (m *SAMLManager) IsProviderInitialized(id string) bool {
 // EnsureProvider lazily initializes a SAML provider if not already initialized.
 // Idempotent: if the provider is already initialized, returns immediately.
 // Thread-safe: uses the manager's mutex to prevent concurrent initialization.
-// SEM@78155d54490599e00095eb72b817575bb1e8da5b: lazily initialize and register a SAML provider if not already present, thread-safe (mutates shared state)
 func (m *SAMLManager) EnsureProvider(id string, config SAMLProviderConfig) error {
 	m.mu.RLock()
 	_, exists := m.providers[id]
@@ -208,7 +201,6 @@ func (m *SAMLManager) EnsureProvider(id string, config SAMLProviderConfig) error
 }
 
 // ProcessSAMLResponse processes a SAML response for any provider
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: validate a SAML assertion, resolve or create the user, and issue a JWT token pair (reads DB)
 func (m *SAMLManager) ProcessSAMLResponse(ctx context.Context, providerID string, samlResponse string, relayState string) (*User, *TokenPair, error) {
 	provider, err := m.GetProvider(providerID)
 	if err != nil {
@@ -271,14 +263,12 @@ func (m *SAMLManager) ProcessSAMLResponse(ctx context.Context, providerID string
 // user matching mirrors the tiered strategy in findOrCreateUserWithResolver,
 // and adds UpdateUser for the profile refresh on a successful match. The
 // indirection exists so the matching logic can be unit-tested with a fake.
-// SEM@098cfdc305fee6401384fe403fac69e5c063ac5e: interface extending userResolver with UpdateUser, used to match SAML users without Service coupling (pure)
 type samlUserResolver interface {
 	userResolver
 	UpdateUser(ctx context.Context, user User) error
 }
 
 // processUser creates or updates a user from SAML assertion
-// SEM@098cfdc305fee6401384fe403fac69e5c063ac5e: delegate SAML user lookup and upsert to processSAMLUser (pure)
 func (m *SAMLManager) processUser(ctx context.Context, userInfo *saml.UserInfo, providerID string) (*User, error) {
 	return processSAMLUser(ctx, m.service, userInfo, providerID)
 }
@@ -286,7 +276,6 @@ func (m *SAMLManager) processUser(ctx context.Context, userInfo *saml.UserInfo, 
 // samlMatchType identifies which tier of processSAMLUser's matching strategy
 // found the user, so updateSAMLUserOnLogin can decide which fields are safe
 // to overwrite.
-// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: enumerate how a SAML login matched an existing user
 type samlMatchType int
 
 const (
@@ -306,8 +295,6 @@ const (
 //     provider is rejected with errCrossProviderConflict (#290): email is
 //     not a trust boundary across providers, and returning the matched user
 //     would mint tokens for the victim's account.
-//
-// SEM@78155d54490599e00095eb72b817575bb1e8da5b: find or create a user from a SAML assertion using tiered provider/email matching (reads DB)
 func processSAMLUser(ctx context.Context, r samlUserResolver, userInfo *saml.UserInfo, providerID string) (*User, error) {
 	logger := slogging.Get()
 
@@ -399,7 +386,6 @@ func processSAMLUser(ctx context.Context, r samlUserResolver, userInfo *saml.Use
 // update case for it. Email-tier and email-only matches found the user BY
 // email, so there is nothing to "update" and a synthesized value must never
 // replace a real one.
-// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: update a user's login time, name, and email from a SAML assertion (writes DB)
 func updateSAMLUserOnLogin(ctx context.Context, r samlUserResolver, user User, userInfo *saml.UserInfo, match samlMatchType) (*User, error) {
 	logger := slogging.Get()
 	now := time.Now()
@@ -431,7 +417,6 @@ func updateSAMLUserOnLogin(ctx context.Context, r samlUserResolver, user User, u
 }
 
 // extractGroups extracts group memberships from SAML assertion
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: parse group membership names from a SAML assertion attribute statement (pure)
 func extractGroups(assertion *crewjamsaml.Assertion, config *saml.SAMLConfig) []string {
 	var groups []string
 

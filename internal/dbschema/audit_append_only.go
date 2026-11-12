@@ -40,7 +40,6 @@ import (
 // (AUDIT_RETENTION_DAYS, VERSION_RETENTION_DAYS, TOMBSTONE_RETENTION_DAYS,
 // SYSTEM_AUDIT_RETENTION_DAYS), so the trigger floor and the pruner cutoff
 // cannot drift within one boot.
-// SEM@c3167c5165bed5f9d97b7f7eef032894393a917a: carry per-table retention days used to derive append-only trigger age floors (pure)
 type AuditFloorConfig struct {
 	AuditRetentionDays       int
 	VersionRetentionDays     int
@@ -68,7 +67,6 @@ const (
 // floor: one day of clock-skew margin below the retention (the pruner
 // compares app-side time, the trigger DB-side time), but never below the
 // hard minimum.
-// SEM@0b84836aa30071e2ed6d01591c7dd3254be74189: compute the trigger delete-age floor from configured retention, enforcing a hard minimum (pure)
 func clampFloor(configuredDays, hardMinDays int) int {
 	floor := configuredDays - 1
 	if floor < hardMinDays {
@@ -77,12 +75,10 @@ func clampFloor(configuredDays, hardMinDays int) int {
 	return floor
 }
 
-// SEM@0b84836aa30071e2ed6d01591c7dd3254be74189: compute the append-only delete-age floor in days for the audit_entries table (pure)
 func (c AuditFloorConfig) auditEntriesFloorDays() int {
 	return clampFloor(c.AuditRetentionDays, auditFloorHardMinDays)
 }
 
-// SEM@0b84836aa30071e2ed6d01591c7dd3254be74189: compute the append-only delete-age floor in days for the version_snapshots table (pure)
 func (c AuditFloorConfig) versionSnapshotsFloorDays() int {
 	v := c.VersionRetentionDays
 	if c.TombstoneRetentionDays < v {
@@ -91,7 +87,6 @@ func (c AuditFloorConfig) versionSnapshotsFloorDays() int {
 	return clampFloor(v, snapshotFloorHardMinDays)
 }
 
-// SEM@c3167c5165bed5f9d97b7f7eef032894393a917a: compute the append-only delete-age floor in days for the system_audit_entries table (pure)
 func (c AuditFloorConfig) systemAuditEntriesFloorDays() int {
 	return clampFloor(c.SystemAuditRetentionDays, systemAuditFloorHardMinDays)
 }
@@ -115,7 +110,6 @@ func (c AuditFloorConfig) systemAuditEntriesFloorDays() int {
 // On Oracle ADB the triggers use CREATE OR REPLACE TRIGGER; on
 // PostgreSQL, CREATE OR REPLACE FUNCTION + DROP TRIGGER IF EXISTS +
 // CREATE TRIGGER. SQLite is skipped.
-// SEM@c3167c5165bed5f9d97b7f7eef032894393a917a: install DB-level append-only triggers on audit tables, blocking UPDATE and recent DELETE (mutates DB schema)
 func InstallAuditAppendOnlyTriggers(ctx context.Context, db *gorm.DB, floors AuditFloorConfig) error {
 	logger := slogging.Get()
 	dialect := db.Name()
@@ -150,7 +144,6 @@ func InstallAuditAppendOnlyTriggers(ctx context.Context, db *gorm.DB, floors Aud
 	}
 }
 
-// SEM@c3167c5165bed5f9d97b7f7eef032894393a917a: install append-only guard function and triggers on PostgreSQL audit tables (mutates DB schema)
 func installPostgresAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.Logger, auditFloorDays, snapshotFloorDays, systemAuditFloorDays int) error {
 	statements := []string{
 		// Guard function. The delete age floor arrives as a trigger
@@ -197,7 +190,6 @@ func installPostgresAppendOnly(ctx context.Context, db *gorm.DB, logger *sloggin
 	return nil
 }
 
-// SEM@23e800356736db293bfbce04f9bd1f4c4cab3b6b: install append-only row-level triggers on Oracle ADB audit tables (mutates DB schema)
 func installOracleAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.Logger, auditFloorDays, snapshotFloorDays, systemAuditFloorDays int) error {
 	// Oracle CREATE OR REPLACE TRIGGER is atomic — no DROP/CREATE pair.
 	// RAISE_APPLICATION_ERROR(-20001, ...) bubbles up as ORA-20001;
@@ -250,7 +242,6 @@ func installOracleAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.
 	return nil
 }
 
-// SEM@23e800356736db293bfbce04f9bd1f4c4cab3b6b: build the three Oracle append-only trigger definitions for the given floors (pure)
 func oracleAppendOnlyTriggers(auditFloorDays, snapshotFloorDays, systemAuditFloorDays int) []oracleTrigger {
 	return []oracleTrigger{
 		{"tmi_audit_entries_no_mutate", fmt.Sprintf(`CREATE OR REPLACE TRIGGER tmi_audit_entries_no_mutate
@@ -297,7 +288,6 @@ type oracleTrigger struct {
 // trigger body; the sha256 of the unmarked DDL follows it.
 const oracleTriggerMarkerPrefix = "-- tmi-ddl-sha256:"
 
-// SEM@23e800356736db293bfbce04f9bd1f4c4cab3b6b: build the identity marker comment for a trigger DDL text (pure)
 func oracleTriggerMarker(ddl string) string {
 	sum := sha256.Sum256([]byte(ddl))
 	return oracleTriggerMarkerPrefix + hex.EncodeToString(sum[:])
@@ -306,7 +296,6 @@ func oracleTriggerMarker(ddl string) string {
 // oracleTriggerDDLWithMarker inserts the marker comment as the first line of
 // the trigger body (right after BEGIN), where Oracle preserves it verbatim in
 // ALL_SOURCE.
-// SEM@23e800356736db293bfbce04f9bd1f4c4cab3b6b: embed the identity marker into a trigger body after BEGIN (pure)
 func oracleTriggerDDLWithMarker(ddl string) string {
 	return strings.Replace(ddl, "BEGIN\n", "BEGIN\n\t\t   "+oracleTriggerMarker(ddl)+"\n", 1)
 }
@@ -314,7 +303,6 @@ func oracleTriggerDDLWithMarker(ddl string) string {
 // oracleTriggerIsCurrent reports whether a VALID, ENABLED trigger named name
 // exists in CURRENT_SCHEMA whose source carries marker. ALL_* views filtered
 // to CURRENT_SCHEMA, like every other catalog probe here (#736).
-// SEM@23e800356736db293bfbce04f9bd1f4c4cab3b6b: probe whether an Oracle trigger with the given identity marker is installed and valid (reads DB)
 func oracleTriggerIsCurrent(ctx context.Context, db *gorm.DB, name, marker string) (bool, error) {
 	var cnt int64
 	err := withMigrationRetry("append-only trigger "+name+" currency probe", func() error {

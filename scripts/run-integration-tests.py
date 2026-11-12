@@ -29,6 +29,7 @@ Targets:
 from __future__ import annotations
 
 import argparse
+import http.client
 import os
 import shutil
 import subprocess
@@ -39,7 +40,7 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-import database  # noqa: E402
+import database
 from tmi_common import (
     add_verbosity_args,
     apply_verbosity,
@@ -54,7 +55,6 @@ from tmi_common import (
 from tmi_test_runner import extract_failed_test_output, parse_output, print_results
 
 
-# SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: parse integration test runner command-line arguments (pure)
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run TMI integration tests with formatted output.",
@@ -81,16 +81,15 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-# SEM@a4ec8c0753dcb14987808e28f96817bf2be7c739: validate that a server URL responds without server error
 def server_is_running(url: str) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=2) as resp:
             return resp.status < 500
-    except Exception:
+    except (OSError, http.client.HTTPException, ValueError):
+        # OSError covers URLError/HTTPError, refused connections and timeouts.
         return False
 
 
-# SEM@c91b16ea67b50cc273cb925b803aeb2cac07d517: start the OAuth stub if needed and report whether it is reachable
 def ensure_oauth_stub(project_root: Path) -> bool:
     """Best-effort: try to start the OAuth stub via scripts/oauth-stub-lib.sh.
 
@@ -120,7 +119,6 @@ def ensure_oauth_stub(project_root: Path) -> bool:
     return server_is_running(stub_url)
 
 
-# SEM@3b682947: delete rate-limit keys from the test Redis over TLS (writes Redis)
 def clear_redis_rate_limits(tls_dir: Path, redis_db: str = "0") -> None:
     """Best-effort: drop auth/IP rate-limit keys from the test Redis logical DB.
 
@@ -152,7 +150,6 @@ def clear_redis_rate_limits(tls_dir: Path, redis_db: str = "0") -> None:
             return
 
 
-# SEM@a4ec8c0753dcb14987808e28f96817bf2be7c739: run go test, append output to a log, and return exit code
 def run_go_test(cmd: list[str], cwd: Path, env: dict, log_path: str) -> int:
     """Run go test, append all output to log_path, return its exit code."""
     with open(log_path, "a") as fh:
@@ -177,7 +174,6 @@ BUILD_FAILURE_MARKERS = (
 )
 
 
-# SEM@4eedf6e7a203606a23a27a5bef308389d4fe211d: parse the run log for the line explaining a Go build failure
 def build_failure_reason(log_path: str) -> str | None:
     """Return the line explaining a Go build failure in the run log, or None.
 
@@ -205,7 +201,6 @@ def build_failure_reason(log_path: str) -> str | None:
     return None
 
 
-# SEM@619e1d90a1519deb4b56bda51c0a5f8b1a3bd79d: wait until a server URL responds or timeout elapses
 def wait_for_server(url: str, timeout: int = 60) -> bool:
     """Poll url until it answers (status < 500) or timeout elapses."""
     deadline = time.monotonic() + timeout
@@ -223,7 +218,6 @@ TEST_NATS_CONTAINER = "tmi-nats-itest"  # not tmi-nats-test: `make test-workers`
 TEST_NATS_HOST_PORT = "4223"
 
 
-# SEM@3b682947: generate the harness TLS material once (writes files)
 def ensure_test_tls(project_root: Path) -> Path:
     """Generate the harness PKI once (see test/integration/tlsgen)."""
     tls_dir = project_root / TEST_TLS_DIR
@@ -234,7 +228,6 @@ def ensure_test_tls(project_root: Path) -> Path:
     return tls_dir
 
 
-# SEM@3b682947: start the isolated test NATS container in mTLS mode (starts container)
 def ensure_nats(project_root: Path, tls_dir: Path) -> bool:
     """Start the isolated test NATS container in mTLS mode on its own port."""
     script = str(project_root / "scripts" / "manage-nats.py")
@@ -249,7 +242,6 @@ def ensure_nats(project_root: Path, tls_dir: Path) -> bool:
     return True
 
 
-# SEM@3b682947: start the isolated test Redis container in TLS mode and reject stale plaintext ones (starts container)
 def ensure_redis(project_root: Path, tls_dir: Path) -> bool:
     """Start the ISOLATED test Redis container and verify it owns its port.
 
@@ -303,7 +295,6 @@ TEST_SERVER_IMAGE = "tmi/tmi-server:latest"
 TEST_SERVER_HOST_PORT = "8081"
 
 
-# SEM@619e1d90a1519deb4b56bda51c0a5f8b1a3bd79d: build the dev-tagged test server container image
 def build_server_image(project_root: Path) -> bool:
     """Build the dev-tagged test server image (tmi/tmi-server:latest).
 
@@ -323,7 +314,6 @@ def build_server_image(project_root: Path) -> bool:
     return result.returncode == 0
 
 
-# SEM@619e1d90a1519deb4b56bda51c0a5f8b1a3bd79d: delete the test server container (best-effort)
 def stop_test_server_container() -> None:
     """Remove the test server container (best-effort)."""
     if not shutil.which("docker"):
@@ -334,7 +324,6 @@ def stop_test_server_container() -> None:
     )
 
 
-# SEM@3b682947: start the test server container with config, database, redis, and TLS
 def start_test_server_container(
     project_root: Path, config_path: Path, container_db_url: str,
     redis_host: str, redis_port: str, host_port: str, tls_dir: Path,
@@ -401,8 +390,10 @@ def start_test_server_container(
         # The OAuth flow drives the callback stub at localhost:8079; allowlist it
         # here (tracked runner) rather than in the gitignored config-test.yml, so
         # the harness is reproducible. Comma-separated; overrides the file value.
-        "-e", "TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST="
-        "http://localhost:8079/,http://localhost:8079/*,http://localhost:4200/*",
+        "-e", (
+            "TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST="
+            "http://localhost:8079/,http://localhost:8079/*,http://localhost:4200/*"
+        ),
     ]
     if disable_rate_limiting:
         cmd += ["-e", "TMI_DISABLE_RATE_LIMITING=true"]
@@ -422,7 +413,6 @@ def start_test_server_container(
     return TEST_SERVER_CONTAINER
 
 
-# SEM@619e1d90a1519deb4b56bda51c0a5f8b1a3bd79d: store test server container logs to a file
 def dump_test_server_logs(server_log: str) -> None:
     """Capture the test server container logs to a file for debugging."""
     if not shutil.which("docker"):
@@ -437,7 +427,6 @@ def dump_test_server_logs(server_log: str) -> None:
         pass
 
 
-# SEM@663417962552d1b180936cab2f93692cef6cb1c6: run integration tests against an isolated PostgreSQL test database
 def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
     # Bring up the ISOLATED test database container (tmi-postgresql-test on the
     # config-test.yml port, db tmi_test) and migrate it. This never touches the
@@ -542,7 +531,7 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
     # a clean pass.
     workflow_exit = 0
     workflows_skipped: str | None = None
-    server_log = str((project_root / "logs" / "tmi-test-server.log"))
+    server_log = str(project_root / "logs" / "tmi-test-server.log")
     (project_root / "logs").mkdir(exist_ok=True)
     oauth_running = ensure_oauth_stub(project_root)
     if not oauth_running:
@@ -612,7 +601,6 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
     return workflow_exit, workflows_skipped
 
 
-# SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: capture the dev server pod's log to a file for this run
 def dump_dev_server_pod_logs(project_root: Path, since: str) -> None:
     """Save the dev server pod's log for this run to logs/tmi-test-server.log.
 
@@ -639,7 +627,6 @@ def dump_dev_server_pod_logs(project_root: Path, since: str) -> None:
     log_info(f"Dev server pod log for this run: {server_log}")
 
 
-# SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: run the OCI integration test suite against an Oracle-backed dev server
 def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
     oci_env_file = project_root / "scripts" / "oci-env.sh"
     if not oci_env_file.exists():
@@ -657,7 +644,6 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
     ensure_oauth_stub(project_root)
     run_started = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
-    # SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: build a go test -run flag from an environment variable (pure)
     def go_run(env_name: str) -> str:
         pattern = os.environ.get(env_name, "").strip()
         return f" -run '{pattern}'" if pattern else ""
@@ -765,7 +751,6 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
     return 0, workflows_skipped
 
 
-# SEM@41abfe5492bc32aa79cce6f93423506d112a3e8c: handle the integration test runner entry point
 def main() -> int:
     args = parse_args()
     apply_verbosity(args)

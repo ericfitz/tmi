@@ -11,7 +11,6 @@ import (
 )
 
 // AssetSubResourceHandler provides handlers for asset sub-resource operations
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: handler struct grouping asset sub-resource operations for threat models (reads DB)
 type AssetSubResourceHandler struct {
 	assetStore       AssetRepository
 	db               *sql.DB
@@ -20,7 +19,6 @@ type AssetSubResourceHandler struct {
 }
 
 // NewAssetSubResourceHandler creates a new asset sub-resource handler
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build an AssetSubResourceHandler with the given store, database, cache, and invalidator (pure)
 func NewAssetSubResourceHandler(assetStore AssetRepository, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *AssetSubResourceHandler {
 	return &AssetSubResourceHandler{
 		assetStore:       assetStore,
@@ -32,7 +30,6 @@ func NewAssetSubResourceHandler(assetStore AssetRepository, db *sql.DB, cache *C
 
 // GetAssets retrieves all assets for a threat model with pagination
 // GET /threat_models/{threat_model_id}/assets
-// SEM@bc62d8f9ad73ff264054d6fd71bc9a58f19b37e7: list paginated assets for a threat model and return them with total count (reads DB)
 func (h *AssetSubResourceHandler) GetAssets(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetAssets - retrieving assets for threat model")
@@ -102,7 +99,6 @@ func (h *AssetSubResourceHandler) GetAssets(c *gin.Context) {
 
 // GetAsset retrieves a specific asset by ID
 // GET /threat_models/{threat_model_id}/assets/{asset_id}
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: handle GET /threat_models/{id}/assets/{asset_id}: fetch a single asset by ID (reads DB)
 func (h *AssetSubResourceHandler) GetAsset(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetAsset - retrieving specific asset")
@@ -143,7 +139,6 @@ func (h *AssetSubResourceHandler) GetAsset(c *gin.Context) {
 
 // CreateAsset creates a new asset in a threat model
 // POST /threat_models/{threat_model_id}/assets
-// SEM@bc62d8f9ad73ff264054d6fd71bc9a58f19b37e7: store a new sanitized asset under a threat model, emit audit record, and invalidate caches (mutates shared state)
 func (h *AssetSubResourceHandler) CreateAsset(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateAsset - creating new asset")
@@ -211,7 +206,6 @@ func (h *AssetSubResourceHandler) CreateAsset(c *gin.Context) {
 
 // UpdateAsset updates an existing asset
 // PUT /threat_models/{threat_model_id}/assets/{asset_id}
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: replace an asset with optimistic locking, audit recording, and cache invalidation (mutates DB)
 func (h *AssetSubResourceHandler) UpdateAsset(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateAsset - updating existing asset")
@@ -311,7 +305,6 @@ func (h *AssetSubResourceHandler) UpdateAsset(c *gin.Context) {
 
 // DeleteAsset deletes an asset
 // DELETE /threat_models/{threat_model_id}/assets/{asset_id}
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: handle DELETE /threat_models/{id}/assets/{asset_id}: remove an asset by ID (reads DB)
 func (h *AssetSubResourceHandler) DeleteAsset(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteAsset - deleting asset")
@@ -362,7 +355,6 @@ func (h *AssetSubResourceHandler) DeleteAsset(c *gin.Context) {
 
 // BulkCreateAssets creates multiple assets in a single request
 // POST /threat_models/{threat_model_id}/assets/bulk
-// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: create up to 50 assets under a threat model; reject client-supplied IDs (mutates DB)
 func (h *AssetSubResourceHandler) BulkCreateAssets(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateAssets - creating multiple assets")
@@ -468,7 +460,6 @@ func (h *AssetSubResourceHandler) BulkCreateAssets(c *gin.Context) {
 
 // PatchAsset applies JSON patch operations to an asset
 // PATCH /threat_models/{threat_model_id}/assets/{asset_id}
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: apply JSON Patch operations to an asset with optimistic locking and audit recording (mutates DB)
 func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchAsset - applying patch operations to asset")
@@ -574,7 +565,6 @@ func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 
 // BulkUpdateAssets updates or creates multiple assets (upsert operation)
 // PUT /threat_models/{threat_model_id}/assets/bulk
-// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: upsert multiple assets under a threat model, creating or updating each (mutates shared state)
 func (h *AssetSubResourceHandler) BulkUpdateAssets(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkUpdateAssets - upserting multiple assets")

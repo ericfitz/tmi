@@ -11,8 +11,6 @@ import "time"
 //
 // Calling ticker.Stop() again from the caller's shutdown path is safe:
 // time.Ticker.Stop is idempotent.
-//
-// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: run a purge callback on each ticker tick until stopped (mutates shared state)
 func RunCleanup(ticker *time.Ticker, stop <-chan bool, purge func()) {
 	for {
 		select {

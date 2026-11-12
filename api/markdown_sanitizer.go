@@ -23,7 +23,6 @@ var markdownPolicy *bluemonday.Policy
 // metadata values that should never contain HTML.
 var strictPolicy *bluemonday.Policy
 
-// SEM@6c2ed16a87725c4d8e764cde607ac1e06704e3ac: initialize singleton markdown and strict HTML sanitization policies at package load (mutates shared state)
 func init() {
 	markdownPolicy = createMarkdownSanitizationPolicy()
 	strictPolicy = bluemonday.StrictPolicy()
@@ -31,7 +30,6 @@ func init() {
 
 // createMarkdownSanitizationPolicy builds a bluemonday policy matching the client's
 // DOMPurify ALLOWED_TAGS and ALLOWED_ATTR configuration.
-// SEM@d6557548645ee87e8fe5910b447499fc633fbe6b: build a bluemonday allowlist policy matching the client DOMPurify configuration (pure)
 func createMarkdownSanitizationPolicy() *bluemonday.Policy {
 	p := bluemonday.NewPolicy()
 
@@ -106,7 +104,6 @@ func createMarkdownSanitizationPolicy() *bluemonday.Policy {
 // Each pass also neutralizes markdown link, image and reference-definition
 // destinations whose scheme is not http, https or mailto (#1013); see
 // markdown_link_destinations.go.
-// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize markdown by stripping disallowed HTML and unsafe link destinations while keeping text verbatim (pure)
 func SanitizeMarkdownContent(content string) string {
 	if content == "" {
 		return content
@@ -132,7 +129,6 @@ var markdownSkipContent = map[string]bool{
 	"object": true, "script": true, "style": true, "noscript": true,
 }
 
-// SEM@9924c9a931e361fced9cd376fbfd52220c9b0bc5: remove disallowed HTML markup in one pass, copying text tokens unchanged (pure)
 func stripMarkdownHTML(content string) string {
 	var out strings.Builder
 	z := xhtml.NewTokenizer(strings.NewReader(content))
@@ -185,7 +181,6 @@ func stripMarkdownHTML(content string) string {
 // This lives here rather than in each handler so the create, update and patch
 // paths across all four note resources cannot drift on it — the update paths
 // had no such check at all and silently persisted the empty value.
-// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize a required markdown field, returning a 400 when it empties, nests too deeply, keeps an unsafe link or is too complex to check
 func SanitizeRequiredMarkdownContent(field, content string) (string, *RequestError) {
 	sanitized := SanitizeMarkdownContent(content)
 	// Authoritative gate (#1013): the destination scanner is best effort, so
@@ -232,7 +227,6 @@ func SanitizeRequiredMarkdownContent(field, content string) (string, *RequestErr
 // become real tags before sanitization strips them. The result is then unescaped
 // again so that legitimate text like "0.0.0.0/0 -> NAT" is stored verbatim rather
 // than as "0.0.0.0/0 -&gt; NAT".
-// SEM@b8c2e635d7ace355cadeed6d3b0b853b2c950f75: strip all HTML from a plain-text field, decoding entities first to prevent bypass (pure)
 func SanitizePlainText(s string) string {
 	if s == "" {
 		return s
@@ -258,7 +252,6 @@ func SanitizePlainText(s string) string {
 
 // SanitizeMetadataSlice sanitizes all values in a metadata slice using SanitizePlainText.
 // Returns an error if any value fails template injection validation after sanitization.
-// SEM@6c2ed16a87725c4d8e764cde607ac1e06704e3ac: sanitize all values in a metadata slice and validate against HTML injection (pure)
 func SanitizeMetadataSlice(metadata *[]Metadata) error {
 	if metadata == nil {
 		return nil
@@ -278,7 +271,6 @@ func SanitizeMetadataSlice(metadata *[]Metadata) error {
 // Uses the shape discriminator to determine cell type, preventing node corruption
 // that can occur when AsNode() fails (e.g., position validation) and the code
 // falls through to AsEdge(), which rewrites nodes with edge-specific fields.
-// SEM@7bac1ed632ff8929eff543daec4372c53d51283a: sanitize metadata values in all diagram cells using the shape discriminator to avoid type corruption (pure)
 func SanitizeDiagramCellMetadata(cells []DfdDiagram_Cells_Item) error {
 	for i := range cells {
 		// Use discriminator to determine cell type rather than try-and-fallthrough
@@ -314,7 +306,6 @@ func SanitizeDiagramCellMetadata(cells []DfdDiagram_Cells_Item) error {
 
 // SanitizeOptionalString sanitizes an optional string field using SanitizePlainText.
 // Returns nil if input is nil. Use for *string fields like Description, IssueUri, Mitigation.
-// SEM@0c74197df2eb6b51a91fa4592766476fdf09f984: sanitize an optional string field, returning nil if input is nil (pure)
 func SanitizeOptionalString(s *string) *string {
 	if s == nil {
 		return nil
@@ -326,7 +317,6 @@ func SanitizeOptionalString(s *string) *string {
 // SanitizePatchOperations sanitizes string values in JSON Patch operations
 // for the specified field paths using SanitizePlainText.
 // Only "replace" and "add" operations are sanitized.
-// SEM@0c74197df2eb6b51a91fa4592766476fdf09f984: sanitize string values in JSON Patch replace and add operations at specified paths (pure)
 func SanitizePatchOperations(operations []PatchOperation, paths []string) {
 	pathSet := make(map[string]bool, len(paths))
 	for _, p := range paths {
@@ -360,7 +350,6 @@ type noteText struct {
 // includePlainText is set (an emptied description becomes nil). A changed
 // name is held to the schema's rules on every note type. Unchanged fields are not re-checked, so a legacy
 // value cannot block an unrelated edit.
-// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize the note text fields a JSON Patch changed, in place on the patched entity, rejecting emptied required fields (pure)
 func sanitizePatchedNoteText(before, after noteText, includePlainText bool) *RequestError {
 	if *after.content != *before.content {
 		sanitized, reqErr := SanitizeRequiredMarkdownContent("content", *after.content)
@@ -401,7 +390,6 @@ var noteNamePattern = regexp.MustCompile(`^[^<>"'&]*$`)
 // any field's value (e.g. content) into it. An empty name would also be NULL on
 // Oracle (NOT NULL column, a store error) but saved on PostgreSQL, and an
 // over-long one would fail the VARCHAR2(256) column.
-// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: validate a patched note name against the schema's non-empty, length and character rules (pure)
 func validatePatchedNoteName(name string) *RequestError {
 	switch {
 	case strings.TrimSpace(name) == "":
@@ -417,7 +405,6 @@ func validatePatchedNoteName(name string) *RequestError {
 // checkPatchedNote is the threat-model note store's patch check. It sanitizes
 // content only, as the threat-model note create and update paths do, and
 // validates a changed name.
-// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize the content a JSON Patch changed on a threat-model note (pure)
 func checkPatchedNote(before, after *Note) error {
 	if reqErr := sanitizePatchedNoteText(
 		noteText{&before.Content, &before.Name, &before.Description},
@@ -430,7 +417,6 @@ func checkPatchedNote(before, after *Note) error {
 }
 
 // checkPatchedTeamNote is the team note store's patch check.
-// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize the content, name and description a JSON Patch changed on a team note (pure)
 func checkPatchedTeamNote(before, after *TeamNote) error {
 	if reqErr := sanitizePatchedNoteText(
 		noteText{&before.Content, &before.Name, &before.Description},
@@ -443,7 +429,6 @@ func checkPatchedTeamNote(before, after *TeamNote) error {
 }
 
 // checkPatchedProjectNote is the project note store's patch check.
-// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize the content, name and description a JSON Patch changed on a project note (pure)
 func checkPatchedProjectNote(before, after *ProjectNote) error {
 	if reqErr := sanitizePatchedNoteText(
 		noteText{&before.Content, &before.Name, &before.Description},

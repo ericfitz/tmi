@@ -17,7 +17,6 @@ const threatModelStatusClosed = "closed"
 const threatModelStatusActive = "active"
 
 // EmbeddingCleaner periodically deletes embeddings from idle threat models.
-// SEM@78c94ddab0f9e346067370bad3e9d3d88bd6a99b: background service that periodically deletes embeddings from idle threat models (mutates shared state)
 type EmbeddingCleaner struct {
 	embeddingStore TimmyEmbeddingStore
 	db             *gorm.DB
@@ -35,14 +34,12 @@ type EmbeddingCleaner struct {
 // the dialect's NamingStrategy (OracleNamingStrategy on Oracle), so the
 // mapping holds on both engines; hardcoded lowercase tags silently zero every
 // field on Oracle (#699).
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: query result holding a threat model ID and status for idle-embedding cleanup (pure)
 type idleThreatModel struct {
 	ID     string
 	Status string
 }
 
 // NewEmbeddingCleaner creates a new embedding cleaner.
-// SEM@78c94ddab0f9e346067370bad3e9d3d88bd6a99b: build an EmbeddingCleaner with configurable interval and idle-day thresholds (pure)
 func NewEmbeddingCleaner(
 	embeddingStore TimmyEmbeddingStore,
 	db *gorm.DB,
@@ -61,18 +58,15 @@ func NewEmbeddingCleaner(
 }
 
 // Start begins the background cleanup loop.
-// SEM@78c94ddab0f9e346067370bad3e9d3d88bd6a99b: start the background embedding-cleanup goroutine (mutates shared state)
 func (ec *EmbeddingCleaner) Start() {
 	go ec.run()
 }
 
 // Stop signals the cleaner to stop.
-// SEM@78c94ddab0f9e346067370bad3e9d3d88bd6a99b: signal the embedding-cleanup loop to stop (mutates shared state)
 func (ec *EmbeddingCleaner) Stop() {
 	close(ec.stopCh)
 }
 
-// SEM@78c94ddab0f9e346067370bad3e9d3d88bd6a99b: run the periodic embedding-cleanup ticker loop until stopped (mutates shared state)
 func (ec *EmbeddingCleaner) run() {
 	logger := slogging.Get()
 	logger.Debug("EmbeddingCleaner: started (interval=%s, activeIdleDays=%d, closedIdleDays=%d)",
@@ -93,7 +87,6 @@ func (ec *EmbeddingCleaner) run() {
 }
 
 // CleanOnce runs a single cleanup cycle. Returns total embeddings deleted.
-// SEM@5981ac53dd2229e2bb211a96f0b495fe72df5f32: delete embeddings for all currently idle threat models and return the total count deleted (reads DB)
 func (ec *EmbeddingCleaner) CleanOnce() int64 {
 	logger := slogging.Get()
 	ctx := context.Background()
@@ -126,7 +119,6 @@ func (ec *EmbeddingCleaner) CleanOnce() int64 {
 
 // findIdleThreatModels queries for threat models that have embeddings and are idle.
 // Uses COALESCE(last_accessed_at, modified_at) to determine the effective last activity time.
-// SEM@f8417a5cf7ccccd973f67a4a09364e8065dddf5f: query threat models that have embeddings and exceed the active or closed idle-day threshold (reads DB)
 func (ec *EmbeddingCleaner) findIdleThreatModels() ([]idleThreatModel, error) {
 	var results []idleThreatModel
 

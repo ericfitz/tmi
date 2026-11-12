@@ -32,7 +32,6 @@ const (
 // a client a decryption oracle. Detail is logged server-side only.
 var errPrecheckRejected = errors.New("SAML response rejected")
 
-// SEM@74c94fa9dd5167632559edfe2f08920768f67aca: reject SAML responses with malformed or namespace-spoofed assertions, returning one generic error
 func precheckSAMLResponse(responseXML []byte, spKey crypto.Signer) error {
 	if err := inspectSAMLResponse(responseXML, spKey); err != nil {
 		// The internal error text is built from fixed strings only (never
@@ -43,7 +42,6 @@ func precheckSAMLResponse(responseXML []byte, spKey crypto.Signer) error {
 	return nil
 }
 
-// SEM@74c94fa9dd5167632559edfe2f08920768f67aca: inspect SAML response assertions and return a fixed-text reason on rejection (pure)
 func inspectSAMLResponse(responseXML []byte, spKey crypto.Signer) error {
 	doc := etree.NewDocument()
 	if err := doc.ReadFromBytes(responseXML); err != nil {
@@ -82,7 +80,6 @@ func inspectSAMLResponse(responseXML []byte, spKey crypto.Signer) error {
 	return nil
 }
 
-// SEM@74c94fa9dd5167632559edfe2f08920768f67aca: decrypt an EncryptedAssertion element to its plaintext Assertion element, as the library does
 func decryptAssertionForPrecheck(encryptedEl *etree.Element, spKey crypto.Signer) (*etree.Element, error) {
 	var dataEls []*etree.Element
 	for _, c := range encryptedEl.ChildElements() {
@@ -116,7 +113,6 @@ func decryptAssertionForPrecheck(encryptedEl *etree.Element, spKey crypto.Signer
 	return doc.Root(), nil
 }
 
-// SEM@74c94fa9dd5167632559edfe2f08920768f67aca: validate an Assertion element has required children and only SAML-namespace NameIDs (pure)
 func precheckAssertion(assertionEl *etree.Element) error {
 	if assertionEl.Tag != "Assertion" || assertionEl.NamespaceURI() != samlAssertionNS {
 		return errors.New("unexpected assertion element")
@@ -170,7 +166,6 @@ func precheckAssertion(assertionEl *etree.Element) error {
 	return nil
 }
 
-// SEM@74c94fa9dd5167632559edfe2f08920768f67aca: reject any direct NameID child of an element that is outside the SAML assertion namespace (pure)
 func requireSAMLNameIDs(parent *etree.Element, parentName string) error {
 	for _, c := range parent.ChildElements() {
 		if c.Tag == "NameID" && c.NamespaceURI() != samlAssertionNS {
@@ -180,7 +175,6 @@ func requireSAMLNameIDs(parent *etree.Element, parentName string) error {
 	return nil
 }
 
-// SEM@74c94fa9dd5167632559edfe2f08920768f67aca: run fn, converting any panic into an error and logging the recovery
 func recoverToError[T any](what string, fn func() (T, error)) (result T, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -194,7 +188,6 @@ func recoverToError[T any](what string, fn func() (T, error)) (result T, err err
 	return fn()
 }
 
-// SEM@74c94fa9dd5167632559edfe2f08920768f67aca: reject a signature-verified LogoutRequest whose NameID is outside the SAML namespace (pure)
 func precheckLogoutRequestNameID(verifiedXML []byte) error {
 	doc := etree.NewDocument()
 	if err := doc.ReadFromBytes(verifiedXML); err != nil {

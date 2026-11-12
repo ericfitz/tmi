@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	authdb "github.com/ericfitz/tmi/auth/db"
@@ -16,7 +17,6 @@ import (
 )
 
 // SurveyStore defines the interface for survey operations
-// SEM@e6ef5b1c60acd4e48fcb0cc113fb945bdd096c78: define interface for CRUD and list operations on survey templates
 type SurveyStore interface {
 	// CRUD operations
 	Create(ctx context.Context, survey *Survey, userInternalUUID string) error
@@ -39,19 +39,16 @@ type SurveyStore interface {
 }
 
 // GormSurveyStore implements SurveyStore using GORM
-// SEM@bd26290d65c881980433c4a4b599847bb68193d1: GORM-backed implementation of SurveyStore (reads/writes DB)
 type GormSurveyStore struct {
 	db *gorm.DB
 }
 
 // NewGormSurveyStore creates a new GORM-backed survey store
-// SEM@bd26290d65c881980433c4a4b599847bb68193d1: build a GORM-backed SurveyStore from a database connection (pure)
 func NewGormSurveyStore(db *gorm.DB) *GormSurveyStore {
 	return &GormSurveyStore{db: db}
 }
 
 // Create creates a new survey
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new survey template and return server-assigned timestamps (mutates DB)
 func (s *GormSurveyStore) Create(ctx context.Context, survey *Survey, userInternalUUID string) error {
 	logger := slogging.Get()
 
@@ -75,6 +72,12 @@ func (s *GormSurveyStore) Create(ctx context.Context, survey *Survey, userIntern
 
 	// Set the creator
 	model.CreatedByInternalUUID = models.DBVarchar(userInternalUUID)
+
+	// Microseconds: the resolution TIMESTAMP(6) and timestamptz store, so the
+	// values mirrored onto the response match a later GET (#1153).
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	model.CreatedAt = now
+	model.ModifiedAt = now
 
 	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err = authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
@@ -107,7 +110,6 @@ func (s *GormSurveyStore) Create(ctx context.Context, survey *Survey, userIntern
 }
 
 // Get retrieves a survey by ID
-// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: fetch a survey template by ID including its metadata (reads DB)
 func (s *GormSurveyStore) Get(ctx context.Context, id uuid.UUID) (*Survey, error) {
 	logger := slogging.Get()
 
@@ -144,7 +146,6 @@ func (s *GormSurveyStore) Get(ctx context.Context, id uuid.UUID) (*Survey, error
 }
 
 // Update updates an existing survey
-// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: update an existing survey template's fields and metadata (writes DB)
 func (s *GormSurveyStore) Update(ctx context.Context, survey *Survey) error {
 	logger := slogging.Get()
 
@@ -218,7 +219,6 @@ func (s *GormSurveyStore) Update(ctx context.Context, survey *Survey) error {
 }
 
 // Delete removes a survey by ID
-// SEM@87b4ec5d8daf4d5e51cb9e32dac52de9f0990e6b: delete a survey template by ID (mutates DB)
 func (s *GormSurveyStore) Delete(ctx context.Context, id uuid.UUID) error {
 	logger := slogging.Get()
 
@@ -315,7 +315,6 @@ func (s *GormSurveyStore) ForceDelete(ctx context.Context, id uuid.UUID) error {
 }
 
 // List retrieves surveys with pagination and optional status filter
-// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: list survey templates with optional status filter and pagination (reads DB)
 func (s *GormSurveyStore) List(ctx context.Context, limit, offset int, status *string) ([]SurveyListItem, int, error) {
 	logger := slogging.Get()
 
@@ -357,14 +356,12 @@ func (s *GormSurveyStore) List(ctx context.Context, limit, offset int, status *s
 }
 
 // ListActive retrieves only active surveys (for intake endpoints)
-// SEM@bd26290d65c881980433c4a4b599847bb68193d1: list only active survey templates with pagination (reads DB)
 func (s *GormSurveyStore) ListActive(ctx context.Context, limit, offset int) ([]SurveyListItem, int, error) {
 	status := SurveyStatusActive
 	return s.List(ctx, limit, offset, &status)
 }
 
 // HasResponses checks if a survey has any associated responses
-// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: check whether a survey template has any associated responses (reads DB)
 func (s *GormSurveyStore) HasResponses(ctx context.Context, id uuid.UUID) (bool, error) {
 	logger := slogging.Get()
 
@@ -383,7 +380,6 @@ func (s *GormSurveyStore) HasResponses(ctx context.Context, id uuid.UUID) (bool,
 }
 
 // apiToModel converts an API Survey to a database model
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert an API Survey to its database model (pure)
 func (s *GormSurveyStore) apiToModel(survey *Survey) (*models.SurveyTemplate, error) {
 	model := &models.SurveyTemplate{
 		Name:    models.DBVarchar(survey.Name),
@@ -426,7 +422,6 @@ func (s *GormSurveyStore) apiToModel(survey *Survey) (*models.SurveyTemplate, er
 }
 
 // modelToAPI converts a database model to an API Survey
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a database survey template model to the API Survey type (reads DB)
 func (s *GormSurveyStore) modelToAPI(model *models.SurveyTemplate) (*Survey, error) {
 	id, err := uuid.Parse(string(model.ID))
 	if err != nil {
@@ -476,7 +471,6 @@ func (s *GormSurveyStore) modelToAPI(model *models.SurveyTemplate) (*Survey, err
 }
 
 // modelToListItem converts a database model to an API SurveyListItem
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a database survey template model to an API SurveyListItem (reads DB)
 func (s *GormSurveyStore) modelToListItem(model *models.SurveyTemplate) SurveyListItem {
 	id, _ := uuid.Parse(string(model.ID))
 
@@ -505,13 +499,11 @@ func (s *GormSurveyStore) modelToListItem(model *models.SurveyTemplate) SurveyLi
 // userModelToAPI converts a database User model to an API User
 
 // loadMetadata loads metadata for a survey
-// SEM@22b222cb8680df2700e22f0e8538874669789920: fetch metadata entries for a survey from the database (reads DB)
 func (s *GormSurveyStore) loadMetadata(ctx context.Context, surveyID string) ([]Metadata, error) {
 	return loadEntityMetadata(s.db.WithContext(ctx), "survey", surveyID)
 }
 
 // saveMetadata saves metadata for a survey
-// SEM@22b222cb8680df2700e22f0e8538874669789920: store metadata entries for a survey to the database (writes DB)
 func (s *GormSurveyStore) saveMetadata(ctx context.Context, surveyID string, metadata []Metadata) error {
 	return saveEntityMetadata(s.db.WithContext(ctx), "survey", surveyID, metadata)
 }

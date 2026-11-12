@@ -28,7 +28,6 @@ var bodySizeLimits = map[string]int64{
 // without reading; otherwise the body is read with a hard cap into memory
 // (413 when exceeded, 400 on any other read failure) and replaced with the
 // buffered copy, so later middleware never sees a half-read body.
-// SEM@c84c2daa103a3a28a16ed5ae37e2deba75ba12ac: enforce per-route request body size limits with 413 before body parsing (pure)
 func BodySizeLimitMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		limit, ok := bodySizeLimits[c.Request.Method+" "+c.FullPath()]
@@ -59,7 +58,6 @@ func BodySizeLimitMiddleware() gin.HandlerFunc {
 }
 
 // rejectBodyTooLarge writes the documented 413 and stops the chain.
-// SEM@c84c2daa103a3a28a16ed5ae37e2deba75ba12ac: reject a request whose body exceeds its route limit with 413 (pure)
 func rejectBodyTooLarge(c *gin.Context) {
 	HandleRequestError(c, PayloadTooLargeError("request body exceeds the maximum size for this endpoint"))
 	c.Abort()

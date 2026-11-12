@@ -31,8 +31,6 @@ import (
 //     handles the in-place source rewrite via stripOperationalKeys, which
 //     preserves comments, key ordering, and value types verbatim — none of
 //     which the *-migrated.yml writer below does.
-//
-// SEM@a52965b8a5c28f217fc1f0f36b23ed5134d78b67: seed database settings from a config file, validating values, with overwrite and dry-run options
 func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, dryRun, emitLegacyMigratedYAML bool) error {
 	log := slogging.Get()
 
@@ -219,7 +217,6 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 // settingsProductionMode reports whether dbtool is writing for a production
 // build: the source file's auth.build_mode, else TMI_BUILD_MODE (the same
 // fallback SettingsService.isProductionMode uses).
-// SEM@05d35fa239ce471ca0d0d0c324c69e93e1c8c21c: report whether settings are written for a production build (pure)
 func settingsProductionMode(sourceBuildMode string) bool {
 	if sourceBuildMode != "" {
 		return sourceBuildMode == "production"
@@ -231,7 +228,6 @@ func settingsProductionMode(sourceBuildMode string) bool {
 // non-empty setting (empty values are skipped on write) and returns one error
 // listing each rejected key. Validator messages may echo the rejected value;
 // no validated key is secret (see settingSemanticValidators in api).
-// SEM@c116c8d3a54fc80f8636bc97da64a579f17a94ca: validate settings against server semantic rules, naming every rejected key (pure)
 func validateSettingValues(settings []config.MigratableSetting, productionMode bool) error {
 	var problems []string
 	for _, s := range settings {
@@ -253,7 +249,6 @@ func validateSettingValues(settings []config.MigratableSetting, productionMode b
 // every encrypted setting (#1033): its ciphertext cannot unmarshal into typed
 // fields, and for string fields would be re-encrypted (double-encrypted) on
 // write. The error lists keys only, never values.
-// SEM@34e0b98eb6d156b1641bee78bec52514ad1c2dc4: reject a settings source file containing encrypted values, listing offending keys (reads file)
 func rejectEncryptedSource(inputFile string) error {
 	data, readErr := os.ReadFile(inputFile) // #nosec G304 -- operator-supplied config path
 	if readErr != nil {
@@ -275,7 +270,6 @@ func rejectEncryptedSource(inputFile string) error {
 		inputFile, len(keys), strings.Join(keys, ", "))
 }
 
-// SEM@34e0b98eb6d156b1641bee78bec52514ad1c2dc4: collect dotted keys of nested map leaves whose string value is encrypted (pure)
 func collectEncryptedKeys(prefix string, node any, out *[]string) {
 	switch v := node.(type) {
 	case map[string]any:
@@ -293,7 +287,6 @@ func collectEncryptedKeys(prefix string, node any, out *[]string) {
 	}
 }
 
-// SEM@bfaa16256208766cee3f74f1bf607d852fc877de: serialize bootstrap-only settings into a YAML config file (writes file)
 func writeMigratedConfig(bootstrapSettings []config.MigratableSetting, outputPath string) error {
 	root := make(map[string]any)
 
@@ -331,7 +324,6 @@ func writeMigratedConfig(bootstrapSettings []config.MigratableSetting, outputPat
 	return os.WriteFile(outputPath, output, 0o600)
 }
 
-// SEM@051ce26bea4bf8b114ae2038d2a73912ad3fc3e1: compute the migrated-config output path by appending '-migrated' before the file extension (pure)
 func deriveOutputPath(inputPath string) string {
 	ext := ""
 	base := inputPath

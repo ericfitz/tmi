@@ -14,20 +14,17 @@ import (
 )
 
 // GormTimmyUsageStore implements TimmyUsageStore using GORM
-// SEM@e5e141caabe74e3ce853b6d7b45827bb1864fb32: GORM-backed store for Timmy AI usage records with a reader-writer mutex
 type GormTimmyUsageStore struct {
 	db    *gorm.DB
 	mutex sync.RWMutex
 }
 
 // NewGormTimmyUsageStore creates a new GORM-backed usage store
-// SEM@e5e141caabe74e3ce853b6d7b45827bb1864fb32: build a GormTimmyUsageStore backed by the given GORM DB (pure)
 func NewGormTimmyUsageStore(db *gorm.DB) *GormTimmyUsageStore {
 	return &GormTimmyUsageStore{db: db}
 }
 
 // Record persists a new usage record
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new usage record in a retryable transaction (writes DB)
 func (s *GormTimmyUsageStore) Record(ctx context.Context, usage *models.TimmyUsage) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -52,7 +49,6 @@ func (s *GormTimmyUsageStore) Record(ctx context.Context, usage *models.TimmyUsa
 }
 
 // GetByUser returns all usage records for a user within the given time range
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch all Timmy usage records for a user within a time range (reads DB)
 func (s *GormTimmyUsageStore) GetByUser(ctx context.Context, userID string, start, end time.Time) ([]models.TimmyUsage, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -76,7 +72,6 @@ func (s *GormTimmyUsageStore) GetByUser(ctx context.Context, userID string, star
 }
 
 // GetByThreatModel returns all usage records for a threat model within the given time range
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch all Timmy usage records for a threat model within a time range (reads DB)
 func (s *GormTimmyUsageStore) GetByThreatModel(ctx context.Context, threatModelID string, start, end time.Time) ([]models.TimmyUsage, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -100,7 +95,6 @@ func (s *GormTimmyUsageStore) GetByThreatModel(ctx context.Context, threatModelI
 }
 
 // GetAggregated returns summed usage metrics with optional user and threat model filters
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: aggregate Timmy token and session counts filtered by user and threat model over a time range (reads DB)
 func (s *GormTimmyUsageStore) GetAggregated(ctx context.Context, userID, threatModelID string, start, end time.Time) (*UsageAggregation, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -108,7 +102,6 @@ func (s *GormTimmyUsageStore) GetAggregated(ctx context.Context, userID, threatM
 	logger := slogging.Get()
 	logger.Debug("Getting aggregated Timmy usage (user=%s, tm=%s)", userID, threatModelID)
 
-	// SEM@e5e141caabe74e3ce853b6d7b45827bb1864fb32: local struct holding raw DB aggregate sums before mapping to UsageAggregation (pure)
 	type aggregateResult struct {
 		TotalMessages         int
 		TotalPromptTokens     int

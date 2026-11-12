@@ -21,7 +21,6 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
-// SEM@070c69a19a7fed18f17f2bd3475d508172778494: hold configuration options for the secret rotator (pure)
 type options struct {
 	Force                 string
 	Namespace             string
@@ -38,7 +37,6 @@ type options struct {
 	OracleWallet          string
 }
 
-// SEM@070c69a19a7fed18f17f2bd3475d508172778494: parse rotator options from the environment with defaults (pure)
 func loadOptions(getenv func(string) string) (options, error) {
 	get := func(k, def string) string {
 		if v := getenv(k); v != "" {
@@ -77,7 +75,6 @@ func loadOptions(getenv func(string) string) (options, error) {
 	return o, nil
 }
 
-// SEM@070c69a19a7fed18f17f2bd3475d508172778494: build the settings-key escrow from config; no-op without an ARN
 func newSettingsEscrow(ctx context.Context, arn string) (rotator.Escrow, error) {
 	if arn == "" {
 		return rotator.NoopEscrow{}, nil
@@ -95,7 +92,6 @@ func newSettingsEscrow(ctx context.Context, arn string) (rotator.Escrow, error) 
 	return rotator.NewSecretsManagerEscrow(secretsmanager.NewFromConfig(cfg), arn), nil
 }
 
-// SEM@3b682947: validate whether an error is a Redis authentication failure (pure)
 func isRedisAuthError(err error) bool {
 	if err == nil {
 		return false
@@ -104,12 +100,10 @@ func isRedisAuthError(err error) bool {
 	return strings.Contains(m, "WRONGPASS") || strings.Contains(m, "NOAUTH")
 }
 
-// SEM@3b682947: run the rotator and exit with its status code
 func main() {
 	os.Exit(run())
 }
 
-// SEM@070c69a19a7fed18f17f2bd3475d508172778494: parse rotator options at startup; return exit code 2 on invalid configuration
 func startupOptions(getenv func(string) string) (options, int) {
 	o, err := loadOptions(getenv)
 	if err != nil {
@@ -119,7 +113,6 @@ func startupOptions(getenv func(string) string) (options, int) {
 	return o, 0
 }
 
-// SEM@070c69a19a7fed18f17f2bd3475d508172778494: parse CLI flags, connect to the database, and dispatch the requested dbtool operation (reads DB)
 func run() int {
 	logger := slogging.Get()
 	o, code := startupOptions(os.Getenv)

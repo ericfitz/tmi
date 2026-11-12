@@ -1,7 +1,6 @@
 package dbschema
 
 // GetTimmySchema returns the expected schema for the Timmy AI assistant tables
-// SEM@151ddeb133e95de990f71ca2c03be3261fe3de07: return the expected table schemas for the Timmy AI assistant (pure)
 func GetTimmySchema() []TableSchema {
 	return []TableSchema{
 		{

@@ -30,7 +30,6 @@ var DefaultClaimMappings = map[string]string{
 // - Nested field access: "user.email"
 // - Array index access: "[0].email"
 // - Literal values: "true", "false", numbers
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: navigate a dot-notation path into a JSON value, supporting array indices and wildcards (pure)
 func extractValue(data any, path string) (any, error) {
 	logger := slogging.Get()
 	logger.Debug("Extracting value from JSON data path=%v", path)
@@ -138,7 +137,6 @@ func extractValue(data any, path string) (any, error) {
 }
 
 // getObjectKeys returns the keys of a map for debugging purposes
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: return all keys from a map for debug logging (pure)
 func getObjectKeys(obj map[string]any) []string {
 	keys := make([]string, 0, len(obj))
 	for k := range obj {
@@ -148,7 +146,6 @@ func getObjectKeys(obj map[string]any) []string {
 }
 
 // toString converts interface{} to string
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: convert any scalar or JSON-encodable value to a string (pure)
 func toString(v any) string {
 	switch val := v.(type) {
 	case string:
@@ -170,7 +167,6 @@ func toString(v any) string {
 }
 
 // toBool converts interface{} to bool
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: convert any value to a boolean using truthy string and numeric rules (pure)
 func toBool(v any) bool {
 	switch val := v.(type) {
 	case bool:
@@ -185,7 +181,6 @@ func toBool(v any) bool {
 }
 
 // processStringClaim processes a string-based claim value
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: set a string claim on a user info field only when the field is still empty (pure)
 func processStringClaim(value any, currentValue string, claimName string) string {
 	logger := slogging.Get()
 	if currentValue == "" {
@@ -197,7 +192,6 @@ func processStringClaim(value any, currentValue string, claimName string) string
 }
 
 // processGroupsClaim processes the groups claim which can be an array or string
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: convert a groups claim value of any type to a string slice (pure)
 func processGroupsClaim(value any) []string {
 	switch v := value.(type) {
 	case []any:
@@ -210,7 +204,6 @@ func processGroupsClaim(value any) []string {
 }
 
 // processGroupsArray converts an array of interfaces to a string array
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: convert an array of interface values to a string slice of group names (pure)
 func processGroupsArray(v []any) []string {
 	logger := slogging.Get()
 	groups := make([]string, 0, len(v))
@@ -224,7 +217,6 @@ func processGroupsArray(v []any) []string {
 }
 
 // processGroupsString handles string-based groups (single or comma-separated)
-// SEM@9ac96b66b2dc5ce7f86c35a154930a7943750f92: split a single or comma-separated groups string into a slice (pure)
 func processGroupsString(v string) []string {
 	logger := slogging.Get()
 	if v == "" {
@@ -245,7 +237,6 @@ func processGroupsString(v string) []string {
 }
 
 // processGroupsFallback handles unexpected group value types
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: coerce an unexpected groups claim type to a single-element string slice (pure)
 func processGroupsFallback(value any) []string {
 	logger := slogging.Get()
 	if str := toString(value); str != "" {
@@ -257,7 +248,6 @@ func processGroupsFallback(value any) []string {
 }
 
 // processSingleClaim processes a single claim based on its type
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: dispatch a claim value to the correct UserInfo field by claim type (pure)
 func processSingleClaim(claimType string, value any, userInfo *UserInfo) {
 	switch claimType {
 	case "subject_claim":
@@ -281,7 +271,6 @@ func processSingleClaim(claimType string, value any, userInfo *UserInfo) {
 }
 
 // extractClaims extracts claims from JSON data using the provided mappings
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: populate a UserInfo from a JWT claim map using configurable path mappings (pure)
 func extractClaims(jsonData map[string]any, mappings map[string]string, userInfo *UserInfo) error {
 	logger := slogging.Get()
 	logger.Debug("Extracting claims from JSON data mappings_count=%v data_keys=%v", len(mappings), getObjectKeys(jsonData))
@@ -304,7 +293,6 @@ func extractClaims(jsonData map[string]any, mappings map[string]string, userInfo
 }
 
 // applyDefaultMappings applies default claim mappings for unmapped essential claims
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: fill unmapped claim types from DefaultClaimMappings when the field exists in the JWT data (pure)
 func applyDefaultMappings(mappings map[string]string, jsonData map[string]any) {
 	logger := slogging.Get()
 	logger.Debug("Applying default claim mappings existing_mappings_count=%v data_keys=%v", len(mappings), getObjectKeys(jsonData))

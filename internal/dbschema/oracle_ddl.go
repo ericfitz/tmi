@@ -68,7 +68,6 @@ var ddlBaseRetryDelay = 500 * time.Millisecond
 // ctx is the caller's migration context (#758): the 5-minute statement
 // deadline is layered on top of it, so a shutdown signal can interrupt a slow
 // DDL wait instead of the wait outliving the process that asked for it.
-// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: execute migration DDL on a pinned Oracle session, waiting out lock contention (mutates DB)
 func execMigrationDDL(ctx context.Context, db *gorm.DB, ddl string) error {
 	if db.Name() != "oracle" {
 		return db.WithContext(ctx).Exec(ddl).Error
@@ -134,7 +133,6 @@ func execMigrationDDL(ctx context.Context, db *gorm.DB, ddl string) error {
 // fixtures such as test/testdb.Truncate on Oracle). Same contract: DDL must
 // never go through gorm.DB.Exec/Raw on Oracle (#763), and the statement text
 // must come from code, not from user input.
-// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: expose pinned-session DDL execution to other packages (mutates DB)
 func ExecDDL(ctx context.Context, db *gorm.DB, ddl string) error {
 	return execMigrationDDL(ctx, db, ddl)
 }
@@ -147,7 +145,6 @@ func ExecDDL(ctx context.Context, db *gorm.DB, ddl string) error {
 // shapes: that one guards cheap catalog SELECTs where a fixed 20ms retry is
 // right, this one guards lock-contended DDL where the contending window is
 // measured in seconds (#734).
-// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: retry a migration DDL attempt with interruptible exponential backoff on transient errors (mutates DB)
 func withDDLRetry(ctx context.Context, label string, fn func() error) error {
 	var err error
 	delay := ddlBaseRetryDelay

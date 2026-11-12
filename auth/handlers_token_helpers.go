@@ -20,7 +20,6 @@ import (
 // path (from DefaultClaimMappings) rather than hardcoding "sub" (#294). If
 // a future change introduces per-classification defaults or alters the OIDC
 // default, the log stays accurate without a follow-up edit.
-// SEM@022025c0087d1b5a5a082c0b361153b6d80265a6: build a sanitized OAuth error response and operator log message for an empty subject claim (pure)
 func emptySubjectError(providerID, email string) (gin.H, string) {
 	body := gin.H{
 		"error":             string(errcode.ProviderResponseInvalid),
@@ -44,7 +43,6 @@ func emptySubjectError(providerID, email string) (gin.H, string) {
 // codeExchangeError covers the default-path failure when exchanging an
 // authorization code for tokens (after the caller has handled known
 // client-error patterns separately).
-// SEM@a050fb6e0fd9dcae1492b381c23e55964a2b9506: build a sanitized server_error response and operator log for a failed authorization code exchange (pure)
 func codeExchangeError(providerID, codePrefix string, err error) (gin.H, string) {
 	body := gin.H{
 		"error":             string(errcode.ServerError),
@@ -57,7 +55,6 @@ func codeExchangeError(providerID, codePrefix string, err error) (gin.H, string)
 // userInfoFetchError covers the case where calling the provider's userinfo
 // endpoint itself returned an error (transport, 5xx, malformed body, etc.).
 // This is the path called out in issue #295.
-// SEM@a050fb6e0fd9dcae1492b381c23e55964a2b9506: build a sanitized provider_unreachable response and operator log for a user-info fetch failure (pure)
 func userInfoFetchError(providerID string, err error) (gin.H, string) {
 	body := gin.H{
 		"error":             string(errcode.ProviderUnreachable),
@@ -70,7 +67,6 @@ func userInfoFetchError(providerID string, err error) (gin.H, string) {
 // userPersistError covers find-or-create-user failures after the match-type
 // branches (cross-provider conflict, unverified email) have already returned.
 // What's left is a database/repository fault.
-// SEM@a050fb6e0fd9dcae1492b381c23e55964a2b9506: build a sanitized server_error response and operator log for a user find-or-create failure (pure)
 func userPersistError(providerID string, err error) (gin.H, string) {
 	body := gin.H{
 		"error":             string(errcode.ServerError),
@@ -84,7 +80,6 @@ func userPersistError(providerID string, err error) (gin.H, string) {
 // cause is a transient database condition (connection kill, deadlock,
 // serialization failure). Mapped to 503 + Retry-After so clients retry (#721);
 // the OpenAPI ServiceUnavailable component already documents this response.
-// SEM@fac8d2654bc689596c16a43b927554833b4685c5: build a temporarily_unavailable response and operator log for a transient user-persist failure (pure)
 func userPersistUnavailableError(providerID string, err error) (gin.H, string) {
 	body := gin.H{
 		"error":             string(errcode.TemporarilyUnavailable),
@@ -97,7 +92,6 @@ func userPersistUnavailableError(providerID string, err error) (gin.H, string) {
 // respondUserPersistError writes the HTTP response for a findOrCreateUser
 // failure: 409 cross-provider conflict, 403 unverified email (#290),
 // 503 + Retry-After for transient DB faults (#721), 500 otherwise.
-// SEM@fac8d2654bc689596c16a43b927554833b4685c5: handle a user find-or-create failure with status mapped to its cause
 func respondUserPersistError(c *gin.Context, providerID string, err error) {
 	switch {
 	case errors.Is(err, errCrossProviderConflict):
@@ -124,7 +118,6 @@ func respondUserPersistError(c *gin.Context, providerID string, err error) {
 
 // tokenIssuanceError covers JWT generation failures after the user record
 // has been resolved.
-// SEM@a050fb6e0fd9dcae1492b381c23e55964a2b9506: build a sanitized server_error response and operator log for a JWT generation failure (pure)
 func tokenIssuanceError(userEmail string, err error) (gin.H, string) {
 	body := gin.H{
 		"error":             string(errcode.ServerError),
@@ -135,7 +128,6 @@ func tokenIssuanceError(userEmail string, err error) (gin.H, string) {
 }
 
 // codeVerifierFormatError covers PKCE code_verifier validation failures (4xx).
-// SEM@a050fb6e0fd9dcae1492b381c23e55964a2b9506: build an invalid_request response and operator log for a malformed PKCE code verifier (pure)
 func codeVerifierFormatError(err error) (gin.H, string) {
 	body := gin.H{
 		"error":             string(errcode.InvalidRequest),
@@ -148,7 +140,6 @@ func codeVerifierFormatError(err error) (gin.H, string) {
 // refreshTokenError covers refresh-token failures (4xx). The detailed cause
 // (expired, revoked, malformed) goes to the log; the client gets a single
 // non-disclosing message.
-// SEM@a050fb6e0fd9dcae1492b381c23e55964a2b9506: build an invalid_grant response and operator log for a failed refresh token exchange (pure)
 func refreshTokenError(err error) (gin.H, string) {
 	body := gin.H{
 		"error":             string(errcode.InvalidGrant),

@@ -497,7 +497,7 @@ Run: `make build-server` and `make lint`.
 
 - [ ] **Step 5: Update SEM marker**
 
-`auth/service.go:282` `GenerateTokensWithAuthTime` carries `SEM@18f87a01...` — behavior changed; refresh via `/sem-annotate --update auth/service.go` (orchestrator does this if the subagent cannot invoke skills; if neither can, update the marker's description by hand to mention the one-way guard is NOT needed — intent unchanged — but the sha must be refreshed by the skill, so leave a note for the orchestrator).
+`auth/service.go:282` `GenerateTokensWithAuthTime` carries `SEM-18f87a01...` — behavior changed; refresh via `/sem-annotate --update auth/service.go` (orchestrator does this if the subagent cannot invoke skills; if neither can, update the marker's description by hand to mention the one-way guard is NOT needed — intent unchanged — but the sha must be refreshed by the skill, so leave a note for the orchestrator).
 
 - [ ] **Step 6: Commit**
 

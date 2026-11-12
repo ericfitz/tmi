@@ -23,7 +23,6 @@ var validSettingTypes = map[string]bool{
 // rule that function enforces on a MigratableSetting is carried across here,
 // plus the additional legality rules that apply to SettingDef's config-path
 // (YAMLPath/EnvVar/Get) and Seeded fields.
-// SEM@90fd6060aa317cecb2310cc1bcb5092066f872ae: validate the setting registry's internal consistency and return all problems (pure)
 func ValidateSettingDefs(defs []SettingDef) error {
 	var problems []string
 	add := func(key, msg string) {
@@ -66,7 +65,6 @@ func ValidateSettingDefs(defs []SettingDef) error {
 }
 
 // validateGeneralRules checks the rules that apply regardless of category.
-// SEM@58a7f5ed65e755654da55d388db45d37f7d55d76: validate the rules that apply to every setting definition regardless of category (pure)
 func validateGeneralRules(d SettingDef, add func(key, msg string)) {
 	c := d.Class
 
@@ -118,7 +116,6 @@ func validateGeneralRules(d SettingDef, add func(key, msg string)) {
 }
 
 // validateBootstrapRules checks the rules specific to CategoryBootstrap.
-// SEM@90fd6060aa317cecb2310cc1bcb5092066f872ae: validate the rules specific to bootstrap setting definitions (pure)
 func validateBootstrapRules(d SettingDef, add func(key, msg string)) {
 	if d.Class.Delivery != nil {
 		add(d.Key, "bootstrap setting must not carry a Delivery")
@@ -138,7 +135,6 @@ func validateBootstrapRules(d SettingDef, add func(key, msg string)) {
 }
 
 // validateOperationalRules checks the rules specific to CategoryOperational.
-// SEM@a7b9afd2035408abf3582c0c7e701589a42edac8: validate the rules specific to operational setting definitions (pure)
 func validateOperationalRules(d SettingDef, add func(key, msg string)) {
 	c := d.Class
 

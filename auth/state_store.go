@@ -10,7 +10,6 @@ import (
 )
 
 // StateStore is an interface for storing and retrieving state information
-// SEM@7f2e891b97d9b875349295375fb64355109504b5: interface for storing and validating OAuth state, callback URLs, and PKCE challenges
 type StateStore interface {
 	// StoreState stores state with associated data and expiration
 	StoreState(ctx context.Context, state, data string, ttl time.Duration) error
@@ -31,7 +30,6 @@ type StateStore interface {
 }
 
 // stateEntry represents a stored state entry
-// SEM@7f2e891b97d9b875349295375fb64355109504b5: in-memory record holding OAuth state data, callback URL, PKCE challenge, and expiry (pure)
 type stateEntry struct {
 	Data            string
 	CallbackURL     string
@@ -41,7 +39,6 @@ type stateEntry struct {
 }
 
 // InMemoryStateStore implements StateStore using in-memory storage
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: in-memory StateStore implementation with mutex protection and periodic expiry cleanup (mutates shared state)
 type InMemoryStateStore struct {
 	mu      sync.RWMutex
 	states  map[string]*stateEntry
@@ -50,7 +47,6 @@ type InMemoryStateStore struct {
 }
 
 // NewInMemoryStateStore creates a new in-memory state store
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: build and start an in-memory state store with background expiry cleanup
 func NewInMemoryStateStore() *InMemoryStateStore {
 	store := &InMemoryStateStore{
 		states:  make(map[string]*stateEntry),
@@ -65,7 +61,6 @@ func NewInMemoryStateStore() *InMemoryStateStore {
 }
 
 // StoreState stores state with associated data
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: store an OAuth state token with associated data and TTL (mutates shared state)
 func (s *InMemoryStateStore) StoreState(ctx context.Context, state, data string, ttl time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -79,7 +74,6 @@ func (s *InMemoryStateStore) StoreState(ctx context.Context, state, data string,
 }
 
 // ValidateState validates state and returns associated data
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: validate an OAuth state token and return its associated data; reject if expired (pure)
 func (s *InMemoryStateStore) ValidateState(ctx context.Context, state string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -97,7 +91,6 @@ func (s *InMemoryStateStore) ValidateState(ctx context.Context, state string) (s
 }
 
 // GetCallbackURL retrieves the callback URL for a state
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: fetch the callback URL associated with a valid OAuth state token (pure)
 func (s *InMemoryStateStore) GetCallbackURL(ctx context.Context, state string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -115,7 +108,6 @@ func (s *InMemoryStateStore) GetCallbackURL(ctx context.Context, state string) (
 }
 
 // StoreCallbackURL stores a callback URL with a state
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: store a callback URL against an OAuth state token with TTL (mutates shared state)
 func (s *InMemoryStateStore) StoreCallbackURL(ctx context.Context, state, callbackURL string, ttl time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -134,7 +126,6 @@ func (s *InMemoryStateStore) StoreCallbackURL(ctx context.Context, state, callba
 }
 
 // DeleteState removes a state from the store
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: delete an OAuth state token and all associated data (mutates shared state)
 func (s *InMemoryStateStore) DeleteState(ctx context.Context, state string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -144,7 +135,6 @@ func (s *InMemoryStateStore) DeleteState(ctx context.Context, state string) erro
 }
 
 // cleanupExpired removes expired states periodically
-// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: periodically delete expired OAuth state entries from the in-memory store (mutates shared state)
 func (s *InMemoryStateStore) cleanupExpired() {
 	periodic.RunCleanup(s.cleanup, s.done, func() {
 		s.mu.Lock()
@@ -159,7 +149,6 @@ func (s *InMemoryStateStore) cleanupExpired() {
 }
 
 // StorePKCEChallenge stores PKCE code challenge with associated method
-// SEM@7f2e891b97d9b875349295375fb64355109504b5: store a PKCE code challenge and method against an OAuth state token (mutates shared state)
 func (s *InMemoryStateStore) StorePKCEChallenge(ctx context.Context, state, codeChallenge, challengeMethod string, ttl time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -179,7 +168,6 @@ func (s *InMemoryStateStore) StorePKCEChallenge(ctx context.Context, state, code
 }
 
 // GetPKCEChallenge retrieves PKCE code challenge and method for a state
-// SEM@7f2e891b97d9b875349295375fb64355109504b5: fetch the PKCE code challenge and method for a valid OAuth state token; reject if expired (pure)
 func (s *InMemoryStateStore) GetPKCEChallenge(ctx context.Context, state string) (challenge, method string, err error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -201,7 +189,6 @@ func (s *InMemoryStateStore) GetPKCEChallenge(ctx context.Context, state string)
 }
 
 // DeletePKCEChallenge removes PKCE challenge from store
-// SEM@7f2e891b97d9b875349295375fb64355109504b5: clear the PKCE challenge from a state entry without removing the entry itself (mutates shared state)
 func (s *InMemoryStateStore) DeletePKCEChallenge(ctx context.Context, state string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -216,7 +203,6 @@ func (s *InMemoryStateStore) DeletePKCEChallenge(ctx context.Context, state stri
 }
 
 // Close stops the cleanup goroutine
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: stop the background expiry cleanup goroutine (mutates shared state)
 func (s *InMemoryStateStore) Close() {
 	close(s.done)
 }

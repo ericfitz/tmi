@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// SEM@c161adfd8ba839441ccd825e818d342a09c63849: publish a repository created/updated event tagged with the threat model owner (best-effort)
 func emitRepositoryEvent(ctx context.Context, eventType, threatModelID string, repository *Repository) {
 	if GlobalEventEmitter == nil || repository == nil || repository.Id == nil {
 		return
@@ -31,7 +30,6 @@ func emitRepositoryEvent(ctx context.Context, eventType, threatModelID string, r
 }
 
 // RepositorySubResourceHandler provides handlers for repository code sub-resource operations
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: handler for repository code reference CRUD operations scoped to a threat model
 type RepositorySubResourceHandler struct {
 	repositoryStore  RepositoryRepository
 	db               *sql.DB
@@ -42,13 +40,11 @@ type RepositorySubResourceHandler struct {
 }
 
 // SetRepositoryURIValidator sets the URI validator for repository uri fields
-// SEM@5eacb6f5fd0d2a1861dafb4d1fc5a18f97ee8e40: attach a URI validator to guard against SSRF on repository URI fields (mutates shared state)
 func (h *RepositorySubResourceHandler) SetRepositoryURIValidator(v *URIValidator) {
 	h.repositoryURIValidator = v
 }
 
 // NewRepositorySubResourceHandler creates a new repository code sub-resource handler
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build a RepositorySubResourceHandler wired to the given store, DB, and cache
 func NewRepositorySubResourceHandler(repositoryStore RepositoryRepository, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *RepositorySubResourceHandler {
 	return &RepositorySubResourceHandler{
 		repositoryStore:  repositoryStore,
@@ -60,7 +56,6 @@ func NewRepositorySubResourceHandler(repositoryStore RepositoryRepository, db *s
 
 // GetRepositorys retrieves all repository code references for a threat model with pagination
 // GET /threat_models/{threat_model_id}/repositorys
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: list paginated repository code references for a threat model (reads DB)
 func (h *RepositorySubResourceHandler) GetRepositorys(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetRepositorys - retrieving repository code references for threat model")
@@ -128,7 +123,6 @@ func (h *RepositorySubResourceHandler) GetRepositorys(c *gin.Context) {
 
 // GetRepository retrieves a specific repository code reference by ID
 // GET /threat_models/{threat_model_id}/repositorys/{repository_id}
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch a single repository code reference by ID within a threat model (reads DB)
 func (h *RepositorySubResourceHandler) GetRepository(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetRepository - retrieving specific repository code reference")
@@ -169,7 +163,6 @@ func (h *RepositorySubResourceHandler) GetRepository(c *gin.Context) {
 
 // CreateRepository creates a new repository code reference in a threat model
 // POST /threat_models/{threat_model_id}/repositorys
-// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: store a new repository reference and emit a created event (mutates DB)
 func (h *RepositorySubResourceHandler) CreateRepository(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateRepository - creating new repository code reference")
@@ -241,7 +234,6 @@ func (h *RepositorySubResourceHandler) CreateRepository(c *gin.Context) {
 
 // UpdateRepository updates an existing repository code reference
 // PUT /threat_models/{threat_model_id}/repositorys/{repository_id}
-// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: update a repository reference, audit it, invalidate cache, and emit an updated event (mutates DB)
 func (h *RepositorySubResourceHandler) UpdateRepository(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateRepository - updating existing repository code reference")
@@ -324,7 +316,6 @@ func (h *RepositorySubResourceHandler) UpdateRepository(c *gin.Context) {
 
 // DeleteRepository deletes a repository code reference
 // DELETE /threat_models/{threat_model_id}/repositorys/{repository_id}
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: delete a repository code reference by ID, with audit and cache invalidation (mutates DB)
 func (h *RepositorySubResourceHandler) DeleteRepository(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteRepository - deleting repository code reference")
@@ -375,7 +366,6 @@ func (h *RepositorySubResourceHandler) DeleteRepository(c *gin.Context) {
 
 // BulkCreateRepositorys creates multiple repository code references in a single request
 // POST /threat_models/{threat_model_id}/repositorys/bulk
-// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: create up to 50 repository references, reject client-supplied IDs, emit events (mutates DB)
 func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateRepositorys - creating multiple repository code references")
@@ -476,7 +466,6 @@ func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 
 // PatchRepository applies JSON patch operations to a repository
 // PATCH /threat_models/{threat_model_id}/repositories/{repository_id}
-// SEM@c161adfd8ba839441ccd825e818d342a09c63849: apply a JSON Patch to a repository reference, audit it, and emit an updated event (mutates DB)
 func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchRepository - applying patch operations to repository")
@@ -570,7 +559,6 @@ func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 
 // BulkUpdateRepositorys updates or creates multiple repositories (upsert operation)
 // PUT /threat_models/{threat_model_id}/repositories/bulk
-// SEM@c161adfd8ba839441ccd825e818d342a09c63849: upsert multiple repository references and emit created/updated events (mutates DB)
 func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkUpdateRepositorys - upserting multiple repositories")

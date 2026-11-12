@@ -16,7 +16,6 @@ import (
 
 // WebhookDeliveryRecord is the unified delivery record used for both resource-change
 // events and addon invocations, backed by Redis.
-// SEM@411a53c663401d55a0f66913e00979599a208c93: Redis-backed delivery record for resource-change events and addon invocations (pure)
 type WebhookDeliveryRecord struct {
 	ID             uuid.UUID  `json:"id"`
 	SubscriptionID uuid.UUID  `json:"subscription_id"`
@@ -52,7 +51,6 @@ const (
 )
 
 // isTerminalDeliveryStatus reports whether a delivery can no longer change state.
-// SEM@411a53c663401d55a0f66913e00979599a208c93: report whether a delivery status is terminal (pure)
 func isTerminalDeliveryStatus(status string) bool {
 	switch status {
 	case DeliveryStatusDelivered, DeliveryStatusFailed, DeliveryStatusCancelled, "completed":
@@ -75,7 +73,6 @@ const webhookDeliveryKeyPrefix = "webhook:delivery:"
 const webhookDeliveryKeyPattern = "webhook:delivery:*"
 
 // WebhookDeliveryRedisStoreInterface defines all operations for the unified webhook delivery store
-// SEM@1f7fa52ef92fb87a8cf91a548761c53324b4c630: CRUD and query contract for the Redis-backed webhook delivery store (pure)
 type WebhookDeliveryRedisStoreInterface interface {
 	// Create creates a new delivery record
 	Create(ctx context.Context, record *WebhookDeliveryRecord) error
@@ -105,14 +102,12 @@ type WebhookDeliveryRedisStoreInterface interface {
 }
 
 // WebhookDeliveryRedisStore implements WebhookDeliveryRedisStoreInterface using Redis
-// SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: Redis implementation of WebhookDeliveryRedisStoreInterface (pure)
 type WebhookDeliveryRedisStore struct {
 	redis   *db.RedisDB
 	builder *db.RedisKeyBuilder
 }
 
 // NewWebhookDeliveryRedisStore creates a new Redis-backed webhook delivery store
-// SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: build a WebhookDeliveryRedisStore from a Redis connection (pure)
 func NewWebhookDeliveryRedisStore(redisDB *db.RedisDB) *WebhookDeliveryRedisStore {
 	return &WebhookDeliveryRedisStore{
 		redis:   redisDB,
@@ -124,13 +119,11 @@ func NewWebhookDeliveryRedisStore(redisDB *db.RedisDB) *WebhookDeliveryRedisStor
 var GlobalWebhookDeliveryRedisStore WebhookDeliveryRedisStoreInterface
 
 // buildDeliveryKey creates the Redis key for a delivery record
-// SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: compute the Redis key for a webhook delivery record by ID (pure)
 func (s *WebhookDeliveryRedisStore) buildDeliveryKey(id uuid.UUID) string {
 	return fmt.Sprintf("%s%s", webhookDeliveryKeyPrefix, id.String())
 }
 
 // ttlForStatus returns the appropriate TTL for a delivery record based on its status
-// SEM@411a53c663401d55a0f66913e00979599a208c93: compute the Redis TTL for a delivery record from its status (pure)
 func ttlForStatus(status string) time.Duration {
 	if isTerminalDeliveryStatus(status) {
 		return DeliveryTTLTerminal
@@ -143,7 +136,6 @@ func ttlForStatus(status string) time.Duration {
 // they are never truncated by a DB driver; without this the Go nanosecond
 // values returned by the delivery API would violate the OpenAPI timestamp
 // schema, which permits at most 6 fractional digits.
-// SEM@a37a0039279be689bb07be2113fe86024a410a4b: truncate all delivery record timestamps to microsecond precision (mutates shared state)
 func truncateDeliveryTimestamps(record *WebhookDeliveryRecord) {
 	record.CreatedAt = record.CreatedAt.Truncate(time.Microsecond)
 	record.LastActivityAt = record.LastActivityAt.Truncate(time.Microsecond)
@@ -158,7 +150,6 @@ func truncateDeliveryTimestamps(record *WebhookDeliveryRecord) {
 }
 
 // Create creates a new delivery record in Redis
-// SEM@a37a0039279be689bb07be2113fe86024a410a4b: store a new webhook delivery record in Redis with TTL and default status (writes DB)
 func (s *WebhookDeliveryRedisStore) Create(ctx context.Context, record *WebhookDeliveryRecord) error {
 	logger := slogging.Get()
 
@@ -210,7 +201,6 @@ func (s *WebhookDeliveryRedisStore) Create(ctx context.Context, record *WebhookD
 }
 
 // Get retrieves a delivery record by ID
-// SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: fetch a webhook delivery record from Redis by ID (reads DB)
 func (s *WebhookDeliveryRedisStore) Get(ctx context.Context, id uuid.UUID) (*WebhookDeliveryRecord, error) {
 	logger := slogging.Get()
 
@@ -236,7 +226,6 @@ func (s *WebhookDeliveryRedisStore) Get(ctx context.Context, id uuid.UUID) (*Web
 }
 
 // Update updates an existing delivery record in Redis
-// SEM@a37a0039279be689bb07be2113fe86024a410a4b: replace a webhook delivery record in Redis, refreshing its TTL and activity timestamp (writes DB)
 func (s *WebhookDeliveryRedisStore) Update(ctx context.Context, record *WebhookDeliveryRecord) error {
 	logger := slogging.Get()
 
@@ -267,7 +256,6 @@ func (s *WebhookDeliveryRedisStore) Update(ctx context.Context, record *WebhookD
 }
 
 // UpdateStatus updates the status (and optional delivered-at timestamp) of a delivery record
-// SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: update the status and optional delivered-at timestamp of a delivery record (writes DB)
 func (s *WebhookDeliveryRedisStore) UpdateStatus(ctx context.Context, id uuid.UUID, status string, deliveredAt *time.Time) error {
 	logger := slogging.Get()
 
@@ -291,7 +279,6 @@ func (s *WebhookDeliveryRedisStore) UpdateStatus(ctx context.Context, id uuid.UU
 }
 
 // UpdateRetry updates retry-related fields after a failed delivery attempt
-// SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: update retry attempt count, next retry time, and last error on a delivery record (writes DB)
 func (s *WebhookDeliveryRedisStore) UpdateRetry(ctx context.Context, id uuid.UUID, attempts int, nextRetryAt *time.Time, lastError string) error {
 	logger := slogging.Get()
 
@@ -314,7 +301,6 @@ func (s *WebhookDeliveryRedisStore) UpdateRetry(ctx context.Context, id uuid.UUI
 }
 
 // Delete removes a delivery record from Redis
-// SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: delete a webhook delivery record from Redis by ID (writes DB)
 func (s *WebhookDeliveryRedisStore) Delete(ctx context.Context, id uuid.UUID) error {
 	logger := slogging.Get()
 
@@ -329,7 +315,6 @@ func (s *WebhookDeliveryRedisStore) Delete(ctx context.Context, id uuid.UUID) er
 }
 
 // scanAllRecords performs a Redis SCAN for all delivery records and returns them
-// SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: scan all webhook delivery records from Redis via SCAN iteration (reads DB)
 func (s *WebhookDeliveryRedisStore) scanAllRecords(ctx context.Context) ([]WebhookDeliveryRecord, error) {
 	logger := slogging.Get()
 
@@ -375,7 +360,6 @@ func (s *WebhookDeliveryRedisStore) scanAllRecords(ctx context.Context) ([]Webho
 // ListPending returns delivery records that are pending and ready for delivery.
 // A record is ready when its status is "pending" and either NextRetryAt is nil
 // (first attempt) or NextRetryAt <= now (retry time has arrived).
-// SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: list pending delivery records that are ready for first or retry delivery (reads DB)
 func (s *WebhookDeliveryRedisStore) ListPending(ctx context.Context, limit int) ([]WebhookDeliveryRecord, error) {
 	logger := slogging.Get()
 
@@ -414,7 +398,6 @@ func (s *WebhookDeliveryRedisStore) ListPending(ctx context.Context, limit int) 
 
 // ListReadyForRetry returns delivery records that are pending, have been attempted
 // before, and are due for another retry (NextRetryAt != nil AND NextRetryAt <= now AND Attempts > 0).
-// SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: list pending delivery records with prior attempts whose retry time has arrived (reads DB)
 func (s *WebhookDeliveryRedisStore) ListReadyForRetry(ctx context.Context) ([]WebhookDeliveryRecord, error) {
 	logger := slogging.Get()
 
@@ -444,7 +427,6 @@ func (s *WebhookDeliveryRedisStore) ListReadyForRetry(ctx context.Context) ([]We
 }
 
 // ListStale returns in_progress delivery records with no activity within the given timeout.
-// SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: list in-progress delivery records with no activity within a given timeout (reads DB)
 func (s *WebhookDeliveryRedisStore) ListStale(ctx context.Context, timeout time.Duration) ([]WebhookDeliveryRecord, error) {
 	logger := slogging.Get()
 
@@ -468,7 +450,6 @@ func (s *WebhookDeliveryRedisStore) ListStale(ctx context.Context, timeout time.
 
 // ListBySubscription returns delivery records for a specific subscription with pagination.
 // Returns the paginated records, total count of matching records, and any error.
-// SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: list paginated delivery records for a specific webhook subscription (reads DB)
 func (s *WebhookDeliveryRedisStore) ListBySubscription(ctx context.Context, subscriptionID uuid.UUID, limit, offset int) ([]WebhookDeliveryRecord, int, error) {
 	logger := slogging.Get()
 
@@ -509,7 +490,6 @@ func (s *WebhookDeliveryRedisStore) ListBySubscription(ctx context.Context, subs
 
 // ListAll returns all delivery records with pagination.
 // Returns the paginated records, total count of all records, and any error.
-// SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: list all webhook delivery records with pagination (reads DB)
 func (s *WebhookDeliveryRedisStore) ListAll(ctx context.Context, limit, offset int) ([]WebhookDeliveryRecord, int, error) {
 	logger := slogging.Get()
 
@@ -544,7 +524,6 @@ func (s *WebhookDeliveryRedisStore) ListAll(ctx context.Context, limit, offset i
 // associated with the supplied add-on. Counts are computed by scanning the full
 // delivery keyspace, so the result is correct regardless of the number of
 // in-flight deliveries.
-// SEM@1f7fa52ef92fb87a8cf91a548761c53324b4c630: count pending or in-progress delivery records for a specific addon (reads DB)
 func (s *WebhookDeliveryRedisStore) CountActiveByAddon(ctx context.Context, addonID uuid.UUID) (int, error) {
 	allRecords, err := s.scanAllRecords(ctx)
 	if err != nil {

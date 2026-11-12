@@ -23,7 +23,7 @@
 - Bug branches must not edit `api-schema/tmi-openapi.json`, `api/api.go`, `.version`, `api/version.go`.
 - Zero 500s; only status codes the spec documents for that operation.
 - Logging via `internal/slogging` only; log identifiers and outcomes, never values.
-- Add or update `SEM@` markers on functions you add or change (`/sem-annotate --update <files>` afterward is fine).
+- Add or update `SEM-` markers on functions you add or change (`/sem-annotate --update <files>` afterward is fine).
 - Conventional commit, PR title `fix(<scope>): ...` (PATCH bump). Commit body `Fixes #NNNN`.
 - American English.
 

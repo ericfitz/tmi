@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// SEM@0000000: verify closing the Oracle dialector's pre-built pool without a database
 func TestOracleDialectorCloseConn_ClosesPrebuiltPool(t *testing.T) {
 	d, _ := getOracleDialector(GormConfig{
 		User:                "tmi",

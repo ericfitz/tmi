@@ -14,7 +14,6 @@ import (
 
 // CustomRecoveryMiddleware returns a Gin middleware that recovers from panics
 // and returns appropriate error responses without exposing sensitive information
-// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: Gin middleware that recovers from panics and returns a 500 without exposing stack traces
 func CustomRecoveryMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
@@ -72,7 +71,6 @@ func CustomRecoveryMiddleware() gin.HandlerFunc {
 
 // FilterStackTraceFromBody filters out stack trace information from response bodies
 // This is used by the request logger to prevent stack traces from being logged
-// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: redact or truncate stack trace content from a response body string before logging (pure)
 func FilterStackTraceFromBody(body string) string {
 	if body == "" {
 		return body

@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: test that the Redis password func tracks the secret through every rotation phase
 func TestRedisPasswordFromSecret_TracksSecretAcrossPhases(t *testing.T) {
 	env, st := testEnv(&Secret{Name: "tmi-secrets", Data: map[string]string{RedisPasswordKey: "old"}, Annotations: map[string]string{}})
 	ctx := context.Background()
@@ -28,7 +27,6 @@ func TestRedisPasswordFromSecret_TracksSecretAcrossPhases(t *testing.T) {
 	require.Equal(t, "new", got, "after retire")
 }
 
-// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: test that the Redis password func fails when the secret cannot be read
 func TestRedisPasswordFromSecret_MissingSecret(t *testing.T) {
 	_, st := testEnv(&Secret{Name: "tmi-secrets", Data: map[string]string{}, Annotations: map[string]string{}})
 	_, err := RedisPasswordFromSecret(st, "nope")(context.Background())

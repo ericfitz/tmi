@@ -181,7 +181,6 @@ const (
 )
 
 // DBURL is a parsed TMI_DATABASE_URL with the credentials split out.
-// SEM@<sha>: parsed database URL exposing scheme, user and password (pure)
 type DBURL struct {
 	Raw      string
 	Scheme   string
@@ -190,7 +189,6 @@ type DBURL struct {
 	parsed   *url.URL
 }
 
-// SEM@<sha>: parse a postgres or oracle database URL, requiring a user (pure)
 func ParseDBURL(raw string) (*DBURL, error) {
 	if raw == "" {
 		return nil, errors.New("database URL is empty")
@@ -211,15 +209,12 @@ func ParseDBURL(raw string) (*DBURL, error) {
 	return &DBURL{Raw: raw, Scheme: p.Scheme, User: p.User.Username(), Password: pw, parsed: p}, nil
 }
 
-// SEM@<sha>: report whether the URL targets PostgreSQL (pure)
 func (u *DBURL) IsPostgres() bool { return u.Scheme == "postgres" || u.Scheme == "postgresql" }
 
-// SEM@<sha>: report whether the URL targets Oracle (pure)
 func (u *DBURL) IsOracle() bool { return u.Scheme == "oracle" }
 
 // WithCredentials returns the same URL with new userinfo; url.UserPassword
 // percent-encodes the password on String().
-// SEM@<sha>: rewrite the URL's user and password keeping host, path and query (pure)
 func (u *DBURL) WithCredentials(user, password string) string {
 	c := *u.parsed
 	c.User = url.UserPassword(user, password)
@@ -227,7 +222,6 @@ func (u *DBURL) WithCredentials(user, password string) string {
 }
 
 // IdleUser names the alternating user that is not in use.
-// SEM@<sha>: return the other of tmi_a/tmi_b, false for any other user (pure)
 func IdleUser(current string) (string, bool) {
 	switch current {
 	case PGUserA:
@@ -241,7 +235,6 @@ func IdleUser(current string) (string, bool) {
 // NewDBPassword draws NewPassword until it satisfies Oracle ADB's policy
 // (upper, lower, digit); PostgreSQL has no policy. Alphanumeric only, so it
 // needs no quoting in a URL and cannot contain Oracle's forbidden '"'.
-// SEM@<sha>: generate a database password satisfying Oracle and PostgreSQL rules (pure)
 func NewDBPassword() (string, error) {
 	for i := 0; i < 100; i++ {
 		p, err := NewPassword()
@@ -375,7 +368,6 @@ import (
 )
 
 // DBAdmin is the administrative surface the DB rotations use.
-// SEM@<sha>: administrative database operations for credential rotation
 type DBAdmin interface {
 	Bootstrap(ctx context.Context, appUser string) (string, error)
 	SetPassword(ctx context.Context, user, password string, login bool) error
@@ -386,10 +378,8 @@ type DBAdmin interface {
 }
 
 // PostgresAdmin implements DBAdmin over database/sql with the pgx driver.
-// SEM@<sha>: DBAdmin for PostgreSQL over a database/sql handle (writes DB)
 type PostgresAdmin struct{ db *sql.DB }
 
-// SEM@<sha>: open an administrative PostgreSQL connection from a URL
 func OpenPostgresAdmin(ctx context.Context, adminURL string) (*PostgresAdmin, error) {
 	db, err := sql.Open("pgx", adminURL)
 	if err != nil {
@@ -405,18 +395,14 @@ func OpenPostgresAdmin(ctx context.Context, adminURL string) (*PostgresAdmin, er
 	return &PostgresAdmin{db: db}, nil
 }
 
-// SEM@<sha>: wrap an existing sql.DB as a PostgresAdmin (pure)
 func NewPostgresAdminWith(db *sql.DB) *PostgresAdmin { return &PostgresAdmin{db: db} }
 
-// SEM@<sha>: check the admin connection
 func (p *PostgresAdmin) Ping(ctx context.Context) error { return p.db.PingContext(ctx) }
 
-// SEM@<sha>: close the admin connection
 func (p *PostgresAdmin) Close() error { return p.db.Close() }
 
 func ident(parts ...string) string { return pgx.Identifier(parts).Sanitize() }
 
-// SEM@<sha>: build ALTER ROLE ... [NO]LOGIN PASSWORD with quoted identifier and literal (pure)
 func pgSetPasswordSQL(user, password string, login bool) string {
 	l := "NOLOGIN"
 	if login {
@@ -425,7 +411,6 @@ func pgSetPasswordSQL(user, password string, login bool) string {
 	return "ALTER ROLE " + ident(user) + " WITH " + l + " PASSWORD " + pq.QuoteLiteral(password)
 }
 
-// SEM@<sha>: build ALTER ROLE ... [NO]LOGIN (pure)
 func pgSetLoginSQL(user string, login bool) string {
 	l := "NOLOGIN"
 	if login {
@@ -434,7 +419,6 @@ func pgSetLoginSQL(user string, login bool) string {
 	return "ALTER ROLE " + ident(user) + " WITH " + l
 }
 
-// SEM@<sha>: build the OWNER TO statement for a pg_class relkind (pure)
 func pgOwnerSQL(relkind, name string) string {
 	kind := map[string]string{"r": "TABLE", "p": "TABLE", "S": "SEQUENCE", "v": "VIEW", "m": "MATERIALIZED VIEW"}[relkind]
 	if kind == "" {
@@ -443,7 +427,6 @@ func pgOwnerSQL(relkind, name string) string {
 	return "ALTER " + kind + " " + ident("public", name) + " OWNER TO " + ident(PGOwnerRole)
 }
 
-// SEM@<sha>: build ALTER FUNCTION ... OWNER TO for a function with its argument list (pure)
 func pgFunctionOwnerSQL(name, args string) string {
 	return "ALTER FUNCTION " + ident("public", name) + "(" + args + ") OWNER TO " + ident(PGOwnerRole)
 }
@@ -466,7 +449,6 @@ func (s pgSteps) statements() []string {
 	return out
 }
 
-// SEM@<sha>: build the idempotent role bootstrap plan for PostgreSQL (pure)
 func pgBootstrapSQL(adminUser, passwordA, passwordB string) pgSteps {
 	roleExists := func(r string) string { return "SELECT 1 FROM pg_roles WHERE rolname = " + pq.QuoteLiteral(r) }
 	return pgSteps{
@@ -491,7 +473,6 @@ func pgBootstrapSQL(adminUser, passwordA, passwordB string) pgSteps {
 
 // Bootstrap creates the role model and moves ownership. Runs in one
 // transaction with statement logging off so passwords never reach the server log.
-// SEM@<sha>: idempotently create tmi_owner/tmi_a/tmi_b and transfer public-schema ownership (writes DB)
 func (p *PostgresAdmin) Bootstrap(ctx context.Context, appUser string) (string, error) {
 	logger := slogging.Get()
 	passwordA, err := NewDBPassword()
@@ -576,7 +557,6 @@ func (p *PostgresAdmin) Bootstrap(ctx context.Context, appUser string) (string, 
 	return passwordA, nil
 }
 
-// SEM@<sha>: set a role's password and login flag without logging the statement (writes DB)
 func (p *PostgresAdmin) SetPassword(ctx context.Context, user, password string, login bool) error {
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -590,13 +570,11 @@ func (p *PostgresAdmin) SetPassword(ctx context.Context, user, password string, 
 	return tx.Commit()
 }
 
-// SEM@<sha>: toggle a role's LOGIN attribute (writes DB)
 func (p *PostgresAdmin) SetLogin(ctx context.Context, user string, login bool) error {
 	_, err := p.db.ExecContext(ctx, pgSetLoginSQL(user, login)) // #nosec G202 -- sanitized
 	return err
 }
 
-// SEM@<sha>: terminate every other session of a role, returning the count (writes DB)
 func (p *PostgresAdmin) TerminateSessions(ctx context.Context, user string) (int64, error) {
 	var n int64
 	err := p.db.QueryRowContext(ctx, `
@@ -679,7 +657,6 @@ import (
 )
 
 // OracleUserAdmin rotates an Oracle user's password with its own credentials.
-// SEM@<sha>: change an Oracle user's own password
 type OracleUserAdmin interface {
 	ChangeOwnPassword(ctx context.Context, user, oldPassword, newPassword string) error
 	Close() error
@@ -687,7 +664,6 @@ type OracleUserAdmin interface {
 
 // oracleAlterUserSQL builds ALTER USER ... IDENTIFIED BY ... REPLACE ...; Oracle
 // takes passwords as quoted identifiers, so a double quote cannot be escaped.
-// SEM@<sha>: build the Oracle self-service password change statement, rejecting double quotes (pure)
 func oracleAlterUserSQL(user, newPassword, oldPassword string) (string, error) {
 	for _, v := range []string{user, newPassword, oldPassword} {
 		if v == "" || strings.ContainsAny(v, "\"\x00") {
@@ -715,7 +691,6 @@ import (
 
 type oracleUserAdmin struct{ sqlDB *sql.DB }
 
-// SEM@<sha>: open the app user's own Oracle connection for a password change
 func OpenOracleUserAdmin(ctx context.Context, appURL, walletDir string) (OracleUserAdmin, error) {
 	cfg, err := db.ParseDatabaseURL(appURL)
 	if err != nil {
@@ -736,7 +711,6 @@ func OpenOracleUserAdmin(ctx context.Context, appURL, walletDir string) (OracleU
 	return &oracleUserAdmin{sqlDB: sqlDB}, nil
 }
 
-// SEM@<sha>: run ALTER USER ... IDENTIFIED BY ... REPLACE ... as the user itself (writes DB)
 func (o *oracleUserAdmin) ChangeOwnPassword(ctx context.Context, user, oldPassword, newPassword string) error {
 	stmt, err := oracleAlterUserSQL(user, newPassword, oldPassword)
 	if err != nil {
@@ -998,7 +972,6 @@ const (
 )
 
 // DBPasswordOptions configures which Secret holds the app URL and how to reach the database.
-// SEM@<sha>: settings for the database password rotation (pure)
 type DBPasswordOptions struct {
 	DBSecret     string
 	URLKey       string
@@ -1012,10 +985,8 @@ type DBPasswordOptions struct {
 }
 
 // DBPasswordRotation rotates the application's database credential.
-// SEM@<sha>: phased rotation of the app database credential: alternating users on PostgreSQL, self-change on Oracle
 type DBPasswordRotation struct{ o DBPasswordOptions }
 
-// SEM@<sha>: build a DBPasswordRotation with defaults filled in (pure)
 func NewDBPasswordRotation(o DBPasswordOptions) *DBPasswordRotation {
 	if o.DBSecret == "" {
 		o.DBSecret = "tmi-secrets"
@@ -1038,7 +1009,6 @@ func NewDBPasswordRotation(o DBPasswordOptions) *DBPasswordRotation {
 	return &DBPasswordRotation{o: o}
 }
 
-// SEM@<sha>: context-aware sleep
 func sleepCtx(ctx context.Context, d time.Duration) error {
 	select {
 	case <-ctx.Done():
@@ -1048,10 +1018,8 @@ func sleepCtx(ctx context.Context, d time.Duration) error {
 	}
 }
 
-// SEM@<sha>: return the rotation name (pure)
 func (r *DBPasswordRotation) Name() string { return dbRotationName }
 
-// SEM@<sha>: advance the database password rotation from its recorded phase
 func (r *DBPasswordRotation) Run(ctx context.Context, env *Env) error {
 	if env.SecretName != r.o.DBSecret {
 		return fmt.Errorf("db-password rotation needs Env.SecretName == %q (got %q)", r.o.DBSecret, env.SecretName)
@@ -1070,7 +1038,6 @@ func (r *DBPasswordRotation) Run(ctx context.Context, env *Env) error {
 	return r.runPostgres(ctx, env, s, u)
 }
 
-// SEM@<sha>: PostgreSQL path: bootstrap or alternate users, then retire the old one after the drain
 func (r *DBPasswordRotation) runPostgres(ctx context.Context, env *Env, s *Secret, u *DBURL) error {
 	logger := slogging.Get()
 	name := r.Name()
@@ -1154,7 +1121,6 @@ func (r *DBPasswordRotation) runPostgres(ctx context.Context, env *Env, s *Secre
 	return env.Transition(ctx, name, "", func(s *Secret) { delete(s.Annotations, AnnRetire+name) })
 }
 
-// SEM@<sha>: Oracle path: the app user changes its own password, then the Secret and server follow (accepted gap)
 func (r *DBPasswordRotation) runOracle(ctx context.Context, env *Env, s *Secret, u *DBURL) error {
 	name := r.Name()
 	phase := s.Annotations[AnnPhase+name]
@@ -1338,20 +1304,16 @@ const (
 )
 
 // DBAdminPasswordRotation rotates the credential the rotator itself uses.
-// SEM@<sha>: crash-safe rotation of the administrative database password via a pending value
 type DBAdminPasswordRotation struct {
 	open func(ctx context.Context, adminURL string) (DBAdmin, error)
 }
 
-// SEM@<sha>: build a DBAdminPasswordRotation (pure)
 func NewDBAdminPasswordRotation(open func(ctx context.Context, adminURL string) (DBAdmin, error)) *DBAdminPasswordRotation {
 	return &DBAdminPasswordRotation{open: open}
 }
 
-// SEM@<sha>: return the rotation name (pure)
 func (r *DBAdminPasswordRotation) Name() string { return dbAdminRotationName }
 
-// SEM@<sha>: advance the admin password rotation: record pending, change it, then commit the URL
 func (r *DBAdminPasswordRotation) Run(ctx context.Context, env *Env) error {
 	logger := slogging.Get()
 	if env.SecretName != AdminSecretName {

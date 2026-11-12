@@ -17,7 +17,6 @@ import (
 // which requires both a machine-readable `error` code and a human-readable
 // `error_description`. The SAML protocol handlers historically emitted a bare
 // `{"error": "<message>"}` body that violated the documented contract (#493).
-// SEM@3256ece0f5730b6c910aa6e61025555c7726a4a5: format and send a SAML error as a JSON HTTP response (pure)
 func samlErrorJSON(c *gin.Context, status int, code errcode.Code, description string) {
 	c.JSON(status, gin.H{
 		"error":             string(code),
@@ -26,7 +25,6 @@ func samlErrorJSON(c *gin.Context, status int, code errcode.Code, description st
 }
 
 // GetSAMLMetadata returns SAML service provider metadata
-// SEM@3256ece0f5730b6c910aa6e61025555c7726a4a5: fetch and return SP metadata XML for a SAML provider
 func (h *Handlers) GetSAMLMetadata(c *gin.Context, providerID string) {
 	logger := slogging.Get()
 
@@ -70,7 +68,6 @@ func (h *Handlers) GetSAMLMetadata(c *gin.Context, providerID string) {
 }
 
 // InitiateSAMLLogin starts SAML authentication flow
-// SEM@8ca5b826b2afb7199c5784087940df39d67cbaeb: validate the client callback, build a SAML auth request, store relay state, and redirect to the IdP
 func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCallback *string) {
 	logger := slogging.Get()
 
@@ -147,7 +144,6 @@ func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCa
 // "account_conflict") so clients can branch on the failure without parsing the
 // human-readable errorMsg; both the redirect fragment and the JSON fallback
 // carry error + error_description.
-// SEM@bad36697a83ba8606ae7e598eb5fe21f3afebcaa: redirect to a client callback with an OAuth-style error fragment, or return JSON if no callback
 func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayState string, statusCode int, errorCode errcode.Code, errorMsg string) {
 	logger := slogging.Get()
 
@@ -195,7 +191,6 @@ func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayS
 // opaque "Authentication failed". Every other failure stays a generic 401 and
 // does not disclose detail. ProcessSAMLResponse wraps processUser's error with
 // %w, so errors.Is sees through the wrapping.
-// SEM@bad36697a83ba8606ae7e598eb5fe21f3afebcaa: map a SAML processing error to HTTP status, OAuth error code, and user message (pure)
 func classifySAMLProcessError(err error) (statusCode int, errorCode errcode.Code, errorMsg string) {
 	if errors.Is(err, errCrossProviderConflict) {
 		return http.StatusConflict, errcode.AccountConflict,
@@ -205,7 +200,6 @@ func classifySAMLProcessError(err error) (statusCode int, errorCode errcode.Code
 }
 
 // redirectWithErrorOAuth redirects to client callback URL with error for OAuth flows
-// SEM@81952f598eaf9b1599471d778c9fb82e7d2f2d7a: redirect to a client callback with an OAuth error fragment, or return JSON if no callback
 func (h *Handlers) redirectWithErrorOAuth(c *gin.Context, callbackURL string, statusCode int, errorMsg string) {
 	logger := slogging.Get()
 
@@ -240,7 +234,6 @@ func (h *Handlers) redirectWithErrorOAuth(c *gin.Context, callbackURL string, st
 }
 
 // ProcessSAMLResponse handles SAML assertion consumer service
-// SEM@bad36697a83ba8606ae7e598eb5fe21f3afebcaa: handle the SAML ACS callback: validate assertion, issue token pair, and redirect or return JSON
 func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlResponse string, relayState string) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -331,7 +324,6 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 }
 
 // ProcessSAMLLogout handles SAML single logout
-// SEM@3256ece0f5730b6c910aa6e61025555c7726a4a5: validate a SAML logout request and invalidate the user's sessions (writes DB)
 func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequest string) {
 	logger := slogging.Get()
 

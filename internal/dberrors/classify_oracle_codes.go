@@ -16,7 +16,6 @@ var ora01555Counter atomic.Uint64
 
 // SnapshotTooOldCount returns the cumulative number of ORA-01555 occurrences
 // observed since process start. Intended for operator inspection and tests.
-// SEM@379ec443351a5e4c305ce61c48bfaab5ed1a5f97: return the cumulative count of ORA-01555 snapshot-too-old errors observed since process start (pure)
 func SnapshotTooOldCount() uint64 {
 	return ora01555Counter.Load()
 }
@@ -32,7 +31,6 @@ var ora00932Counter atomic.Uint64
 // and tests: a nonzero, growing count is the signal that a server-side query
 // is hitting a CLOB column in a context Oracle cannot evaluate (ORDER BY,
 // GROUP BY, DISTINCT) and needs a code fix, not a retry.
-// SEM@7bbef7cb69972ca979324137a10e8f644c604934: return the cumulative count of ORA-00932 inconsistent-datatype errors observed since process start (pure)
 func InconsistentDatatypesCount() uint64 {
 	return ora00932Counter.Load()
 }
@@ -50,7 +48,6 @@ var (
 
 // MaxOpenCursorsCount returns the cumulative number of ORA-01000 occurrences
 // observed since process start. Intended for operator inspection and tests.
-// SEM@7bbef7cb69972ca979324137a10e8f644c604934: return the cumulative count of ORA-01000 max-open-cursors errors observed since process start (pure)
 func MaxOpenCursorsCount() uint64 {
 	return oraMaxOpenCursorsCounter.Load()
 }
@@ -58,7 +55,6 @@ func MaxOpenCursorsCount() uint64 {
 // SharedPoolExhaustedCount returns the cumulative number of ORA-04031
 // occurrences observed since process start. Intended for operator inspection
 // and tests.
-// SEM@7bbef7cb69972ca979324137a10e8f644c604934: return the cumulative count of ORA-04031 shared-pool-exhaustion errors observed since process start (pure)
 func SharedPoolExhaustedCount() uint64 {
 	return oraSharedPoolCounter.Load()
 }
@@ -173,7 +169,6 @@ var oracleCodeSentinels = map[int]error{
 // ORA-00932 (inconsistent datatypes), which is deliberately never mapped to a
 // sentinel (see below). Both are instrumented with a counter and a log line
 // so operators see every occurrence without scraping a metrics endpoint.
-// SEM@7bbef7cb69972ca979324137a10e8f644c604934: classify an Oracle ORA- error code to a sentinel error via lookup table (pure)
 func classifyOracleCode(err error, code int) error {
 	if sentinel, ok := oracleCodeSentinels[code]; ok {
 		instrumentOracleCode(code, err)
@@ -219,7 +214,6 @@ func classifyOracleCode(err error, code int) error {
 // whose root cause is easy to miss behind a generic 503. Kept separate from
 // the sentinel map (which is pure data) and called only for codes already
 // found in oracleCodeSentinels; the switch is a no-op for every other code.
-// SEM@7bbef7cb69972ca979324137a10e8f644c604934: increment a per-code counter and emit a warn log for classified Oracle codes whose cause is easy to miss (side effect: counter + log)
 func instrumentOracleCode(code int, err error) {
 	switch code {
 	case 1000:

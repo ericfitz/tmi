@@ -19,7 +19,6 @@ import (
 const projectStatusDefault = "active"
 
 // projectStatusToString converts a *ProjectStatus to NullableDBVarchar for GORM storage.
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: convert a project status enum to a nullable DB varchar for storage (pure)
 func projectStatusToString(s *ProjectStatus) models.NullableDBVarchar {
 	if s == nil {
 		return models.NullableDBVarchar{}
@@ -29,7 +28,6 @@ func projectStatusToString(s *ProjectStatus) models.NullableDBVarchar {
 }
 
 // stringToProjectStatus converts a *string from a raw scan struct to *ProjectStatus for the API.
-// SEM@462c8f503304be5df8b1a7cf1aec2aa92be3c06b: convert a nullable string from a raw scan to an API project status pointer (pure)
 func stringToProjectStatus(s *string) *ProjectStatus {
 	if s == nil {
 		return nil
@@ -39,7 +37,6 @@ func stringToProjectStatus(s *string) *ProjectStatus {
 }
 
 // nullableDBVarcharToProjectStatus converts a NullableDBVarchar from a GORM model to *ProjectStatus for the API.
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: convert a nullable DB varchar to an API project status pointer (pure)
 func nullableDBVarcharToProjectStatus(s models.NullableDBVarchar) *ProjectStatus {
 	if !s.Valid {
 		return nil
@@ -49,7 +46,6 @@ func nullableDBVarcharToProjectStatus(s models.NullableDBVarchar) *ProjectStatus
 }
 
 // ProjectFilters defines filtering criteria for listing projects
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: filtering criteria for listing projects including name, status, team, and relationship traversal
 type ProjectFilters struct {
 	Name         *string
 	Status       []string
@@ -60,7 +56,6 @@ type ProjectFilters struct {
 }
 
 // ProjectStoreInterface defines the store interface for projects
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: contract for CRUD and query operations on the project store (reads DB)
 type ProjectStoreInterface interface {
 	Create(ctx context.Context, project *Project, userInternalUUID string) (*Project, error)
 	Get(ctx context.Context, id string) (*Project, error)
@@ -72,19 +67,16 @@ type ProjectStoreInterface interface {
 }
 
 // GormProjectStore implements ProjectStoreInterface using GORM
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: GORM-backed implementation of the project store interface
 type GormProjectStore struct {
 	db *gorm.DB
 }
 
 // NewGormProjectStore creates a new GORM-backed project store
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: build a new GORM-backed project store with the given DB handle (pure)
 func NewGormProjectStore(db *gorm.DB) *GormProjectStore {
 	return &GormProjectStore{db: db}
 }
 
 // Create creates a new project
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: store a new project with responsible parties and relationships in a retryable transaction (reads DB)
 func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInternalUUID string) (*Project, error) {
 	logger := slogging.Get()
 
@@ -172,7 +164,6 @@ func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInt
 }
 
 // Get retrieves a project by ID
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fetch a project by ID by delegating to the shared project loader (reads DB)
 func (s *GormProjectStore) Get(ctx context.Context, id string) (*Project, error) {
 	return s.getWith(s.db.WithContext(ctx), id)
 }
@@ -180,7 +171,6 @@ func (s *GormProjectStore) Get(ctx context.Context, id string) (*Project, error)
 // getWith loads a project through the given handle, so update can read back
 // inside its own transaction and return a body that matches the version it
 // committed instead of whatever a concurrent writer landed afterwards (#777).
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: load a full project with responsible parties, relationships, and metadata through a given DB handle (reads DB)
 func (s *GormProjectStore) getWith(db *gorm.DB, id string) (*Project, error) {
 	logger := slogging.Get()
 
@@ -232,7 +222,6 @@ func (s *GormProjectStore) getWith(db *gorm.DB, id string) (*Project, error) {
 
 // update runs the project content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@3b8af1dcd3eadbb02fea478b0f2f7832e03fc865: replace a project's fields, responsible parties, relationships, and metadata, optionally CAS-guarded, in one transaction (reads DB)
 func (s *GormProjectStore) update(ctx context.Context, id string, project *Project, userInternalUUID string, expectedVersion *int) (*Project, int, error) {
 	logger := slogging.Get()
 
@@ -352,7 +341,6 @@ func (s *GormProjectStore) update(ctx context.Context, id string, project *Proje
 }
 
 // Update updates an existing project
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: replace a project's fields, responsible parties, and relationships in a retryable transaction (reads DB)
 func (s *GormProjectStore) Update(ctx context.Context, id string, project *Project, userInternalUUID string) (*Project, error) {
 	result, _, err := s.update(ctx, id, project, userInternalUUID, nil)
 	return result, err
@@ -360,13 +348,11 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 
 // UpdateWithVersion updates a project guarded by a same-transaction
 // optimistic-lock CAS (#594).
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update a project guarded by a same-transaction version CAS (reads DB)
 func (s *GormProjectStore) UpdateWithVersion(ctx context.Context, id string, project *Project, userInternalUUID string, expectedVersion int) (*Project, int, error) {
 	return s.update(ctx, id, project, userInternalUUID, &expectedVersion)
 }
 
 // Delete removes a project by ID
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: delete a project and its dependent records, blocking if threat models exist (reads DB)
 func (s *GormProjectStore) Delete(ctx context.Context, id string) error {
 	logger := slogging.Get()
 
@@ -429,7 +415,6 @@ func (s *GormProjectStore) Delete(ctx context.Context, id string) error {
 }
 
 // List retrieves projects with pagination and optional filters
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: list projects with pagination, team-membership access control, and filters (reads DB)
 func (s *GormProjectStore) List(ctx context.Context, limit, offset int, filters *ProjectFilters, userInternalUUID string, isAdmin bool) ([]ProjectListItem, int, error) {
 	logger := slogging.Get()
 
@@ -574,7 +559,6 @@ func (s *GormProjectStore) List(ctx context.Context, limit, offset int, filters 
 }
 
 // GetTeamID returns the team_id for a given project
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch the team ID for a given project (reads DB)
 func (s *GormProjectStore) GetTeamID(ctx context.Context, projectID string) (string, error) {
 	logger := slogging.Get()
 
@@ -595,7 +579,6 @@ func (s *GormProjectStore) GetTeamID(ctx context.Context, projectID string) (str
 }
 
 // HasThreatModels checks if a project has any associated threat models
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: check whether a project has any associated threat models (reads DB)
 func (s *GormProjectStore) HasThreatModels(ctx context.Context, projectID string) (bool, error) {
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.ThreatModel{}).
@@ -607,7 +590,6 @@ func (s *GormProjectStore) HasThreatModels(ctx context.Context, projectID string
 }
 
 // validateProjectRelationships validates relationship constraints
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: validate relationship targets exist and detect cycles for directional relationships (reads DB)
 func (s *GormProjectStore) validateProjectRelationships(ctx context.Context, projectID string, relationships []RelatedProject) error {
 	for _, rel := range relationships {
 		relatedID := rel.RelatedProjectId.String()
@@ -659,7 +641,6 @@ var inverseRelationship = map[string]string{
 }
 
 // getInverseRelationship returns the inverse of a directional relationship, or the original if no inverse exists
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: return the inverse relationship type for a given directional relationship (pure)
 func getInverseRelationship(rel string) string {
 	if inv, ok := inverseRelationship[rel]; ok {
 		return inv
@@ -668,7 +649,6 @@ func getInverseRelationship(rel string) string {
 }
 
 // detectProjectCycle detects cycles in directional project relationships using BFS
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: detect cycles in directional project relationships via BFS, rejecting if a cycle would form (reads DB)
 func (s *GormProjectStore) detectProjectCycle(ctx context.Context, sourceID, targetID, relationship string) error {
 	// For a directional relationship (e.g., sourceID is parent of targetID),
 	// we need to check that targetID does not already reach sourceID
@@ -710,7 +690,6 @@ func (s *GormProjectStore) detectProjectCycle(ctx context.Context, sourceID, tar
 }
 
 // saveResponsibleParties saves responsible party records for a project
-// SEM@4eedf6e7a203606a23a27a5bef308389d4fe211d: store responsible party records for a project, verifying each user exists (mutates DB)
 func (s *GormProjectStore) saveResponsibleParties(tx *gorm.DB, projectID string, parties []ResponsibleParty) error {
 	logger := slogging.Get()
 
@@ -748,7 +727,6 @@ func (s *GormProjectStore) saveResponsibleParties(tx *gorm.DB, projectID string,
 }
 
 // saveRelationships saves relationship records for a project
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: store project relationship records within a transaction (reads DB)
 func (s *GormProjectStore) saveRelationships(tx *gorm.DB, projectID string, relationships []RelatedProject) error {
 	logger := slogging.Get()
 
@@ -770,7 +748,6 @@ func (s *GormProjectStore) saveRelationships(tx *gorm.DB, projectID string, rela
 }
 
 // loadResponsibleParties loads responsible parties for a project
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fetch and convert responsible party records for a project to API types (reads DB)
 func (s *GormProjectStore) loadResponsibleParties(db *gorm.DB, projectID string) ([]ResponsibleParty, error) {
 	var records []models.ProjectResponsiblePartyRecord
 	if err := db.
@@ -806,7 +783,6 @@ func (s *GormProjectStore) loadResponsibleParties(db *gorm.DB, projectID string)
 }
 
 // loadRelationships loads relationships for a project
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fetch and convert relationship records for a project to API types (reads DB)
 func (s *GormProjectStore) loadRelationships(db *gorm.DB, projectID string) ([]RelatedProject, error) {
 	var records []models.ProjectRelationshipRecord
 	if err := db.
@@ -834,7 +810,6 @@ func (s *GormProjectStore) loadRelationships(db *gorm.DB, projectID string) ([]R
 }
 
 // recordToAPI converts a ProjectRecord and associated data to an API Project type
-// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: convert a project DB record and its associated data to the API Project type (pure)
 func (s *GormProjectStore) recordToAPI(record *models.ProjectRecord, responsibleParties []ResponsibleParty, relationships []RelatedProject, metadata []Metadata) *Project {
 	projectID := uuid.MustParse(string(record.ID))
 	teamID := uuid.MustParse(string(record.TeamID))
@@ -888,7 +863,6 @@ func (s *GormProjectStore) recordToAPI(record *models.ProjectRecord, responsible
 // teamRecordToTeamRef converts a TeamRecord to an API TeamSummary reference.
 // The embedded reference is deliberately minimal: clients fetch /teams/{team_id}
 // for the full team. See issue #659.
-// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: convert a team DB record to a minimal API team summary reference (pure)
 func (s *GormProjectStore) teamRecordToTeamRef(record *models.TeamRecord) *TeamSummary {
 	teamID := uuid.MustParse(string(record.ID))
 	return &TeamSummary{
@@ -899,7 +873,6 @@ func (s *GormProjectStore) teamRecordToTeamRef(record *models.TeamRecord) *TeamS
 }
 
 // applyRelatedToFilter applies the related_to, relationship, and transitive filters to a query
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: filter a project query to those related to a given project, optionally traversing transitively (reads DB)
 func (s *GormProjectStore) applyRelatedToFilter(query *gorm.DB, relatedTo string, relationship *string, transitive *bool) *gorm.DB {
 	projectRelsTable := models.ProjectRelationshipRecord{}.TableName()
 	projectsTable := models.ProjectRecord{}.TableName()
@@ -939,7 +912,6 @@ func (s *GormProjectStore) applyRelatedToFilter(query *gorm.DB, relatedTo string
 }
 
 // collectTransitiveRelatedIDs follows relationship chains transitively (BFS, max depth 10)
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: BFS-collect all project IDs reachable via a relationship type up to depth 10 (reads DB)
 func (s *GormProjectStore) collectTransitiveRelatedIDs(ctx context.Context, startID, relationship string) []string {
 	const maxDepth = 10
 	visited := map[string]bool{startID: true}
@@ -989,7 +961,6 @@ func (s *GormProjectStore) collectTransitiveRelatedIDs(ctx context.Context, star
 }
 
 // parseTimestamp parses a timestamp string in common formats
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: parse a timestamp string in any of several common formats into a time.Time (pure)
 func parseTimestamp(s string) (time.Time, error) {
 	formats := []string{
 		time.RFC3339Nano,

@@ -42,7 +42,7 @@ Nothing here changes an approved decision; each item is a place where the spec t
 - **Make targets only.** `make build-server`, `make build-rotator` (new), `make lint`, `make test-unit name=TestX count1=true`, `make test-integration`, `make validate-openapi`, `make generate-api`, `make generate-config-docs`. Never `go test`/`go run` directly.
 - **Logging:** only `github.com/ericfitz/tmi/internal/slogging` (`Get()`, `Info/Warn/Error`, `InfoCtx(ctx, msg, attrs...)` for structured fields). Never log a secret value; log key names, ids, phases, counts. `scripts/check-sensitive-log-args.py` runs in `make lint`.
 - **Secret safety:** no secret value in argv, env of an operator shell, logs, or chat. Scripts use `umask 077` files and `kubectl --from-file` / `--patch-file`.
-- **SEM markers:** every new function/method/type gets `// SEM@<sha>: <intent>` (one line, canonical verb, no mechanism); changed functions get their description updated (keep the sha, tooling refreshes it).
+- **SEM markers:** every new function/method/type gets `// SEM-<sha>: <intent>` (one line, canonical verb, no mechanism); changed functions get their description updated (keep the sha, tooling refreshes it).
 - **Terraform owns** namespace, ConfigMap, Secrets, IRSA SA, and (Task 5) the EBS CSI addon and `gp3` StorageClass; **kustomize overlays own workloads**, including the new CronJob, ServiceAccount, Role, RoleBinding and the `redis-data` PVC.
 - **Redis data lifecycle:** the `redis-data` PVC survives `make dev-down` (like the Postgres PVC and `tmi-secrets`) and is deleted with the namespace on `make dev-nuke`. Never delete it while `tmi-secrets` stays, or vice versa: `ENC:` entries need both.
 - **Oracle review is mandatory** before the PR is reported complete (Task 13): `ReEncryptAll` touches `system_settings`.
@@ -203,7 +203,6 @@ Add:
 ```go
 // NewSettingsEncryptorFromKeyring builds an encryptor from raw keys with explicit ids.
 // previousID 0 means "unknown" (selected by trial decrypt only).
-// SEM@<sha>: build a SettingsEncryptor from current and previous key bytes with their ids (pure)
 func NewSettingsEncryptorFromKeyring(current []byte, currentID int, previous []byte, previousID int) (*SettingsEncryptor, error) {
 	enc, err := NewSettingsEncryptorFromKeys(current, previous, currentID)
 	if err != nil {
@@ -216,13 +215,11 @@ func NewSettingsEncryptorFromKeyring(current []byte, currentID int, previous []b
 }
 
 // CurrentPrefix returns the envelope prefix values written by this encryptor carry.
-// SEM@<sha>: return the ENC:v1:<id>: prefix of the current key (pure)
 func (e *SettingsEncryptor) CurrentPrefix() string {
 	return fmt.Sprintf("ENC:v1:%d:", e.context.ContextID)
 }
 
 // ContextIDOf parses the key id out of an ENC:v1 envelope.
-// SEM@<sha>: parse the key id from an encrypted setting envelope; false for plaintext or malformed (pure)
 func ContextIDOf(value string) (int, bool) {
 	if !IsEncrypted(value) {
 		return 0, false
@@ -351,17 +348,14 @@ import (
 
 // FileProvider reads one secret per file from a directory, the shape of a
 // Kubernetes Secret volume or a umask-077 staging directory.
-// SEM@<sha>: secrets provider that reads each secret from <dir>/<key> (reads files)
 type FileProvider struct {
 	dir string
 }
 
-// SEM@<sha>: build a directory-backed secrets provider (pure)
 func NewFileProvider(dir string) *FileProvider {
 	return &FileProvider{dir: dir}
 }
 
-// SEM@<sha>: fetch a secret from the file named after its key, rejecting path traversal
 func (p *FileProvider) GetSecret(_ context.Context, key string) (string, error) {
 	if key == "" || key != filepath.Base(key) {
 		return "", fmt.Errorf("%w: invalid secret key", ErrInvalidConfig)
@@ -376,7 +370,6 @@ func (p *FileProvider) GetSecret(_ context.Context, key string) (string, error) 
 	return strings.TrimSuffix(string(data), "\n"), nil
 }
 
-// SEM@<sha>: list secret keys as the regular file names in the directory
 func (p *FileProvider) ListSecrets(_ context.Context) ([]string, error) {
 	entries, err := os.ReadDir(p.dir)
 	if err != nil {
@@ -391,10 +384,8 @@ func (p *FileProvider) ListSecrets(_ context.Context) ([]string, error) {
 	return keys, nil
 }
 
-// SEM@<sha>: return the provider type name for the file provider (pure)
 func (p *FileProvider) Name() string { return string(ProviderTypeFile) }
 
-// SEM@<sha>: no-op close for the file provider (pure)
 func (p *FileProvider) Close() error { return nil }
 ```
 
@@ -680,7 +671,6 @@ import (
 )
 
 // Secret is a snapshot of one Kubernetes Secret with decoded data.
-// SEM@<sha>: snapshot of a Kubernetes Secret's data, annotations and resourceVersion (pure)
 type Secret struct {
 	Name            string
 	Data            map[string]string
@@ -692,21 +682,18 @@ type Secret struct {
 var ErrConflict = errors.New("secret changed since it was read")
 
 // SecretStore reads and writes whole Secrets with optimistic concurrency.
-// SEM@<sha>: read/update a Kubernetes Secret with resourceVersion conflict detection
 type SecretStore interface {
 	Get(ctx context.Context, name string) (*Secret, error)
 	Update(ctx context.Context, s *Secret) error
 }
 
 // RolloutWaiter observes Deployment rollouts triggered by Secret changes (Reloader).
-// SEM@<sha>: observe a Deployment's generation and wait for a rollout past it
 type RolloutWaiter interface {
 	Generation(ctx context.Context, deployment string) (int64, error)
 	WaitRolled(ctx context.Context, deployment string, since int64, timeout time.Duration) error
 }
 
 // Clone returns a deep copy so a store can hand out independent snapshots.
-// SEM@<sha>: deep-copy a Secret snapshot (pure)
 func (s *Secret) Clone() *Secret {
 	c := &Secret{Name: s.Name, ResourceVersion: s.ResourceVersion, Data: map[string]string{}, Annotations: map[string]string{}}
 	for k, v := range s.Data {
@@ -735,7 +722,6 @@ import (
 // MemorySecretStore is an in-memory SecretStore for tests. It bumps
 // resourceVersion on every Update and counts data writes so a FakeRolloutWaiter
 // can imitate Reloader (which rolls on data changes only).
-// SEM@<sha>: in-memory SecretStore with resourceVersion conflicts and data-write counting (mutates shared state)
 type MemorySecretStore struct {
 	mu         sync.Mutex
 	secrets    map[string]*Secret
@@ -743,7 +729,6 @@ type MemorySecretStore struct {
 	DataWrites int
 }
 
-// SEM@<sha>: build a MemorySecretStore seeded with the given Secrets (pure)
 func NewMemorySecretStore(seed ...*Secret) *MemorySecretStore {
 	st := &MemorySecretStore{secrets: map[string]*Secret{}}
 	for _, s := range seed {
@@ -757,7 +742,6 @@ func NewMemorySecretStore(seed ...*Secret) *MemorySecretStore {
 	return st
 }
 
-// SEM@<sha>: return a copy of the named Secret or a not-found error
 func (m *MemorySecretStore) Get(_ context.Context, name string) (*Secret, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -768,7 +752,6 @@ func (m *MemorySecretStore) Get(_ context.Context, name string) (*Secret, error)
 	return s.Clone(), nil
 }
 
-// SEM@<sha>: store the Secret if its resourceVersion is current, else ErrConflict
 func (m *MemorySecretStore) Update(_ context.Context, s *Secret) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -789,7 +772,6 @@ func (m *MemorySecretStore) Update(_ context.Context, s *Secret) error {
 	return nil
 }
 
-// SEM@<sha>: compare two string maps for equality (pure)
 func equalMaps(a, b map[string]string) bool {
 	if len(a) != len(b) {
 		return false
@@ -804,19 +786,16 @@ func equalMaps(a, b map[string]string) bool {
 
 // FakeRolloutWaiter reports a generation equal to the store's data-write count,
 // so every data write "rolls" the server immediately.
-// SEM@<sha>: RolloutWaiter fake whose generation tracks MemorySecretStore data writes
 type FakeRolloutWaiter struct {
 	store      *MemorySecretStore
 	deployment string
 	Waits      int
 }
 
-// SEM@<sha>: build a FakeRolloutWaiter bound to a MemorySecretStore (pure)
 func NewFakeRolloutWaiter(store *MemorySecretStore, deployment string) *FakeRolloutWaiter {
 	return &FakeRolloutWaiter{store: store, deployment: deployment}
 }
 
-// SEM@<sha>: report the fake Deployment generation (data writes so far)
 func (f *FakeRolloutWaiter) Generation(_ context.Context, deployment string) (int64, error) {
 	if deployment != f.deployment {
 		return 0, fmt.Errorf("unknown deployment %q", deployment)
@@ -826,7 +805,6 @@ func (f *FakeRolloutWaiter) Generation(_ context.Context, deployment string) (in
 	return int64(f.store.DataWrites), nil
 }
 
-// SEM@<sha>: succeed when a data write happened after since, else time out
 func (f *FakeRolloutWaiter) WaitRolled(ctx context.Context, deployment string, since int64, _ time.Duration) error {
 	f.Waits++
 	gen, err := f.Generation(ctx, deployment)
@@ -864,7 +842,6 @@ const (
 )
 
 // ParseRotateEvery accepts "<n>d" or any Go duration; zero or negative is an error.
-// SEM@<sha>: parse a rotation interval written as days or a Go duration (pure)
 func ParseRotateEvery(v string) (time.Duration, error) {
 	v = strings.TrimSpace(v)
 	if strings.HasSuffix(v, "d") {
@@ -884,7 +861,6 @@ func ParseRotateEvery(v string) (time.Duration, error) {
 // IsDue reports whether the named rotation should start now: never rotated, an
 // unreadable rotated-at, or older than rotate-every (default 90d; an unparsable
 // interval is logged and falls back to the default, never to "now").
-// SEM@<sha>: decide whether a secret's scheduled rotation is due from its annotations (pure)
 func IsDue(s *Secret, name string, now time.Time) bool {
 	last, ok := s.Annotations[AnnRotatedAt+name]
 	if !ok {
@@ -907,7 +883,6 @@ func IsDue(s *Secret, name string, now time.Time) bool {
 }
 
 // AgeDays returns whole days since the last rotation, or -1 if never rotated.
-// SEM@<sha>: compute days since a secret's last recorded rotation (pure)
 func AgeDays(s *Secret, name string, now time.Time) int {
 	at, err := time.Parse(time.RFC3339, s.Annotations[AnnRotatedAt+name])
 	if err != nil {
@@ -932,7 +907,6 @@ const passwordAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01
 
 // NewPassword returns a 32-character alphanumeric password (URL- and shell-safe,
 // so it needs no escaping in TMI_DATABASE_URL or redis-cli).
-// SEM@<sha>: generate a random 32-char alphanumeric credential (pure)
 func NewPassword() (string, error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
@@ -946,7 +920,6 @@ func NewPassword() (string, error) {
 }
 
 // NewHexKey returns 32 random bytes as 64 hex characters (AES-256 key).
-// SEM@<sha>: generate a random 32-byte key as hex text (pure)
 func NewHexKey() (string, error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
@@ -975,7 +948,6 @@ import (
 )
 
 // Env is everything a Rotation needs from the cluster.
-// SEM@<sha>: cluster handles and settings shared by every rotation (pure)
 type Env struct {
 	Secrets          SecretStore
 	Rollouts         RolloutWaiter
@@ -986,7 +958,6 @@ type Env struct {
 }
 
 // Rotation is one secret's phased, resumable rotation.
-// SEM@<sha>: phased, idempotent rotation of one named secret
 type Rotation interface {
 	Name() string
 	Run(ctx context.Context, env *Env) error
@@ -994,7 +965,6 @@ type Rotation interface {
 
 // Run evaluates every rotation: forced, in progress (phase annotation set), or
 // due. Each rotation runs even if an earlier one failed; the first error is returned.
-// SEM@<sha>: run every forced, in-progress or due rotation and report the first failure
 func Run(ctx context.Context, env *Env, rotations []Rotation, force string) error {
 	logger := slogging.Get()
 	var firstErr error
@@ -1035,7 +1005,6 @@ func Run(ctx context.Context, env *Env, rotations []Rotation, force string) erro
 // nextPhase == "", clears it and stamps rotated-at) together with the server
 // Deployment's generation before the write, and writes everything in one Update.
 // A conflict means another run touched the Secret: fail, do not retry.
-// SEM@<sha>: apply a rotation phase change to the Secret atomically with its bookkeeping annotations
 func (e *Env) Transition(ctx context.Context, name, nextPhase string, mutate func(s *Secret)) error {
 	s, err := e.Secrets.Get(ctx, e.SecretName)
 	if err != nil {
@@ -1068,7 +1037,6 @@ func (e *Env) Transition(ctx context.Context, name, nextPhase string, mutate fun
 }
 
 // WaitServerRolled waits for the server rollout caused by the last Transition of name.
-// SEM@<sha>: wait for the server Deployment to roll past the generation recorded for a rotation
 func (e *Env) WaitServerRolled(ctx context.Context, s *Secret, name string) error {
 	since, err := strconv.ParseInt(s.Annotations[AnnGeneration+name], 10, 64)
 	if err != nil {
@@ -1208,18 +1176,15 @@ import (
 )
 
 // KubeSecretStore is the SecretStore for a real cluster.
-// SEM@<sha>: SecretStore over the Kubernetes API with resourceVersion-checked updates
 type KubeSecretStore struct {
 	cs        kubernetes.Interface
 	namespace string
 }
 
-// SEM@<sha>: build a KubeSecretStore for one namespace (pure)
 func NewKubeSecretStore(cs kubernetes.Interface, namespace string) *KubeSecretStore {
 	return &KubeSecretStore{cs: cs, namespace: namespace}
 }
 
-// SEM@<sha>: fetch a Secret and decode its data into strings
 func (k *KubeSecretStore) Get(ctx context.Context, name string) (*Secret, error) {
 	obj, err := k.cs.CoreV1().Secrets(k.namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
@@ -1235,7 +1200,6 @@ func (k *KubeSecretStore) Get(ctx context.Context, name string) (*Secret, error)
 	return s, nil
 }
 
-// SEM@<sha>: write a Secret's data and annotations back, mapping a 409 to ErrConflict
 func (k *KubeSecretStore) Update(ctx context.Context, s *Secret) error {
 	obj, err := k.cs.CoreV1().Secrets(k.namespace).Get(ctx, s.Name, metav1.GetOptions{})
 	if err != nil {
@@ -1263,19 +1227,16 @@ func (k *KubeSecretStore) Update(ctx context.Context, s *Secret) error {
 }
 
 // KubeRolloutWaiter polls a Deployment until Reloader's rollout completes.
-// SEM@<sha>: RolloutWaiter that polls Deployment generation and replica status
 type KubeRolloutWaiter struct {
 	cs        kubernetes.Interface
 	namespace string
 	Poll      time.Duration
 }
 
-// SEM@<sha>: build a KubeRolloutWaiter polling every 5s (pure)
 func NewKubeRolloutWaiter(cs kubernetes.Interface, namespace string) *KubeRolloutWaiter {
 	return &KubeRolloutWaiter{cs: cs, namespace: namespace, Poll: 5 * time.Second}
 }
 
-// SEM@<sha>: read a Deployment's metadata.generation
 func (w *KubeRolloutWaiter) Generation(ctx context.Context, deployment string) (int64, error) {
 	d, err := w.cs.AppsV1().Deployments(w.namespace).Get(ctx, deployment, metav1.GetOptions{})
 	if err != nil {
@@ -1287,7 +1248,6 @@ func (w *KubeRolloutWaiter) Generation(ctx context.Context, deployment string) (
 // WaitRolled first waits for the generation to pass since (Reloader has patched
 // the pod template), then for the rollout to complete. A Recreate Deployment
 // dips to zero available replicas in between; that is progress, not failure.
-// SEM@<sha>: block until a Deployment rolled past a generation and is fully available, or time out
 func (w *KubeRolloutWaiter) WaitRolled(ctx context.Context, deployment string, since int64, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
@@ -1821,42 +1781,33 @@ const (
 )
 
 // RedisACL manages the passwords accepted for the default Redis user.
-// SEM@<sha>: add or retire passwords on the Redis default user
 type RedisACL interface {
 	AddPassword(ctx context.Context, pw string) error
 	RemovePasswordHash(ctx context.Context, sha256hex string) error
 }
 
 // GoRedisACL implements RedisACL with ACL SETUSER.
-// SEM@<sha>: RedisACL over a go-redis client using ACL SETUSER
 type GoRedisACL struct{ client *redis.Client }
 
-// SEM@<sha>: wrap a go-redis client as a RedisACL (pure)
 func NewGoRedisACL(client *redis.Client) *GoRedisACL { return &GoRedisACL{client: client} }
 
-// SEM@<sha>: add a password to the default user (ACL SETUSER default >pw); idempotent
 func (a *GoRedisACL) AddPassword(ctx context.Context, pw string) error {
 	return a.client.Do(ctx, "ACL", "SETUSER", "default", ">"+pw).Err()
 }
 
-// SEM@<sha>: remove a password from the default user by its SHA-256 (ACL SETUSER default !hash); idempotent
 func (a *GoRedisACL) RemovePasswordHash(ctx context.Context, sha256hex string) error {
 	return a.client.Do(ctx, "ACL", "SETUSER", "default", "!"+sha256hex).Err()
 }
 
 // RedisPasswordRotation rotates TMI_REDIS_PASSWORD without a Redis restart.
-// SEM@<sha>: phased rotation of the Redis password: add new, swap Secret, roll server, retire old
 type RedisPasswordRotation struct{ acl RedisACL }
 
-// SEM@<sha>: build a RedisPasswordRotation over a RedisACL (pure)
 func NewRedisPasswordRotation(acl RedisACL) *RedisPasswordRotation {
 	return &RedisPasswordRotation{acl: acl}
 }
 
-// SEM@<sha>: return the rotation name used in annotations and ROTATE (pure)
 func (r *RedisPasswordRotation) Name() string { return redisRotationName }
 
-// SEM@<sha>: advance the Redis password rotation from its recorded phase to completion
 func (r *RedisPasswordRotation) Run(ctx context.Context, env *Env) error {
 	logger := slogging.Get()
 	s, err := env.Secrets.Get(ctx, env.SecretName)
@@ -1911,7 +1862,6 @@ func (r *RedisPasswordRotation) Run(ctx context.Context, env *Env) error {
 	})
 }
 
-// SEM@<sha>: hex SHA-256 of a string (pure)
 func sha256Hex(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])
@@ -2054,7 +2004,6 @@ var errSettingUnreadable = errors.New("setting unreadable")
 // modified_by are left as they were. Rows no key can open are reported in
 // []SettingError and excluded from later batches so the loop always terminates.
 // Returns the number of rows committed so far, also on error.
-// SEM@<sha>: re-encrypt stale setting rows under the current key id in resumable per-row transactions (writes DB)
 func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 	logger := slogging.Get()
 	if s.encryptor == nil || !s.encryptor.IsEnabled() {
@@ -2106,7 +2055,6 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError
 // reEncryptOne rewrites one row's ciphertext under the current key inside its
 // own transaction, holding a row lock on PostgreSQL/Oracle so a concurrent
 // SettingsService.Set cannot be overwritten.
-// SEM@<sha>: re-encrypt a single setting row under a row lock in one transaction (writes DB)
 func (s *SettingsService) reEncryptOne(ctx context.Context, key string) error {
 	return db.WithRetryableGormTransaction(ctx, s.gormDB, db.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		q := tx.Where("setting_key = ?", key)
@@ -2139,7 +2087,6 @@ func (s *SettingsService) reEncryptOne(ctx context.Context, key string) error {
 
 // CountValuesWithContextID counts rows still encrypted under the given key id;
 // the rotator uses it to decide when the previous key can be dropped.
-// SEM@<sha>: count setting rows whose envelope carries a given key id (reads DB)
 func (s *SettingsService) CountValuesWithContextID(ctx context.Context, id int) (int64, error) {
 	var n int64
 	err := s.gormDB.WithContext(ctx).Model(&models.SystemSetting{}).
@@ -2357,7 +2304,6 @@ const (
 )
 
 // Keyring is the settings-encryption key material held in tmi-secrets.
-// SEM@<sha>: current and previous settings encryption keys with their ids (pure)
 type Keyring struct {
 	CurrentKeyHex  string
 	CurrentID      int
@@ -2367,7 +2313,6 @@ type Keyring struct {
 
 // KeyringFromSecret reads and validates the keyring; a missing context id is 1
 // (the id every pre-rotation value carries).
-// SEM@<sha>: parse and validate the settings keyring from Secret data (pure)
 func KeyringFromSecret(s *Secret) (Keyring, error) {
 	kr := Keyring{CurrentKeyHex: s.Data[SettingsKeyKey], CurrentID: 1, PreviousKeyHex: s.Data[SettingsPrevKeyKey]}
 	if err := checkHexKey(kr.CurrentKeyHex); err != nil {
@@ -2393,7 +2338,6 @@ func KeyringFromSecret(s *Secret) (Keyring, error) {
 	return kr, nil
 }
 
-// SEM@<sha>: validate a 64-hex-char key string (pure)
 func checkHexKey(v string) error {
 	b, err := hex.DecodeString(v)
 	if err != nil || len(b) != 32 {
@@ -2403,7 +2347,6 @@ func checkHexKey(v string) error {
 }
 
 // Encryptor builds the crypto keyring for this Keyring.
-// SEM@<sha>: build a SettingsEncryptor from a Keyring (pure)
 func (k Keyring) Encryptor() (*crypto.SettingsEncryptor, error) {
 	cur, _ := hex.DecodeString(k.CurrentKeyHex)
 	var prev []byte
@@ -2414,25 +2357,21 @@ func (k Keyring) Encryptor() (*crypto.SettingsEncryptor, error) {
 }
 
 // SettingsStore is the database side of the settings-key rotation.
-// SEM@<sha>: re-encrypt settings under a keyring and count rows per key id
 type SettingsStore interface {
 	ReEncrypt(ctx context.Context, kr Keyring) (int, error)
 	CountWithID(ctx context.Context, kr Keyring, id int) (int64, error)
 }
 
 // GormSettingsStore runs the real SettingsService against the database.
-// SEM@<sha>: SettingsStore backed by api.SettingsService over GORM (writes DB)
 type GormSettingsStore struct {
 	gormDB *gorm.DB
 	redis  *db.RedisDB
 }
 
-// SEM@<sha>: build a GormSettingsStore (pure)
 func NewGormSettingsStore(gormDB *gorm.DB, redis *db.RedisDB) *GormSettingsStore {
 	return &GormSettingsStore{gormDB: gormDB, redis: redis}
 }
 
-// SEM@<sha>: build a SettingsService for a keyring (pure)
 func (g *GormSettingsStore) service(kr Keyring) (*api.SettingsService, error) {
 	enc, err := kr.Encryptor()
 	if err != nil {
@@ -2443,7 +2382,6 @@ func (g *GormSettingsStore) service(kr Keyring) (*api.SettingsService, error) {
 	return svc, nil
 }
 
-// SEM@<sha>: re-encrypt every stale settings row under the keyring's current key (writes DB)
 func (g *GormSettingsStore) ReEncrypt(ctx context.Context, kr Keyring) (int, error) {
 	svc, err := g.service(kr)
 	if err != nil {
@@ -2462,7 +2400,6 @@ func (g *GormSettingsStore) ReEncrypt(ctx context.Context, kr Keyring) (int, err
 	return n, nil
 }
 
-// SEM@<sha>: count settings rows still under a key id (reads DB)
 func (g *GormSettingsStore) CountWithID(ctx context.Context, kr Keyring, id int) (int64, error) {
 	svc, err := g.service(kr)
 	if err != nil {
@@ -2473,21 +2410,17 @@ func (g *GormSettingsStore) CountWithID(ctx context.Context, kr Keyring, id int)
 
 // SettingsKeyRotation rotates the settings-encryption key: stage, promote,
 // re-encrypt, and (after previousGrace, once nothing references the old id) drop.
-// SEM@<sha>: phased rotation of the settings encryption key with deferred drop of the previous key
 type SettingsKeyRotation struct {
 	store         SettingsStore
 	previousGrace time.Duration
 }
 
-// SEM@<sha>: build a SettingsKeyRotation (pure)
 func NewSettingsKeyRotation(store SettingsStore, previousGrace time.Duration) *SettingsKeyRotation {
 	return &SettingsKeyRotation{store: store, previousGrace: previousGrace}
 }
 
-// SEM@<sha>: return the rotation name (pure)
 func (r *SettingsKeyRotation) Name() string { return settingsRotationName }
 
-// SEM@<sha>: advance the settings-key rotation from its recorded phase
 func (r *SettingsKeyRotation) Run(ctx context.Context, env *Env) error {
 	logger := slogging.Get()
 	s, err := env.Secrets.Get(ctx, env.SecretName)
@@ -2720,7 +2653,6 @@ type options struct {
 	OracleWallet          string
 }
 
-// SEM@<sha>: read rotator settings from the environment with defaults (pure)
 func loadOptions(getenv func(string) string) (options, error) {
 	get := func(k, def string) string {
 		if v := getenv(k); v != "" {
@@ -2757,7 +2689,6 @@ func main() {
 	os.Exit(run())
 }
 
-// SEM@<sha>: wire cluster, Redis and DB clients and run every rotation; return the exit code
 func run() int {
 	logger := slogging.Get()
 	o, err := loadOptions(os.Getenv)

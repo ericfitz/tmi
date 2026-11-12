@@ -17,11 +17,11 @@ Flags:
 import argparse
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from tmi_common import (  # noqa: E402
+from tmi_common import (
     add_verbosity_args,
     apply_verbosity,
     format_version,
@@ -88,7 +88,6 @@ COMPONENTS = {
 # ---------------------------------------------------------------------------
 
 
-# SEM@25005e78a16d2b91bd05d0908ab2f9eb5a227c01: fetch the current git commit hash for build metadata (reads git)
 def get_git_commit(project_root: Path) -> str:
     """Return the short git commit hash, or 'unknown' on failure."""
     try:
@@ -104,7 +103,6 @@ def get_git_commit(project_root: Path) -> str:
         return "unknown"
 
 
-# SEM@f8f1e9150bf065847364301d010781b81ee15589: build Go linker flags embedding version and commit info (pure)
 def build_ldflags(version: dict, commit: str, build_date: str, prefix: str = "github.com/ericfitz/tmi/api") -> str:
     """Construct the -ldflags string for a binary.
 
@@ -135,7 +133,6 @@ def build_ldflags(version: dict, commit: str, build_date: str, prefix: str = "gi
     return " ".join(flags)
 
 
-# SEM@25005e78a16d2b91bd05d0908ab2f9eb5a227c01: load Oracle environment variables from the oci env script (reads files)
 def source_oci_env(project_root: Path) -> dict:
     """Source scripts/oci-env.sh and return the resulting environment variables.
 
@@ -155,6 +152,7 @@ def source_oci_env(project_root: Path) -> dict:
         ["/bin/bash", "-c", f'. "{oci_env}" && env'],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         log_error(f"Failed to source scripts/oci-env.sh: {result.stderr.strip()}")
@@ -173,7 +171,6 @@ def source_oci_env(project_root: Path) -> dict:
 # ---------------------------------------------------------------------------
 
 
-# SEM@f8f1e9150bf065847364301d010781b81ee15589: build the server binary with version ldflags and build tags
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Build TMI Go binaries.",
@@ -234,7 +231,7 @@ def main() -> None:
     if cfg["ldflags"]:
         version = read_version()
         commit = get_git_commit(project_root)
-        build_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        build_date = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         ldflags_prefix = str(cfg.get("ldflags_prefix", "github.com/ericfitz/tmi/api"))
         ldflags = build_ldflags(version, commit, build_date, prefix=ldflags_prefix)
         log_info(f"Version: {format_version(version)}, commit: {commit}, date: {build_date}")

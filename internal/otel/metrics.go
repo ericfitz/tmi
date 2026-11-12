@@ -11,7 +11,6 @@ import (
 const meterName = "tmi"
 
 // TMIMetrics holds all custom OTel metric instruments for TMI.
-// SEM@0aee687bf1c2b4e1819bf1c183575104459a14d4: holds all OTel metric instruments for cache, WebSocket, webhook, and Timmy subsystems (pure)
 type TMIMetrics struct {
 	CacheHits                   metric.Int64Counter
 	CacheMisses                 metric.Int64Counter
@@ -35,7 +34,6 @@ type TMIMetrics struct {
 var GlobalMetrics *TMIMetrics
 
 // NewTMIMetrics creates and registers all TMI metric instruments.
-// SEM@0aee687bf1c2b4e1819bf1c183575104459a14d4: build and register all TMI OTel metric instruments with the global meter (mutates shared state)
 func NewTMIMetrics() (*TMIMetrics, error) {
 	meter := otel.Meter(meterName)
 	m := &TMIMetrics{}
@@ -113,7 +111,6 @@ func NewTMIMetrics() (*TMIMetrics, error) {
 }
 
 // DBPoolStats holds snapshot statistics for a database connection pool.
-// SEM@82a346411b061b20ff839bbbd4281294e94d82ff: snapshot of database connection pool counters (pure)
 type DBPoolStats struct {
 	OpenConnections int
 	Idle            int
@@ -123,7 +120,6 @@ type DBPoolStats struct {
 }
 
 // RedisPoolStats holds snapshot statistics for a Redis connection pool.
-// SEM@82a346411b061b20ff839bbbd4281294e94d82ff: snapshot of Redis connection pool counters (pure)
 type RedisPoolStats struct {
 	ActiveCount int
 	IdleCount   int
@@ -131,7 +127,6 @@ type RedisPoolStats struct {
 
 // RegisterPoolMetrics registers observable gauges for DB and Redis pool monitoring.
 // Either dbStatsFn or redisStatsFn may be nil to skip registration for that pool.
-// SEM@82a346411b061b20ff839bbbd4281294e94d82ff: register OTel observable gauges for DB and Redis pool stats (mutates shared state)
 func RegisterPoolMetrics(dbStatsFn func() DBPoolStats, redisStatsFn func() RedisPoolStats) error {
 	meter := otel.Meter(meterName)
 

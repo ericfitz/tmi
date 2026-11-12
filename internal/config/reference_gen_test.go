@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-// SEM@208466bb33a86344c7cb6d6f2e5aa411cb1978da: test that the generated config reference has bootstrap and operational tables
 func TestGenerateReferenceMarkdown_HasBothCategoryTables(t *testing.T) {
 	out, err := GenerateReferenceMarkdown()
 	if err != nil {
@@ -21,7 +20,6 @@ func TestGenerateReferenceMarkdown_HasBothCategoryTables(t *testing.T) {
 	}
 }
 
-// SEM@208466bb33a86344c7cb6d6f2e5aa411cb1978da: test that the generated config reference lists an env var for bootstrap keys
 func TestGenerateReferenceMarkdown_BootstrapKeyHasEnvVar(t *testing.T) {
 	out, err := GenerateReferenceMarkdown()
 	if err != nil {
@@ -33,7 +31,6 @@ func TestGenerateReferenceMarkdown_BootstrapKeyHasEnvVar(t *testing.T) {
 	}
 }
 
-// SEM@3b682947: verify the config reference masks every secret-classed default
 func TestGenerateReferenceMarkdown_NeverLeaksSecretDefault(t *testing.T) {
 	out, err := GenerateReferenceMarkdown()
 	if err != nil {
@@ -59,7 +56,6 @@ func TestGenerateReferenceMarkdown_NeverLeaksSecretDefault(t *testing.T) {
 	}
 }
 
-// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: test that the generated config reference has a precedence section
 func TestGenerateReferenceMarkdown_HasPrecedenceSection(t *testing.T) {
 	out, err := GenerateReferenceMarkdown()
 	if err != nil {
@@ -78,7 +74,6 @@ func TestGenerateReferenceMarkdown_HasPrecedenceSection(t *testing.T) {
 	}
 }
 
-// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: test that the generated config reference shows precedence per setting category
 func TestGenerateReferenceMarkdown_PrecedenceColumnByCategory(t *testing.T) {
 	out, err := GenerateReferenceMarkdown()
 	if err != nil {
@@ -100,7 +95,6 @@ func TestGenerateReferenceMarkdown_PrecedenceColumnByCategory(t *testing.T) {
 	}
 }
 
-// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: find the table row containing a key cell in a generated document (pure)
 func findRowContaining(t *testing.T, doc, keyCell string) string {
 	t.Helper()
 	for _, line := range strings.Split(doc, "\n") {
@@ -121,7 +115,6 @@ func findRowContaining(t *testing.T, doc, keyCell string) string {
 // OmitWhenEmpty on SettingDef) that do not apply to documentation, and a
 // setting with an empty default is exactly the one an operator needs to be
 // told about (#810). There is deliberately no exception list.
-// SEM@3b682947: verify the config reference names every registry env var
 func TestGenerateReferenceMarkdown_CoversEveryRegistryEnvVar(t *testing.T) {
 	out, err := GenerateReferenceMarkdown()
 	if err != nil {
@@ -151,7 +144,6 @@ func TestGenerateReferenceMarkdown_CoversEveryRegistryEnvVar(t *testing.T) {
 // from the settings path (content_token_encryption_key, in
 // ExpectedMigratableKeysSkipped). All three are real config/env settings
 // and must be documented.
-// SEM@3b682947: test that the generated config reference documents every config-delivered setting definition
 func TestGenerateReferenceMarkdown_DocumentsEveryConfigDeliveredDef(t *testing.T) {
 	out, err := GenerateReferenceMarkdown()
 	if err != nil {
@@ -187,7 +179,6 @@ func TestGenerateReferenceMarkdown_DocumentsEveryConfigDeliveredDef(t *testing.T
 // bootstrap, cloud logging, secret prefixes) never pass through the
 // registry, so the reference — the TMI_* allowlist — must render the
 // hand-maintained ProcessEnvVars table in full (#810).
-// SEM@3b682947: verify the config reference lists every process-environment env var and pattern
 func TestGenerateReferenceMarkdown_CoversEveryProcessEnvVar(t *testing.T) {
 	out, err := GenerateReferenceMarkdown()
 	if err != nil {
@@ -209,7 +200,6 @@ func TestGenerateReferenceMarkdown_CoversEveryProcessEnvVar(t *testing.T) {
 	}
 }
 
-// SEM@67889e9ebee815211847d5b4b8d8a0608ebe95f6: test that the checked-in config reference file matches the settings registry
 func TestConfigReferenceFile_MatchesRegistry(t *testing.T) {
 	generated, err := GenerateReferenceMarkdown()
 	if err != nil {
@@ -244,7 +234,6 @@ func TestConfigReferenceFile_MatchesRegistry(t *testing.T) {
 //
 // Watched to fail: reverting declaredMutability to return
 // s.Class.Mutability.String() makes this test report 0 static rows.
-// SEM@93c6cb08b5853b2ef33f9aef38136ca1ad2feb44: test that setting mutability in the generated config reference comes from the registry
 func TestGenerateReferenceMarkdown_MutabilityComesFromRegistry(t *testing.T) {
 	out, err := GenerateReferenceMarkdown()
 	if err != nil {

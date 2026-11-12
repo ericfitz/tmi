@@ -42,7 +42,6 @@ const sparseUserIndexName = "idx_users_sparse_email"
 // come back UPPERCASE from Oracle and lowercase from Postgres, and an
 // untagged field's DBName is derived from the active dialect's
 // NamingStrategy, so the same struct matches both.
-// SEM@87d1696b4bf3edbe042353cf7586a60de78c2028: hold a duplicate sparse-user (provider, email) key and its row count (pure)
 type sparseDupKey struct {
 	Provider string
 	Email    string
@@ -75,7 +74,6 @@ type sparseDupKey struct {
 // scan and the DDL once the index is confirmed present also means this
 // degrades to a single cheap catalog lookup in steady state instead of a
 // full-table GROUP BY on every boot.
-// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: build a dialect-appropriate unique index over sparse user emails (writes DB)
 func EnsureSparseUserEmailIndex(ctx context.Context, db *gorm.DB) error {
 	usersTable := (&models.User{}).TableName()
 	// #736: owner-aware probe. gorm's HasTable resolves through Oracle's
@@ -221,7 +219,6 @@ func EnsureSparseUserEmailIndex(ctx context.Context, db *gorm.DB) error {
 // ErrTransient) would turn a genuinely successful index creation into a
 // hard startup abort with a misleading "not enforced" error, on the very
 // call whose only job is to double-check success.
-// SEM@df7fd289991cfd0c30ec2f8c8721a7b593f7d535: confirm a valid unique sparse-user email index exists after an ambiguous create/no-op, logging ERROR if not (reads DB)
 func verifySparseIndexEnforced(db *gorm.DB, usersTable string) error {
 	var nowExists bool
 	err := withMigrationRetry("sparse-user email index post-create verification", func() error {
@@ -266,7 +263,6 @@ func verifySparseIndexEnforced(db *gorm.DB, usersTable string) error {
 // database can already hold a differently-defined index under it), but the
 // stricter probe costs nothing and closes the gap before it can open
 // (oracle-db-admin review, 1.8.4 round 2).
-// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: probe whether a valid unique sparse-user email index exists, per dialect (reads DB)
 func sparseUserEmailIndexExists(db *gorm.DB, usersTable string) (bool, error) {
 	var cnt int64
 	var err error
@@ -365,7 +361,6 @@ func sparseUserEmailIndexExists(db *gorm.DB, usersTable string) (bool, error) {
 // is personal data, and an unbounded list would let a badly-merged database
 // dump an arbitrarily long line of it into the startup log (same cap and
 // reasoning as CheckDuplicateUserProviderIdentities, user_identity_check.go).
-// SEM@87d1696b4bf3edbe042353cf7586a60de78c2028: render duplicate sparse-user rows into a capped, actionable error message (pure)
 func formatSparseDupError(dups []sparseDupKey) string {
 	const maxReportedPairs = 20
 	shown := dups

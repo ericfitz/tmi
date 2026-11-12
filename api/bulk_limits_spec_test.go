@@ -11,7 +11,6 @@ import (
 
 // requestBodyMaxItems returns the maxItems of an operation's JSON request-body
 // array, following one $ref level into a wrapper object's named array property.
-// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: read a spec operation's request-body maxItems, optionally via a nested property (pure)
 func requestBodyMaxItems(t *testing.T, op *openapi3.Operation, nestedProp string) uint64 {
 	t.Helper()
 	require.NotNil(t, op, "operation missing")
@@ -78,7 +77,6 @@ func TestBulkThreatDeletesMatchSpec(t *testing.T) {
 // entityForMetadataPath maps ".../<collection>/{x_id}/metadata/bulk" (or the
 // threat-model root "/threat_models/{threat_model_id}/metadata/bulk") to the
 // entity-type key used by maxBulkMetadataByEntity.
-// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: derive the metadata-cap entity key from a bulk metadata spec path (pure)
 func entityForMetadataPath(path string) string {
 	segs := strings.Split(strings.Trim(path, "/"), "/")
 	// [..., <collection>, {param}, metadata, bulk]

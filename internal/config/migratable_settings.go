@@ -7,7 +7,6 @@ import (
 )
 
 // MigratableSetting represents a setting that can be migrated from config to database
-// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: DTO representing a single config setting eligible for database migration (pure)
 type MigratableSetting struct {
 	Key         string
 	Value       string
@@ -41,7 +40,6 @@ type MigratableSetting struct {
 // Class.Secret->Secret sync in GetMigratableSettings runs in one direction
 // only, so checking Class.Secret alone silently treats a real OAuth client
 // secret as public.
-// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: report whether a setting's value must be masked in responses and logs (pure)
 func (m MigratableSetting) IsSecret() bool {
 	return m.Secret || m.Class.Secret
 }
@@ -52,7 +50,6 @@ func (m MigratableSetting) IsSecret() bool {
 // Reporting "environment" for a name the struct does not read would mark the
 // struct DEFAULT as Explicit, and an Explicit default outranks the database —
 // turning a fallback into an override.
-// SEM@ef979cc7527137e0448782341a4ffe8e944571f5: return 'environment' when the given env var is set, otherwise 'config' (pure)
 func settingSource(envVar string) string {
 	if os.Getenv(envVar) != "" {
 		return "environment"
@@ -69,7 +66,6 @@ func settingSource(envVar string) string {
 // setting where 0 is a meaningful non-empty value would need its own
 // handling here), and "[]" or "null" for json (json.Marshal renders a nil
 // slice as "null" and an explicitly empty one as "[]").
-// SEM@71b4a22251f6acd8a9fb37257d5938c174392b09: determine whether a setting's value is its type's empty/unset sentinel (pure)
 func isOmittableEmptyValue(settingType, value string) bool {
 	switch settingType {
 	case "int":
@@ -122,7 +118,6 @@ func isOmittableEmptyValue(settingType, value string) bool {
 // keys' hot/static column in config-reference.md) that Ruling 15 explicitly
 // deferred to Phase E ("making classificationFor() consult the registry...
 // belongs in Phase E").
-// SEM@e6cee63c3a07d38f471e0ebfb81722849f36085e: list all config settings eligible for database migration with classification applied (pure)
 func (c *Config) GetMigratableSettings() []MigratableSetting {
 	defs := AllSettingDefs()
 	settings := make([]MigratableSetting, 0, len(defs))
@@ -182,7 +177,6 @@ func (c *Config) GetMigratableSettings() []MigratableSetting {
 // auth.oauth.client_callback_allowlist are now projected from the registry
 // in GetMigratableSettings; this covers only the provider subtree, which has
 // dynamic cardinality and no SettingDef by design.
-// SEM@71b4a22251f6acd8a9fb37257d5938c174392b09: build migratable settings list for every enabled OAuth provider (pure)
 func (c *Config) getMigratableOAuthSettings() []MigratableSetting {
 	settings := []MigratableSetting{}
 
@@ -197,7 +191,6 @@ func (c *Config) getMigratableOAuthSettings() []MigratableSetting {
 }
 
 // getMigratableOAuthProviderSettings returns settings for a single OAuth provider
-// SEM@ef979cc7527137e0448782341a4ffe8e944571f5: build migratable settings list for a single OAuth provider's credentials and metadata (pure)
 func (c *Config) getMigratableOAuthProviderSettings(providerKey string, p OAuthProviderConfig) []MigratableSetting {
 	prefix := "auth.oauth.providers." + providerKey
 	settings := []MigratableSetting{
@@ -267,7 +260,6 @@ func (c *Config) getMigratableOAuthProviderSettings(providerKey string, p OAuthP
 }
 
 // getMigratableSAMLSettings returns SAML provider settings
-// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: build migratable settings list for all enabled SAML providers (pure)
 func (c *Config) getMigratableSAMLSettings() []MigratableSetting {
 	settings := []MigratableSetting{}
 
@@ -286,7 +278,6 @@ func (c *Config) getMigratableSAMLSettings() []MigratableSetting {
 }
 
 // getMigratableSAMLProviderSettings returns settings for a single SAML provider
-// SEM@78155d54490599e00095eb72b817575bb1e8da5b: build migratable settings list for a single SAML provider's endpoints, flags, and secrets (pure)
 func (c *Config) getMigratableSAMLProviderSettings(providerKey string, p SAMLProviderConfig) []MigratableSetting {
 	prefix := "auth.saml.providers." + providerKey
 	settings := []MigratableSetting{
@@ -352,7 +343,6 @@ func (c *Config) getMigratableSAMLProviderSettings(providerKey string, p SAMLPro
 // default Config. It is the seed source for the DB-backed settings service.
 // Bootstrap-category settings are intentionally excluded — they are file/env
 // only and must never be written to the database.
-// SEM@ab3b70da0bebdbb7db5fefc97e15036dc3f5c4c5: return operational-category migratable settings from a default config, excluding bootstrap-only settings (pure)
 func DefaultOperationalSettings() []MigratableSetting {
 	all := getDefaultConfig().GetMigratableSettings()
 	out := make([]MigratableSetting, 0, len(all))
@@ -369,7 +359,6 @@ func DefaultOperationalSettings() []MigratableSetting {
 // is now projected from the registry in GetMigratableSettings; this covers
 // only the provider subtree, which has dynamic cardinality and no SettingDef
 // by design.
-// SEM@71b4a22251f6acd8a9fb37257d5938c174392b09: build migratable settings list for every enabled content OAuth provider (pure)
 func (c *Config) getMigratableContentOAuthSettings() []MigratableSetting {
 	settings := []MigratableSetting{}
 	for providerKey, p := range c.ContentOAuth.Providers {
@@ -382,7 +371,6 @@ func (c *Config) getMigratableContentOAuthSettings() []MigratableSetting {
 }
 
 // getMigratableContentOAuthProviderSettings returns settings for a single content OAuth provider.
-// SEM@926d7b92ff82030ff3a1c03b2307247302613d38: build migratable settings list for a single content OAuth provider's URLs, client credentials, and scopes (pure)
 func getMigratableContentOAuthProviderSettings(providerKey string, p ContentOAuthProviderConfig) []MigratableSetting {
 	prefix := "content_oauth.providers." + providerKey
 	settings := []MigratableSetting{

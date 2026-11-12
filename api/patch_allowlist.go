@@ -17,7 +17,6 @@ import (
 // Replaces the historical "prohibitedPaths" deny-list which was prone to
 // silent gaps when new fields were added to a resource (T2/T19/T27 in
 // docs/THREAT_MODEL.md).
-// SEM@9ec514da7fdbd094b7c66fd638baafb5c2c17f18: allowlist of JSON Pointer prefixes that a PATCH request may target, with role-gated subsets (pure)
 type PatchPathAllowList struct {
 	// MutablePaths is the set of paths a request may freely target.
 	// "/foo" matches "/foo" and any deeper path "/foo/...".
@@ -44,7 +43,6 @@ type PatchPathAllowList struct {
 
 // PatchAuthContext carries the role bits the allowlist checker needs to
 // arbitrate gated paths. All fields default to false.
-// SEM@4072882890c92c6534c87aef6823363686786a56: caller role bits used to authorize access to gated PATCH paths (pure)
 type PatchAuthContext struct {
 	IsOwner            bool
 	IsSecurityReviewer bool
@@ -54,7 +52,6 @@ type PatchAuthContext struct {
 // pathMatchesPrefix reports whether path equals prefix or is a child of
 // prefix (i.e. prefix == "/foo" matches "/foo", "/foo/bar", "/foo/bar/0",
 // but not "/foobar"). Paths use JSON Pointer encoding.
-// SEM@4072882890c92c6534c87aef6823363686786a56: report whether a JSON Pointer path equals or is a child of a given prefix (pure)
 func pathMatchesPrefix(path, prefix string) bool {
 	if path == prefix {
 		return true
@@ -63,7 +60,6 @@ func pathMatchesPrefix(path, prefix string) bool {
 }
 
 // matchesAny reports whether path matches any of the prefixes.
-// SEM@4072882890c92c6534c87aef6823363686786a56: report whether a path matches any prefix in the given list (pure)
 func (l PatchPathAllowList) matchesAny(prefixes []string, path string) bool {
 	for _, p := range prefixes {
 		if pathMatchesPrefix(path, p) {
@@ -75,7 +71,6 @@ func (l PatchPathAllowList) matchesAny(prefixes []string, path string) bool {
 
 // isClearingOp reports whether op clears its target. A "remove" op always
 // clears; a "replace" op clears when its Value is JSON null (Go nil).
-// SEM@9ec514da7fdbd094b7c66fd638baafb5c2c17f18: report whether a PATCH operation removes or nulls its target field (pure)
 func isClearingOp(op PatchOperation) bool {
 	switch JsonPatchDocumentOp(op.Op) {
 	case Remove:
@@ -97,7 +92,6 @@ func isClearingOp(op PatchOperation) bool {
 // order: OwnerOnly → SecurityReviewerOnly → MutablePaths → reject. Empty
 // path operations and operations whose path lacks a leading "/" are
 // rejected as malformed.
-// SEM@6e6f341493ef17352815b59696dcdead01383e70: validate all PATCH operations, including move/copy sources, against the allowlist and caller roles (pure)
 func ValidatePatchAllowlist(allow PatchPathAllowList, ops []PatchOperation, ac PatchAuthContext) *RequestError {
 	for _, op := range ops {
 		// "move" and "copy" also READ from op.From, so the source path is
@@ -150,7 +144,6 @@ func ValidatePatchAllowlist(allow PatchPathAllowList, ops []PatchOperation, ac P
 // role-free variant of ValidatePatchAllowlist, for resources whose mutable
 // field set does not vary by caller role. Returns nil when every operation is
 // permitted, otherwise a 400 invalid_patch error naming the offending field.
-// SEM@6e6f341493ef17352815b59696dcdead01383e70: validate PATCH operation paths and move/copy sources against a role-free allowlist (pure)
 func ValidatePatchPathsAllowed(allowed []string, ops []PatchOperation) *RequestError {
 	for _, op := range ops {
 		// "move" and "copy" READ from op.From, so a source outside the
@@ -189,7 +182,6 @@ func ValidatePatchPathsAllowed(allowed []string, ops []PatchOperation) *RequestE
 // patchOpPaths returns every JSON Pointer an operation touches: its target
 // path, plus the source path for the "move" and "copy" operations, which read
 // from op.From.
-// SEM@6e6f341493ef17352815b59696dcdead01383e70: list the paths a JSON Patch operation reads or writes (pure)
 func patchOpPaths(op PatchOperation) []string {
 	switch JsonPatchDocumentOp(op.Op) {
 	case Move, Copy:
@@ -203,7 +195,6 @@ func patchOpPaths(op PatchOperation) []string {
 // the empty Role if it is unset or malformed. The full GetResourceRole
 // helper returns an error in the malformed case; for allowlist purposes,
 // "unknown role" must default-deny on owner-gated paths anyway.
-// SEM@4072882890c92c6534c87aef6823363686786a56: fetch the resource role from Gin context, returning empty role on error (pure)
 func getResourceRoleSafe(c *gin.Context) Role {
 	role, err := GetResourceRole(c)
 	if err != nil {
@@ -214,7 +205,6 @@ func getResourceRoleSafe(c *gin.Context) Role {
 
 // getCtxBool reads a boolean key from the Gin context, returning false
 // if the key is missing or not a bool.
-// SEM@4072882890c92c6534c87aef6823363686786a56: fetch a boolean value from Gin context, returning false if missing or wrong type (pure)
 func getCtxBool(c *gin.Context, key string) bool {
 	v, exists := c.Get(key)
 	if !exists {

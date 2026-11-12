@@ -22,7 +22,6 @@ import (
 // Oracle's godror driver scans SQL NULL from LEFT JOINs as *string("") instead
 // of nil. This normalizes the result so both PostgreSQL and Oracle behave
 // consistently. Safe to call on PostgreSQL where values are already nil.
-// SEM@6c759588d58254441da68282da681c4050a158fe: convert an empty-string pointer to nil for cross-DB NULL normalization (pure)
 func normalizeNullString(s *string) *string {
 	if s != nil && *s == "" {
 		return nil
@@ -33,7 +32,6 @@ func normalizeNullString(s *string) *string {
 // safeEmail converts a string to *openapi_types.Email, returning nil if the
 // string fails the Email type's MarshalJSON validation. This prevents JSON
 // serialization failures from aborting entire API responses.
-// SEM@45d96e2bf3033bf7a162934e6f532ea48a0e2205: convert a string to a validated email pointer, returning nil if invalid (pure)
 func safeEmail(s string) *openapi_types.Email {
 	e := openapi_types.Email(s)
 	if _, err := json.Marshal(e); err != nil {
@@ -44,14 +42,12 @@ func safeEmail(s string) *openapi_types.Email {
 }
 
 // GormGroupMemberRepository implements GroupMemberRepository using GORM
-// SEM@f9ee21801aeaafee608b61a6e35aa8c146928a03: GORM-backed repository for group membership operations (reads DB)
 type GormGroupMemberRepository struct {
 	db     *gorm.DB
 	logger *slogging.Logger
 }
 
 // NewGormGroupMemberRepository creates a new GORM-backed group member repository
-// SEM@f9ee21801aeaafee608b61a6e35aa8c146928a03: build a GormGroupMemberRepository from a GORM database connection (pure)
 func NewGormGroupMemberRepository(db *gorm.DB) *GormGroupMemberRepository {
 	return &GormGroupMemberRepository{
 		db:     db,
@@ -60,10 +56,8 @@ func NewGormGroupMemberRepository(db *gorm.DB) *GormGroupMemberRepository {
 }
 
 // ListMembers returns all members of a group with pagination
-// SEM@f9ee21801aeaafee608b61a6e35aa8c146928a03: list paginated group members with user and group metadata via joined query (reads DB)
 func (r *GormGroupMemberRepository) ListMembers(ctx context.Context, filter GroupMemberFilter) ([]GroupMember, error) {
 	// Use a raw query with joins to get user and group member details
-	// SEM@f9ee21801aeaafee608b61a6e35aa8c146928a03: scan target for a group member row joined with user and group tables (pure)
 	type memberRow struct {
 		ID                      string
 		GroupInternalUUID       string
@@ -189,7 +183,6 @@ func (r *GormGroupMemberRepository) ListMembers(ctx context.Context, filter Grou
 }
 
 // CountMembers returns the total number of members in a group
-// SEM@f9ee21801aeaafee608b61a6e35aa8c146928a03: count total group members for a group (reads DB)
 func (r *GormGroupMemberRepository) CountMembers(ctx context.Context, groupInternalUUID uuid.UUID) (int, error) {
 	var count int64
 	err := r.db.WithContext(ctx).
@@ -205,7 +198,6 @@ func (r *GormGroupMemberRepository) CountMembers(ctx context.Context, groupInter
 }
 
 // AddMember adds a user to a group
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a user as a direct group member and return the membership (writes DB)
 func (r *GormGroupMemberRepository) AddMember(ctx context.Context, groupInternalUUID, userInternalUUID uuid.UUID, addedByInternalUUID *uuid.UUID, notes *string) (*GroupMember, error) {
 	// Check if group is the "everyone" pseudo-group
 	if groupInternalUUID == uuid.MustParse("00000000-0000-0000-0000-000000000000") {
@@ -252,7 +244,6 @@ func (r *GormGroupMemberRepository) AddMember(ctx context.Context, groupInternal
 	}
 
 	// Fetch-back row type (declared here to be visible in closure below)
-	// SEM@f9ee21801aeaafee608b61a6e35aa8c146928a03: scan target for fetch-back query after inserting a user group member (pure)
 	type addMemberRow struct {
 		ID                  string
 		GroupInternalUUID   string
@@ -344,7 +335,6 @@ func (r *GormGroupMemberRepository) AddMember(ctx context.Context, groupInternal
 }
 
 // RemoveMember removes a user from a group
-// SEM@f9ee21801aeaafee608b61a6e35aa8c146928a03: delete a user's direct membership from a group (mutates shared state)
 func (r *GormGroupMemberRepository) RemoveMember(ctx context.Context, groupInternalUUID, userInternalUUID uuid.UUID) error {
 	// Check if group is the "everyone" pseudo-group
 	if groupInternalUUID == uuid.MustParse("00000000-0000-0000-0000-000000000000") {
@@ -370,7 +360,6 @@ func (r *GormGroupMemberRepository) RemoveMember(ctx context.Context, groupInter
 }
 
 // IsMember checks if a user is a direct member of a group
-// SEM@f9ee21801aeaafee608b61a6e35aa8c146928a03: check whether a user is a direct member of a group (reads DB)
 func (r *GormGroupMemberRepository) IsMember(ctx context.Context, groupInternalUUID, userInternalUUID uuid.UUID) (bool, error) {
 	var count int64
 	err := r.db.WithContext(ctx).
@@ -386,7 +375,6 @@ func (r *GormGroupMemberRepository) IsMember(ctx context.Context, groupInternalU
 }
 
 // AddGroupMember adds a group as a member of another group (one level of nesting)
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a group as a nested member of another group and return the membership (writes DB)
 func (r *GormGroupMemberRepository) AddGroupMember(ctx context.Context, groupInternalUUID, memberGroupInternalUUID uuid.UUID, addedByInternalUUID *uuid.UUID, notes *string) (*GroupMember, error) {
 	// Check if target group is the "everyone" pseudo-group
 	if groupInternalUUID == uuid.MustParse("00000000-0000-0000-0000-000000000000") {
@@ -485,7 +473,6 @@ func (r *GormGroupMemberRepository) AddGroupMember(ctx context.Context, groupInt
 }
 
 // RemoveGroupMember removes a group from membership in another group
-// SEM@f9ee21801aeaafee608b61a6e35aa8c146928a03: delete a group's nested membership from another group (mutates shared state)
 func (r *GormGroupMemberRepository) RemoveGroupMember(ctx context.Context, groupInternalUUID, memberGroupInternalUUID uuid.UUID) error {
 	// Check if target group is the "everyone" pseudo-group
 	if groupInternalUUID == uuid.MustParse("00000000-0000-0000-0000-000000000000") {
@@ -514,7 +501,6 @@ func (r *GormGroupMemberRepository) RemoveGroupMember(ctx context.Context, group
 // IsEffectiveMember checks if a user is an effective member of a group, either
 // through direct user membership or because one of the user's IdP groups is a
 // group member (one level of nesting).
-// SEM@f9ee21801aeaafee608b61a6e35aa8c146928a03: check whether a user is a direct or IdP-group-transitive member of a group (reads DB)
 func (r *GormGroupMemberRepository) IsEffectiveMember(ctx context.Context, groupInternalUUID uuid.UUID, userInternalUUID uuid.UUID, userGroupUUIDs []uuid.UUID) (bool, error) {
 	groupStr := groupInternalUUID.String()
 	userStr := userInternalUUID.String()
@@ -547,7 +533,6 @@ func (r *GormGroupMemberRepository) IsEffectiveMember(ctx context.Context, group
 }
 
 // HasAnyMembers checks if a group has any members (user or group)
-// SEM@f9ee21801aeaafee608b61a6e35aa8c146928a03: check whether a group has any user or group members (reads DB)
 func (r *GormGroupMemberRepository) HasAnyMembers(ctx context.Context, groupInternalUUID uuid.UUID) (bool, error) {
 	var count int64
 	err := r.db.WithContext(ctx).
@@ -566,7 +551,6 @@ func (r *GormGroupMemberRepository) HasAnyMembers(ctx context.Context, groupInte
 // This queries the group_members table for user-type memberships and joins the groups table
 // to return group metadata. The "everyone" pseudo-group is excluded since it has no
 // membership records (all authenticated users are implicitly members).
-// SEM@f55124e39b362ab7afb22c9e47e214d1027f8b69: list all TMI-managed groups a user has direct membership in (reads DB)
 func (r *GormGroupMemberRepository) GetGroupsForUser(ctx context.Context, userInternalUUID uuid.UUID) ([]Group, error) {
 	// Scan into models.Group (not an ad-hoc struct with hardcoded lowercase
 	// column: tags): result-set labels come back UPPERCASE from Oracle and

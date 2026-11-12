@@ -14,7 +14,6 @@ import (
 )
 
 // ApplyPatchOperations applies JSON Patch operations to an entity and returns the modified entity
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: apply RFC 6902 JSON Patch operations to an entity, promoting replace to add and rejecting case-aliased keys (pure)
 func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, error) {
 	var zero T
 
@@ -126,7 +125,6 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 }
 
 // ValidatePatchAuthorization validates that the user has permission to perform the patch operations
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: validate that the caller's role permits the requested ownership or authorization changes (pure)
 func ValidatePatchAuthorization(operations []PatchOperation, userRole Role) error {
 	// Check if any operations modify owner or authorization fields
 	ownerChanging, authChanging := CheckOwnershipChanges(operations)
@@ -160,7 +158,6 @@ var readOnlyPatchPaths = []string{
 // checks the "from" source of move and copy as well as the target: move removes
 // its source, and copy would expose a prohibited field (owner, is_confidential,
 // ...) through a field the caller may read.
-// SEM@a7d2f8aeb90bc354bf081e462f3579fabb8503fe: find the first prohibited path touched by JSON Patch operations (pure)
 func FindProhibitedPatchPath(operations []PatchOperation, prohibited []string) (string, bool) {
 	for _, op := range operations {
 		for _, path := range patchOpPaths(op) {
@@ -178,7 +175,6 @@ func FindProhibitedPatchPath(operations []PatchOperation, prohibited []string) (
 // server-managed (read-only) path, or moves/copies from one. Returns a
 // *RequestError with HTTP 400 on the first prohibited path found, or nil when
 // all paths are allowed.
-// SEM@a7d2f8aeb90bc354bf081e462f3579fabb8503fe: reject patch operations that read or write read-only fields such as id or created_at (pure)
 func ValidatePatchProhibitedPaths(operations []PatchOperation) *RequestError {
 	if p, found := FindProhibitedPatchPath(operations, readOnlyPatchPaths); found {
 		field := strings.TrimPrefix(p, "/")
@@ -192,7 +188,6 @@ func ValidatePatchProhibitedPaths(operations []PatchOperation) *RequestError {
 }
 
 // CheckOwnershipChanges analyzes patch operations to determine if owner or authorization fields are being modified
-// SEM@2a1432a9123ec75f66c846ef9aa32f0a1c7bbab1: detect whether patch operations modify the owner or authorization fields (pure)
 func CheckOwnershipChanges(operations []PatchOperation) (ownerChanging, authChanging bool) {
 	for _, op := range operations {
 		// move and copy write op.Path; move also removes op.From.
@@ -216,7 +211,6 @@ func CheckOwnershipChanges(operations []PatchOperation) (ownerChanging, authChan
 }
 
 // PreserveCriticalFields preserves critical fields that shouldn't change during patching
-// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: restore immutable fields on a patched entity using a caller-supplied field-copy function (pure)
 func PreserveCriticalFields[T any](modified, original T, preserveFields func(T, T) T) T {
 	return preserveFields(modified, original)
 }
@@ -226,7 +220,6 @@ func PreserveCriticalFields[T any](modified, original T, preserveFields func(T, 
 // by omitempty), the operation is promoted to "add" so that the patch succeeds. This makes the
 // API more forgiving for clients that use "replace" on fields that are valid in the schema but
 // currently unset.
-// SEM@08dc266da6e8cd180aa7274d8135e3c559663cfa: convert replace operations to add for paths absent in the entity's JSON (pure)
 func promoteReplaceToAdd(originalBytes []byte, operations []PatchOperation) []PatchOperation {
 	var doc any
 	if err := json.Unmarshal(originalBytes, &doc); err != nil {
@@ -250,7 +243,6 @@ func promoteReplaceToAdd(originalBytes []byte, operations []PatchOperation) []Pa
 // validateReplacePaths checks that all "replace" operations target paths that exist in the
 // original document. This is a workaround for evanphx/json-patch v1 which silently adds
 // fields instead of returning an error when replacing a nonexistent path (violating RFC 6902).
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: reject replace operations whose target path does not exist in the serialized entity (pure)
 func validateReplacePaths(originalBytes []byte, operations []PatchOperation) error {
 	var doc any
 	if err := json.Unmarshal(originalBytes, &doc); err != nil {
@@ -275,7 +267,6 @@ func validateReplacePaths(originalBytes []byte, operations []PatchOperation) err
 }
 
 // pathExistsInDoc walks a JSON document to verify that the given path segments exist.
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: check whether a JSON pointer path exists in a parsed document (pure)
 func pathExistsInDoc(doc any, parts []string) bool {
 	if len(parts) == 0 {
 		return true
@@ -308,7 +299,6 @@ func pathExistsInDoc(doc any, parts []string) bool {
 }
 
 // ValidatePatchedEntity validates that the patched entity meets business rules
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: run a caller-supplied validator against the patched entity and map failures to 400 errors (pure)
 func ValidatePatchedEntity[T any](original, patched T, userName string, validator func(T, T, string) error) error {
 	if validator == nil {
 		return nil
@@ -327,7 +317,6 @@ func ValidatePatchedEntity[T any](original, patched T, userName string, validato
 
 // ConvertJSONPatchToCellOperations converts standard JSON Patch operations to CellPatchOperation format
 // This enables code reuse between REST PATCH endpoints and WebSocket operations
-// SEM@1266bb4768a3bd15fb079e5ce593b5d74f5689a7: convert JSON Patch operations targeting cells into the WebSocket CellPatchOperation format (pure)
 func ConvertJSONPatchToCellOperations(operations []PatchOperation) (*CellPatchOperation, error) {
 	// For now, this is a placeholder since the existing JSON Patch system
 	// operates on the entire diagram structure, while our WebSocket system
@@ -349,7 +338,6 @@ func ConvertJSONPatchToCellOperations(operations []PatchOperation) (*CellPatchOp
 
 // ProcessDiagramCellOperations provides a shared interface for diagram cell operations
 // This can be used by both REST PATCH handlers and WebSocket operations
-// SEM@1266bb4768a3bd15fb079e5ce593b5d74f5689a7: dispatch a set of cell patch operations to the diagram store via the cell operation processor (reads DB)
 func ProcessDiagramCellOperations(diagramID string, operations CellPatchOperation) (*OperationValidationResult, error) {
 	processor := NewCellOperationProcessor(DiagramStore)
 	return processor.ProcessCellOperations(diagramID, operations)
@@ -357,7 +345,6 @@ func ProcessDiagramCellOperations(diagramID string, operations CellPatchOperatio
 
 // fixMetadataField ensures that metadata fields are consistent between original and modified JSON.
 // This fixes the issue where "metadata": [] becomes "metadata": null after JSON marshal/unmarshal.
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: restore a null metadata field to an empty array when the original entity held one (pure)
 func fixMetadataField(modifiedBytes, originalBytes []byte) []byte {
 	// Parse original JSON to check metadata field
 	var originalData map[string]any
@@ -394,7 +381,6 @@ func fixMetadataField(modifiedBytes, originalBytes []byte) []byte {
 // fixImageField ensures that image fields are consistent between original and modified JSON.
 // This fixes the issue where "image": {} becomes "image": null after JSON marshal/unmarshal
 // when the original had a non-null image field.
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: restore a null or missing image field to its original value after a patch (pure)
 func fixImageField(modifiedBytes, originalBytes []byte) []byte {
 	// Parse original JSON to check image field
 	var originalData map[string]any
@@ -434,7 +420,6 @@ func fixImageField(modifiedBytes, originalBytes []byte) []byte {
 // fixOwnerField ensures that owner fields are properly structured as User objects.
 // This fixes the issue where PATCH operations set owner to a string value, but the
 // ThreatModel struct expects a User object.
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: normalize a string owner value to a full User object structure after a patch (pure)
 func fixOwnerField(modifiedBytes, _ []byte) []byte {
 	// Parse modified JSON
 	var modifiedData map[string]any

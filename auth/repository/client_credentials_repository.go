@@ -13,14 +13,12 @@ import (
 )
 
 // GormClientCredentialRepository implements ClientCredentialRepository using GORM
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: GORM-backed store for client credential CRUD operations (reads DB)
 type GormClientCredentialRepository struct {
 	db     *gorm.DB
 	logger *slogging.Logger
 }
 
 // NewGormClientCredentialRepository creates a new GORM-backed client credential repository
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: build a GORM client credential repository wrapping the given database connection (pure)
 func NewGormClientCredentialRepository(db *gorm.DB) *GormClientCredentialRepository {
 	return &GormClientCredentialRepository{
 		db:     db,
@@ -29,7 +27,6 @@ func NewGormClientCredentialRepository(db *gorm.DB) *GormClientCredentialReposit
 }
 
 // Create creates a new client credential
-// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: store a new client credential with hashed secret and ownership (writes DB)
 func (r *GormClientCredentialRepository) Create(ctx context.Context, params ClientCredentialCreateParams) (*ClientCredential, error) {
 	now := time.Now()
 
@@ -57,7 +54,6 @@ func (r *GormClientCredentialRepository) Create(ctx context.Context, params Clie
 }
 
 // GetByClientID retrieves an active client credential by client ID
-// SEM@8077d4387088ee7e6e22cce2171ad54ee850e10b: fetch an active client credential by client ID; error if not found (reads DB)
 func (r *GormClientCredentialRepository) GetByClientID(ctx context.Context, clientID string) (*ClientCredential, error) {
 	var gormCred models.ClientCredential
 	result := r.db.WithContext(ctx).
@@ -75,7 +71,6 @@ func (r *GormClientCredentialRepository) GetByClientID(ctx context.Context, clie
 }
 
 // ListByOwner retrieves all client credentials owned by a user
-// SEM@8077d4387088ee7e6e22cce2171ad54ee850e10b: list all client credentials owned by a user, ordered by creation time (reads DB)
 func (r *GormClientCredentialRepository) ListByOwner(ctx context.Context, ownerUUID uuid.UUID) ([]*ClientCredential, error) {
 	var gormCreds []models.ClientCredential
 	result := r.db.WithContext(ctx).
@@ -96,7 +91,6 @@ func (r *GormClientCredentialRepository) ListByOwner(ctx context.Context, ownerU
 }
 
 // UpdateLastUsed updates the last_used_at timestamp for a client credential
-// SEM@8077d4387088ee7e6e22cce2171ad54ee850e10b: update the last-used timestamp for a client credential by ID (reads DB)
 func (r *GormClientCredentialRepository) UpdateLastUsed(ctx context.Context, id uuid.UUID) error {
 	result := r.db.WithContext(ctx).Model(&models.ClientCredential{}).
 		Where("id = ?", id.String()).
@@ -114,7 +108,6 @@ func (r *GormClientCredentialRepository) UpdateLastUsed(ctx context.Context, id 
 }
 
 // Deactivate deactivates a client credential (soft delete)
-// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: soft-delete a client credential by marking it inactive, scoped to owner (reads DB)
 func (r *GormClientCredentialRepository) Deactivate(ctx context.Context, id, ownerUUID uuid.UUID) error {
 	result := r.db.WithContext(ctx).Model(&models.ClientCredential{}).
 		Where("id = ? AND owner_uuid = ?", id.String(), ownerUUID.String()).
@@ -138,7 +131,6 @@ func (r *GormClientCredentialRepository) Deactivate(ctx context.Context, id, own
 }
 
 // Delete permanently deletes a client credential
-// SEM@8077d4387088ee7e6e22cce2171ad54ee850e10b: permanently delete a client credential record scoped to its owner (reads DB)
 func (r *GormClientCredentialRepository) Delete(ctx context.Context, id, ownerUUID uuid.UUID) error {
 	result := r.db.WithContext(ctx).
 		Where("id = ? AND owner_uuid = ?", id.String(), ownerUUID.String()).
@@ -156,7 +148,6 @@ func (r *GormClientCredentialRepository) Delete(ctx context.Context, id, ownerUU
 }
 
 // convertModelToClientCredential converts a GORM ClientCredential model to a repository ClientCredential
-// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: convert a client credential database model to its domain type (pure)
 func convertModelToClientCredential(m *models.ClientCredential) *ClientCredential {
 	id, _ := uuid.Parse(string(m.ID))
 	ownerUUID, _ := uuid.Parse(string(m.OwnerUUID))

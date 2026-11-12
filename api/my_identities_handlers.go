@@ -19,7 +19,6 @@ import (
 // ListMyIdentities handles GET /me/identities.
 // Returns the primary identity from JWT claims and all linked identities for
 // the authenticated user.
-// SEM@5e107bce8eca9a7b10483bef568d3497a8b76f93: list the caller's primary and linked OAuth identities (reads DB)
 func (s *Server) ListMyIdentities(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	logger.Debug("[SERVER_INTERFACE] ListMyIdentities called")
@@ -69,7 +68,6 @@ func (s *Server) ListMyIdentities(c *gin.Context) {
 	}
 
 	// Build linked array.
-	// SEM@833a88351df08e075a2410ab53a7512a4c0390e4: API response DTO for a single linked identity with truncated provider subject (pure)
 	type linkedIdentityResponse struct {
 		ID             string  `json:"id"`
 		Provider       string  `json:"provider"`
@@ -118,7 +116,6 @@ func (s *Server) ListMyIdentities(c *gin.Context) {
 // DeleteMyIdentity handles DELETE /me/identities/{id}.
 // Removes a linked identity from the authenticated user's account.
 // Returns 404 for unknown or foreign IDs (no distinguishable response).
-// SEM@5e107bce8eca9a7b10483bef568d3497a8b76f93: delete a linked identity from the caller's account and audit it (mutates DB)
 func (s *Server) DeleteMyIdentity(c *gin.Context, id openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 	idStr := id.String()

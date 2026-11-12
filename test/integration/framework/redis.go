@@ -15,7 +15,6 @@ import (
 // default 0). dev uses DB 0; the test path sets TEST_REDIS_DB=1 so dev and test
 // never share a keyspace (#477).
 // Errors are intentionally ignored — if Redis is unavailable, tests may hit rate limits.
-// SEM@249dea6: delete rate-limit keys from the harness Redis; return error if client options are invalid (writes Redis)
 func ClearRateLimits() error {
 	ctx := context.Background()
 
@@ -35,7 +34,6 @@ func ClearRateLimits() error {
 // is set (scripts/run-integration-tests.py sets all of them). Without the CA
 // variable it is a plaintext client, for a developer pointing the tests at an
 // ad-hoc Redis.
-// SEM@249dea6: build go-redis options for the harness Redis from TEST_REDIS_* env (reads env)
 func RedisOptions() (*redis.Options, error) {
 	host := getEnvOrDefault("TEST_REDIS_HOST", "localhost")
 	opts := &redis.Options{

@@ -22,7 +22,6 @@ import (
 )
 
 // apiLoad hits GET /me every 50ms in the background and counts 5xx/401 responses.
-// SEM@3b682947: track background API load with stop signal and failure count
 type apiLoad struct {
 	stop chan struct{}
 	done chan struct{}
@@ -30,7 +29,6 @@ type apiLoad struct {
 	bad  int32
 }
 
-// SEM@3b682947: start background API request load and return its handle
 func startAPILoad(t *testing.T, client *framework.IntegrationClient) *apiLoad {
 	l := &apiLoad{stop: make(chan struct{}), done: make(chan struct{})}
 	go func() {
@@ -53,14 +51,12 @@ func startAPILoad(t *testing.T, client *framework.IntegrationClient) *apiLoad {
 }
 
 // finish stops the loop, waits for it to exit, and returns the failure count.
-// SEM@3b682947: stop background API load and return the failure count
 func (l *apiLoad) finish() int32 {
 	l.once.Do(func() { close(l.stop) })
 	<-l.done
 	return atomic.LoadInt32(&l.bad)
 }
 
-// SEM@3b682947: build an authenticated integration client for secret rotation tests
 func rotationTestClient(t *testing.T, user string) *framework.IntegrationClient {
 	t.Helper()
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
@@ -91,7 +87,6 @@ func rotationTestClient(t *testing.T, user string) *framework.IntegrationClient 
 // connections) until the inline restore below. This test therefore proves the
 // rotation's Redis-side behaviour and that the server stays healthy through the
 // add/swap, not a full server roll (Task 14 covers that on k3s).
-// SEM@3b682947: validate API keeps working through a Redis password rotation
 func TestSecretRotationIntegration_RedisPassword(t *testing.T) {
 	client := rotationTestClient(t, "alice")
 
@@ -171,13 +166,11 @@ func TestSecretRotationIntegration_RedisPassword(t *testing.T) {
 }
 
 // failOnceWaiter reports the first rollout as timed out, leaving the rotation in phase swapped.
-// SEM@3b682947: rollout waiter that fails its first wait, then delegates
 type failOnceWaiter struct {
 	rotator.RolloutWaiter
 	failed bool
 }
 
-// SEM@3b682947: fail the first rollout wait, delegate later waits
 func (w *failOnceWaiter) WaitRolled(ctx context.Context, deployment string, since int64, timeout time.Duration) error {
 	if !w.failed {
 		w.failed = true
@@ -188,7 +181,6 @@ func (w *failOnceWaiter) WaitRolled(ctx context.Context, deployment string, sinc
 
 // defaultACLRule returns the default user's ACL LIST rule split into its
 // password hashes and every other token (flags, keys, channels, commands).
-// SEM@3b682947: read the Redis default user's password hashes and remaining ACL rule tokens
 func defaultACLRule(ctx context.Context, t *testing.T, rc *redis.Client) (hashes, rest []string) {
 	t.Helper()
 	rules, err := rc.ACLList(ctx).Result()
@@ -214,7 +206,6 @@ func defaultACLRule(ctx context.Context, t *testing.T, rc *redis.Client) (hashes
 // A Redis restart after the Secret swap (ACL is in-memory; Redis comes back
 // with requirepass = NEW only) or a peer run that already retired OLD leaves
 // the default user without OLD. The resumed run must still complete.
-// SEM@3b682947: verify a swapped Redis rotation completes after OLD vanished from the ACL
 func TestSecretRotationIntegration_RedisResumeAfterOldPasswordGone(t *testing.T) {
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
 		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")
@@ -289,7 +280,6 @@ func TestSecretRotationIntegration_RedisResumeAfterOldPasswordGone(t *testing.T)
 	_ = probe.Close()
 }
 
-// SEM@3b682947: validate secret re-encryption completes under API load without failures
 func TestSecretRotationIntegration_ReencryptUnderLoad(t *testing.T) {
 	adminClient := rotationTestClient(t, "")
 	userClient := rotationTestClient(t, "bob")
@@ -336,7 +326,6 @@ func TestSecretRotationIntegration_ReencryptUnderLoad(t *testing.T) {
 	}
 }
 
-// SEM@3b682947: compute the hex-encoded SHA-256 digest of a string (pure)
 func sha256HexString(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])

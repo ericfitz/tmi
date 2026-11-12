@@ -20,7 +20,6 @@ const (
 )
 
 // GroupDeletionStats contains statistics about group deletion
-// SEM@3c1a01558012bffd79e59f37ab15f2ccc823c29c: counts of threat models deleted or retained when a group is deleted (pure)
 type GroupDeletionStats struct {
 	ThreatModelsDeleted  int    `json:"threat_models_deleted"`
 	ThreatModelsRetained int    `json:"threat_models_retained"`
@@ -28,7 +27,6 @@ type GroupDeletionStats struct {
 }
 
 // Group represents a group in the system
-// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: define domain model for an identity provider group with usage fields (pure)
 type Group struct {
 	InternalUUID uuid.UUID `json:"internal_uuid"`
 	Provider     string    `json:"provider"`
@@ -49,7 +47,6 @@ type Group struct {
 }
 
 // GroupFilter defines filtering options for group queries
-// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: define filter, sort, and pagination parameters for group list queries (pure)
 type GroupFilter struct {
 	Provider             string
 	GroupName            string // Case-insensitive ILIKE %name%
@@ -62,7 +59,6 @@ type GroupFilter struct {
 }
 
 // GroupMemberFilter defines filtering and pagination for group membership queries
-// SEM@3c1a01558012bffd79e59f37ab15f2ccc823c29c: pagination parameters for group membership list queries scoped to a group UUID (pure)
 type GroupMemberFilter struct {
 	GroupInternalUUID uuid.UUID
 	Limit             int
@@ -126,20 +122,17 @@ var (
 // one or more keys already exist. ConflictingKeys contains the key names that
 // caused the conflict. Unwrap returns ErrMetadataKeyExists so callers can use
 // errors.Is(err, ErrMetadataKeyExists) to detect this condition.
-// SEM@3c1a01558012bffd79e59f37ab15f2ccc823c29c: error type reporting which metadata keys already exist on a create conflict (pure)
 type MetadataConflictError struct {
 	ConflictingKeys []string
 }
 
 // Error implements the error interface.
-// SEM@3c1a01558012bffd79e59f37ab15f2ccc823c29c: format the metadata conflict error message listing conflicting keys (pure)
 func (e *MetadataConflictError) Error() string {
 	return fmt.Sprintf("metadata key(s) already exist: %s", strings.Join(e.ConflictingKeys, ", "))
 }
 
 // Unwrap returns ErrMetadataKeyExists so that errors.Is and errors.As work
 // against the sentinel.
-// SEM@3c1a01558012bffd79e59f37ab15f2ccc823c29c: return the ErrMetadataKeyExists sentinel for errors.Is unwrapping (pure)
 func (e *MetadataConflictError) Unwrap() error {
 	return ErrMetadataKeyExists
 }
@@ -147,7 +140,6 @@ func (e *MetadataConflictError) Unwrap() error {
 // GroupRepository defines the interface for group storage operations.
 // This mirrors GroupStore but omits Delete (which is handled at the handler
 // level via DeletionRepository) and uses repository-scoped typed errors.
-// SEM@3c1a01558012bffd79e59f37ab15f2ccc823c29c: interface for CRUD and enrichment operations on identity provider groups (reads DB)
 type GroupRepository interface {
 	// List returns groups with optional filtering and pagination.
 	List(ctx context.Context, filter GroupFilter) ([]Group, error)
@@ -176,7 +168,6 @@ type GroupRepository interface {
 
 // MetadataRepository defines the interface for metadata storage operations.
 // Method signatures match MetadataStore exactly.
-// SEM@3c1a01558012bffd79e59f37ab15f2ccc823c29c: interface for CRUD, bulk, and cache operations on entity metadata (reads DB)
 type MetadataRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, entityType, entityID string, metadata *Metadata) error
@@ -208,7 +199,6 @@ type MetadataRepository interface {
 // GroupMemberRepository defines the interface for group membership storage operations.
 // Method signatures match GroupMemberStore exactly.
 // Supports both user and group members (one level of group-in-group nesting).
-// SEM@3c1a01558012bffd79e59f37ab15f2ccc823c29c: interface for managing direct and nested group membership with effective-membership checks (reads DB)
 type GroupMemberRepository interface {
 	// User membership operations
 	ListMembers(ctx context.Context, filter GroupMemberFilter) ([]GroupMember, error)

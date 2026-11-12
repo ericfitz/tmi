@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// SEM@3b682947: test that ReadsOneFilePerKey
 func TestFileProvider_ReadsOneFilePerKey(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "settings_encryption_key"), []byte("abc\n"), 0o600))
@@ -29,7 +28,6 @@ func TestFileProvider_ReadsOneFilePerKey(t *testing.T) {
 	require.Equal(t, []string{"settings_encryption_key"}, keys)
 }
 
-// SEM@3b682947: test that RejectsTraversalToRealFile
 func TestFileProvider_RejectsTraversalToRealFile(t *testing.T) {
 	parent := t.TempDir()
 	dir := filepath.Join(parent, "secrets")

@@ -12,7 +12,6 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: verify the schema-version preflight passes, warns, fails, or is skipped per stamp state
 func TestPreflightSchemaVersion(t *testing.T) {
 	open := func(t *testing.T) *gorm.DB {
 		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: gormlogger.Discard})

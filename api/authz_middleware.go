@@ -38,7 +38,6 @@ import (
 // On any gate failure, the middleware aborts with the appropriate status code
 // and response body. On allow, it sets the context key "authzCovered" = true
 // so downstream resource middleware can short-circuit duplicate work.
-// SEM@1c9f87f1ca746f8b265481c0a196627b2737787a: build the unified declarative authorization Gin middleware, failing closed if the AuthzTable cannot load
 func AuthzMiddleware() gin.HandlerFunc {
 	tbl, err := LoadGlobalAuthzTable()
 	if err != nil {
@@ -57,7 +56,6 @@ func AuthzMiddleware() gin.HandlerFunc {
 	return authzMiddlewareWithTable(tbl)
 }
 
-// SEM@82fc85d0e9672cc2cfbf829784973d1c6a3866c0: authorize requests via public, role, ownership, and child-parentage gates (reads DB)
 func authzMiddlewareWithTable(tbl *AuthzTable) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
@@ -126,7 +124,6 @@ func authzMiddlewareWithTable(tbl *AuthzTable) gin.HandlerFunc {
 //     SA-internal endpoints if any are introduced.
 //
 // Returns false after writing a 403 on rejection. Returns true on allow.
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: authorize the caller's authentication kind against a route's subject_authority constraint, allowing direct_write service-account tokens on invoker-only routes
 func enforceSubjectAuthority(c *gin.Context, sa SubjectAuthority) bool {
 	if sa == SubjectAuthorityAny {
 		return true
@@ -205,7 +202,6 @@ func enforceSubjectAuthority(c *gin.Context, sa SubjectAuthority) bool {
 // so the rest of the OR list still gets a chance to satisfy the gate. If
 // every role in the list is unsupported, a 403 is returned (better than the
 // 500 the original ad-hoc default arm produced before #341 fixed it).
-// SEM@829dde1ccc37d526d8247b096857d50be8a3172f: authorize the caller against an OR-list of role gates, returning 403 if none match
 func checkAuthzRoles(c *gin.Context, roles []AuthzRoleName) bool {
 	for _, r := range roles {
 		switch r {
@@ -252,7 +248,6 @@ func checkAuthzRoles(c *gin.Context, roles []AuthzRoleName) bool {
 // false — the caller (checkAuthzRoles) writes a 403. We intentionally do NOT
 // distinguish 401/403 here: the per-role decision is just yes/no for the
 // OR-list reducer; the final response is shaped by the loop's outcome.
-// SEM@829dde1ccc37d526d8247b096857d50be8a3172f: check whether the caller is a member of the tmi-automation or embedding-automation group (reads DB)
 func checkAutomationRole(c *gin.Context) bool {
 	logger := slogging.Get().WithContext(c)
 	mc, err := ResolveMembershipContext(c)
@@ -280,7 +275,6 @@ func checkAutomationRole(c *gin.Context) bool {
 // ThreatModelMiddleware) and records access for embedding idle cleanup.
 //
 // Returns true on allow, false after writing a 401/403/404/503 response.
-// SEM@8fa90ed6c2a4a20c3a5b7d508736a882e9c647a0: verify the caller holds the required ownership role on the parent threat model and set the user role in context (reads DB)
 func enforceOwnership(c *gin.Context, ownership Ownership) bool {
 	logger := slogging.Get().WithContext(c)
 
@@ -380,7 +374,6 @@ func enforceOwnership(c *gin.Context, ownership Ownership) bool {
 
 // ownershipToRole maps an x-tmi-authz ownership level to the legacy Role
 // constants used by AccessCheckWithGroups.
-// SEM@8fa90ed6c2a4a20c3a5b7d508736a882e9c647a0: convert an x-tmi-authz ownership level to the internal Role constant (pure)
 func ownershipToRole(o Ownership) Role {
 	switch o {
 	case OwnershipReader:
@@ -397,7 +390,6 @@ func ownershipToRole(o Ownership) Role {
 // /threat_models/{threat_model_id}/..., or "" otherwise. The collection
 // endpoint /threat_models is annotated with ownership=none and never reaches
 // this code path.
-// SEM@8fa90ed6c2a4a20c3a5b7d508736a882e9c647a0: parse the threat model ID from a /threat_models/{id}/... path segment (pure)
 func extractParentThreatModelID(path string) string {
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	if len(parts) < 2 || parts[0] != "threat_models" {
@@ -427,12 +419,10 @@ var subResourceChildFamilies = map[string]struct {
 // childParentageChecker reports whether the child row exists under the given
 // threat model. includeDeleted widens the probe to soft-deleted rows (restore
 // routes). Package-var seam so unit tests can inject a fake.
-// SEM@82fc85d0e9672cc2cfbf829784973d1c6a3866c0: define signature for verifying a child row's parent threat model
 type childParentageChecker func(ctx context.Context, family, childID, threatModelID string, includeDeleted bool) (bool, error)
 
 var checkChildParentage childParentageChecker = gormChildParentageCheck
 
-// SEM@436c1840b3eef9687193078750dec3e22874f10e: verify a sub-resource child row belongs to a threat model (reads DB)
 func gormChildParentageCheck(ctx context.Context, family, childID, threatModelID string, includeDeleted bool) (bool, error) {
 	if adminDB == nil {
 		// In-memory mode (unit tests): no relational store to consult.
@@ -477,7 +467,6 @@ func gormChildParentageCheck(ctx context.Context, family, childID, threatModelID
 // model. It runs after enforceOwnership so it never leaks whether a child
 // exists to a caller who lacks parent-level access. Non-family segments and
 // non-UUID child segments (e.g. "bulk") pass through untouched.
-// SEM@436c1840b3eef9687193078750dec3e22874f10e: enforce that the child id in a sub-resource path belongs to the parent threat model, answering 404 on mismatch
 func enforceChildParentage(c *gin.Context) bool {
 	logger := slogging.Get().WithContext(c)
 	path := c.Request.URL.Path

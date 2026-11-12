@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// SEM@1ee903740fbfd71dacb8286ffc539a07887a60ad: test that collaboration sessions list every authorized user as a participant (#1046)
 func TestCollaborationSessionParticipantsIncludeAuthorizedUsers(t *testing.T) {
 	InitializeMockStores()
 	gin.SetMode(gin.TestMode)
@@ -105,7 +104,6 @@ func TestCollaborationSessionParticipantsIncludeAuthorizedUsers(t *testing.T) {
 	check(w)
 }
 
-// SEM@1ee903740fbfd71dacb8286ffc539a07887a60ad: test participant dedupe, email fallback and display name defaults when building session participants (#1046)
 func TestBuildSessionParticipantsEdgeCases(t *testing.T) {
 	owner := User{PrincipalType: UserPrincipalTypeUser, Provider: "test", ProviderId: "alice-id", Email: "alice@example.com", DisplayName: "Alice"}
 	email := func(s string) *openapi_types.Email { e := openapi_types.Email(s); return &e }

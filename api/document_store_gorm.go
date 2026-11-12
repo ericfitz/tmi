@@ -20,7 +20,6 @@ import (
 )
 
 // GormDocumentRepository implements DocumentStore using GORM
-// SEM@295362baebc5fe956353b6eb0f33773e00895092: GORM-backed document store with optional Redis cache and cache invalidator (mutates shared state)
 type GormDocumentRepository struct {
 	db               *gorm.DB
 	cache            *CacheService
@@ -29,7 +28,6 @@ type GormDocumentRepository struct {
 }
 
 // NewGormDocumentRepository creates a new GORM-backed document store with optional caching
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build a GormDocumentRepository wiring DB, cache, and cache invalidator (pure)
 func NewGormDocumentRepository(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormDocumentRepository {
 	return &GormDocumentRepository{
 		db:               db,
@@ -39,7 +37,6 @@ func NewGormDocumentRepository(db *gorm.DB, cache *CacheService, invalidator *Ca
 }
 
 // Create creates a new document
-// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: store a new document under a threat model with alias and return stored timestamps (mutates DB, cache)
 func (s *GormDocumentRepository) Create(ctx context.Context, document *Document, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -141,7 +138,6 @@ func (s *GormDocumentRepository) Create(ctx context.Context, document *Document,
 }
 
 // Get retrieves a document by ID
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch a document by ID from cache or DB, loading metadata (reads DB)
 func (s *GormDocumentRepository) Get(ctx context.Context, id string) (*Document, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -196,7 +192,6 @@ func (s *GormDocumentRepository) Get(ctx context.Context, id string) (*Document,
 
 // update runs the document content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: update a document's fields, optionally CAS-guarded, and return stored timestamps (mutates DB, cache)
 func (s *GormDocumentRepository) update(ctx context.Context, document *Document, threatModelID string, expectedVersion *int) (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -342,7 +337,6 @@ func (s *GormDocumentRepository) update(ctx context.Context, document *Document,
 }
 
 // Update updates an existing document
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update a document's fields, set modified_at explicitly, and refresh cache (mutates shared state)
 func (s *GormDocumentRepository) Update(ctx context.Context, document *Document, threatModelID string) error {
 	_, err := s.update(ctx, document, threatModelID, nil)
 	return err
@@ -350,19 +344,16 @@ func (s *GormDocumentRepository) Update(ctx context.Context, document *Document,
 
 // UpdateWithVersion updates a document guarded by a same-transaction
 // optimistic-lock CAS (#594).
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update a document guarded by a same-transaction version CAS (mutates shared state)
 func (s *GormDocumentRepository) UpdateWithVersion(ctx context.Context, document *Document, threatModelID string, expectedVersion int) (int, error) {
 	return s.update(ctx, document, threatModelID, &expectedVersion)
 }
 
 // Delete soft-deletes a document by setting deleted_at
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: soft-delete a document by setting deleted_at (reads DB)
 func (s *GormDocumentRepository) Delete(ctx context.Context, id string) error {
 	return s.SoftDelete(ctx, id)
 }
 
 // hardDeleteDocument permanently removes a document and its metadata from the database
-// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: permanently delete a document and its metadata in one transaction, invalidate caches (mutates DB)
 func (s *GormDocumentRepository) hardDeleteDocument(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -432,7 +423,6 @@ func (s *GormDocumentRepository) hardDeleteDocument(ctx context.Context, id stri
 }
 
 // List retrieves documents for a threat model with pagination
-// SEM@a0c806e5d0aac29d4d69bc6592f4abf9ba717819: list paginated documents for a threat model from cache or DB with metadata (reads DB)
 func (s *GormDocumentRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Document, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -501,7 +491,6 @@ func (s *GormDocumentRepository) List(ctx context.Context, threatModelID string,
 }
 
 // ListByAccessStatus returns documents matching the given access status across all threat models.
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: list documents across all threat models matching a given access status (reads DB)
 func (s *GormDocumentRepository) ListByAccessStatus(ctx context.Context, status string, limit int) ([]Document, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -524,7 +513,6 @@ func (s *GormDocumentRepository) ListByAccessStatus(ctx context.Context, status 
 }
 
 // BulkCreate creates multiple documents in a single transaction
-// SEM@00f49defbb3c7bed5bf9c222ef5966bf77efa832: store multiple documents in one transaction with aliases and stored timestamps (mutates DB)
 func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Document, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -589,7 +577,6 @@ func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Doc
 }
 
 // Patch applies JSON patch operations to a document
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: apply JSON patch operations to a document and persist the result (reads DB)
 func (s *GormDocumentRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Document, error) {
 	document, _, err := s.patch(ctx, id, operations, nil)
 	return document, err
@@ -597,14 +584,12 @@ func (s *GormDocumentRepository) Patch(ctx context.Context, id string, operation
 
 // PatchWithVersion applies JSON patch operations to a document guarded by a
 // same-transaction optimistic-lock CAS (#594).
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: apply JSON patch operations to a document guarded by a same-transaction version CAS (mutates shared state)
 func (s *GormDocumentRepository) PatchWithVersion(ctx context.Context, id string, operations []PatchOperation, expectedVersion int) (*Document, int, error) {
 	return s.patch(ctx, id, operations, &expectedVersion)
 }
 
 // patch runs patch-operation application then the content write, CAS-guarded
 // first when expectedVersion is non-nil (#594).
-// SEM@613ebe97f78c5077e359f82acf1e421339025693: apply JSON Patch operations to a resource, optionally CAS-guarded, and persist it (mutates DB)
 func (s *GormDocumentRepository) patch(ctx context.Context, id string, operations []PatchOperation, expectedVersion *int) (*Document, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching document %s with %d operations", id, len(operations))
@@ -641,7 +626,6 @@ func (s *GormDocumentRepository) patch(ctx context.Context, id string, operation
 }
 
 // Count returns the total number of documents for a threat model
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: count non-deleted documents for a threat model (reads DB)
 func (s *GormDocumentRepository) Count(ctx context.Context, threatModelID string) (int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -667,7 +651,6 @@ func (s *GormDocumentRepository) Count(ctx context.Context, threatModelID string
 }
 
 // InvalidateCache removes document-related cache entries
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: evict a document's cache entry by ID (mutates shared state)
 func (s *GormDocumentRepository) InvalidateCache(ctx context.Context, id string) error {
 	if s.cache == nil {
 		return nil
@@ -676,7 +659,6 @@ func (s *GormDocumentRepository) InvalidateCache(ctx context.Context, id string)
 }
 
 // WarmCache preloads documents for a threat model into cache
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: preload the first page of documents for a threat model into cache (reads DB)
 func (s *GormDocumentRepository) WarmCache(ctx context.Context, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Warming cache for threat model documents: %s", threatModelID)
@@ -696,7 +678,6 @@ func (s *GormDocumentRepository) WarmCache(ctx context.Context, threatModelID st
 }
 
 // UpdateAccessStatus sets the access tracking fields on a document.
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: update access_status and content_source on a document and invalidate its cache entry (mutates shared state)
 func (s *GormDocumentRepository) UpdateAccessStatus(ctx context.Context, id string, accessStatus string, contentSource string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -734,7 +715,6 @@ func (s *GormDocumentRepository) UpdateAccessStatus(ctx context.Context, id stri
 // the Document.BeforeSave hook, which validates Name/URI on the empty struct and
 // would produce false "cannot be empty" errors for map-based updates — same
 // pattern as UpdateAccessStatus.
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: update access status and diagnostic reason fields on a document and invalidate its cache entry (mutates shared state)
 func (s *GormDocumentRepository) UpdateAccessStatusWithDiagnostics(
 	ctx context.Context,
 	id string,
@@ -788,7 +768,6 @@ func (s *GormDocumentRepository) UpdateAccessStatusWithDiagnostics(
 
 // GetAccessReason returns the diagnostic fields for a document.
 // See DocumentStore.GetAccessReason.
-// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: fetch access reason code, detail, and status timestamp for a document (reads DB)
 func (s *GormDocumentRepository) GetAccessReason(
 	ctx context.Context, id string,
 ) (reasonCode string, reasonDetail string, updatedAt *time.Time, err error) {
@@ -823,7 +802,6 @@ func (s *GormDocumentRepository) GetAccessReason(
 
 // GetThreatModelID returns the parent threat model ID for the given document.
 // See DocumentRepository.GetThreatModelID.
-// SEM@117032a3c5523a04e970f76a285e342169d5150c: fetch the parent threat model ID for a document (reads DB)
 func (s *GormDocumentRepository) GetThreatModelID(ctx context.Context, id string) (string, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -847,7 +825,6 @@ func (s *GormDocumentRepository) GetThreatModelID(ctx context.Context, id string
 
 // GetPickerDispatch returns picker metadata + owner UUID for poller dispatch.
 // See DocumentStore.GetPickerDispatch.
-// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: fetch picker metadata and threat model owner UUID for poller dispatch (reads DB)
 func (s *GormDocumentRepository) GetPickerDispatch(
 	ctx context.Context, id string,
 ) (*PickerMetadata, string, error) {
@@ -892,7 +869,6 @@ func (s *GormDocumentRepository) GetPickerDispatch(
 // failure-handling contract.
 //
 // See DocumentStore.SetPickerMetadata.
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: persist picker provider/file/mime fields on a document and reset access status to unknown (mutates shared state)
 func (s *GormDocumentRepository) SetPickerMetadata(
 	ctx context.Context, id string, providerID, fileID, mimeType string,
 ) error {
@@ -935,7 +911,6 @@ func (s *GormDocumentRepository) SetPickerMetadata(
 // fields on all documents owned by the given user (via threat-model owner)
 // that were picker-registered under the given provider.
 // See DocumentStore.ClearPickerMetadataForOwner.
-// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: null picker metadata and access diagnostics for all documents owned by a user under a given provider (mutates shared state)
 func (s *GormDocumentRepository) ClearPickerMetadataForOwner(
 	ctx context.Context, ownerInternalUUID, providerID string,
 ) (int64, error) {
@@ -975,7 +950,6 @@ func (s *GormDocumentRepository) ClearPickerMetadataForOwner(
 }
 
 // modelToAPI converts a GORM Document model to the API Document type
-// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: convert a GORM Document model to its API Document DTO (pure)
 func (s *GormDocumentRepository) modelToAPI(model *models.Document) *Document {
 	id, _ := uuid.Parse(string(model.ID))
 	includeInReport := model.IncludeInReport.Bool()
@@ -1013,19 +987,16 @@ func (s *GormDocumentRepository) modelToAPI(model *models.Document) *Document {
 }
 
 // loadMetadata loads metadata for a document
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch metadata key-value pairs for a document (reads DB)
 func (s *GormDocumentRepository) loadMetadata(ctx context.Context, documentID string) ([]Metadata, error) {
 	return loadEntityMetadata(s.db.WithContext(ctx), "document", documentID)
 }
 
 // saveMetadata saves metadata for a document
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: store metadata key-value pairs for a document (reads DB)
 func (s *GormDocumentRepository) saveMetadata(ctx context.Context, documentID string, metadata []Metadata) error {
 	return saveEntityMetadata(s.db.WithContext(ctx), "document", documentID, metadata)
 }
 
 // updateMetadata updates metadata for a document
-// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: replace metadata key-value pairs for a document by delete-then-insert (reads DB)
 func (s *GormDocumentRepository) updateMetadata(ctx context.Context, documentID string, metadata []Metadata) error {
 	// One transaction so a failed insert rolls back the delete instead of
 	// committing a bare metadata wipe (#670).
@@ -1052,7 +1023,6 @@ var documentPatchablePaths = map[string]bool{
 // ORA-01407, #614). Unset flags get the schema default (true). Only the
 // patchable fields are taken from the patched value; every other field is kept
 // from the loaded row. Errors are 400 RequestErrors.
-// SEM@613ebe97f78c5077e359f82acf1e421339025693: apply JSON Patch operations to a document, keeping name and uri non-empty, flags defaulted and all other fields pinned (pure)
 func applyDocumentPatch(document Document, operations []PatchOperation) (Document, error) {
 	patched, err := applyEntityPatch(document, operations, "document", documentPatchablePaths, "document_update")
 	if err != nil {
@@ -1076,7 +1046,6 @@ func applyDocumentPatch(document Document, operations []PatchOperation) (Documen
 }
 
 // getDocumentThreatModelID retrieves the threat model ID for a document
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: fetch the threat model ID for a document by document ID (reads DB)
 func (s *GormDocumentRepository) getDocumentThreatModelID(ctx context.Context, documentID string) (string, error) {
 	var model models.Document
 	err := s.db.WithContext(ctx).Select("threat_model_id").First(&model, "id = ?", documentID).Error

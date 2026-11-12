@@ -15,7 +15,7 @@
 - Branch: `dev/1.9.16/config-reference-completeness` off `main`. No DB change, so no Oracle review.
 - **Always use Make targets.** Never run `go test`, `go run`, `go build` or `./bin/*` directly. Single test: `make test-unit name=TestName count1=true` (the `name` value must not contain `|`; the Makefile passes it to `-run`, so a plain prefix like `TestGenerateReferenceMarkdown` runs every test with that prefix). Full suite: `make test-unit`. Lint: `make lint`. Build: `make build-server`. Docs: `make generate-config-docs`, `make generate-config-example`.
 - gofmt every Go file you touch (`gofmt -w <file>` is fine; `make lint` also catches it).
-- **SEM markers:** every new function/type gets `// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: <one-line intent>` directly above it (that is `main` HEAD at plan time; substituting the current `git rev-parse HEAD` is fine). When you change an existing function's behaviour, update the description text of its existing `SEM@` line and keep its sha.
+- **SEM markers:** every new function/type gets `// SEM-2e43fddcc4f977a73637e4f1a1d5798b170d79ed: <one-line intent>` directly above it (that is `main` HEAD at plan time; substituting the current `git rev-parse HEAD` is fine). When you change an existing function's behaviour, update the description text of its existing `SEM-` line and keep its sha.
 - Never import the standard `log` package; use `internal/slogging` (no new logging is needed in this plan).
 - Conventional commits, imperative mood. The Task 3 commit body carries `Fixes #810`. **Every** commit ends with this trailer:
 
@@ -179,7 +179,6 @@ In `internal/config/reference_gen.go`, replace lines 10-19 (the doc comment, SEM
 // conditionally-emitted settings for database-seeding reasons, and the
 // reference doubles as the TMI_* env-var allowlist, so it must name every
 // setting the server can read (#810).
-// SEM@e6cee63c3a07d38f471e0ebfb81722849f36085e: build the wiki configuration reference as Markdown from the full registry, with a precedence explainer and bootstrap/operational tables (pure)
 func GenerateReferenceMarkdown() ([]byte, error) {
 	cfg := getDefaultConfig()
 	cfg.Server.TLSSubjectName = "localhost" // deterministic — must not embed the build host's name
@@ -198,7 +197,6 @@ Then add, directly after `GenerateReferenceMarkdown` (before `precedenceSection`
 // declares with a fallback class (database.oracle_wallet_location,
 // content_token_encryption_key) have no classification entry and would
 // otherwise land in neither table.
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: project every config-delivered registry setting into documentation rows, unfiltered (pure)
 func referenceSettings(cfg *Config) []MigratableSetting {
 	defs := AllSettingDefs()
 	out := make([]MigratableSetting, 0, len(defs))
@@ -365,7 +363,6 @@ package config
 // (which doubles as the TMI_* allowlist) by GenerateReferenceMarkdown. The
 // gate test in process_env_test.go fails when a TMI_* token appears in Go
 // source without being declared here or in the registry (#810).
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: describe an env var a binary reads outside the config registry (pure)
 type ProcessEnvVar struct {
 	// Name is the exact variable name or, for a Pattern, the documented
 	// shape with the operator-supplied part in angle brackets, e.g.
@@ -436,7 +433,6 @@ var processEnvVars = []ProcessEnvVar{
 
 // ProcessEnvVars returns a copy of the process-environment inventory, so
 // callers cannot mutate it.
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: list a defensive copy of the process-environment env var inventory (pure)
 func ProcessEnvVars() []ProcessEnvVar {
 	out := make([]ProcessEnvVar, len(processEnvVars))
 	copy(out, processEnvVars)
@@ -481,7 +477,6 @@ and add, after `precedenceSection`:
 // processEnvSection renders the hand-maintained ProcessEnvVars inventory as
 // the "Process environment" section: fixed names grouped by binary in
 // first-appearance order, then the prefix patterns in their own table.
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: render env vars read outside the config registry as Markdown tables grouped by binary (pure)
 func processEnvSection() string {
 	var order []string
 	byBinary := map[string][]ProcessEnvVar{}
@@ -691,7 +686,6 @@ In `internal/config/config.go`, replace lines 226-253 (`SAMLProviderConfig` from
 // overrideSAMLProviders; that reads SAML_PROVIDERS_<ID>_<FIELD> (no TMI_
 // prefix), so env tags on these fields would never be consulted and there
 // are none.
-// SEM@78155d54490599e00095eb72b817575bb1e8da5b: configuration struct for a single SAML provider's SP/IdP metadata, keys, and attribute mappings (pure)
 type SAMLProviderConfig struct {
 	ID                  string `yaml:"id"`
 	Name                string `yaml:"name"`

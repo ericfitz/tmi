@@ -20,7 +20,6 @@ const (
 )
 
 // ParseRotateEvery accepts "<n>d" or any Go duration; zero or negative is an error.
-// SEM@3b682947: parse a rotation interval like 90d or a duration (pure)
 func ParseRotateEvery(v string) (time.Duration, error) {
 	v = strings.TrimSpace(v)
 	if strings.HasSuffix(v, "d") {
@@ -41,7 +40,6 @@ func ParseRotateEvery(v string) (time.Duration, error) {
 // IsDue reports whether the named rotation should start now: never rotated, an
 // unreadable rotated-at, or older than rotate-every (default 90d; an unparsable
 // interval is logged and falls back to the default, never to "now").
-// SEM@3b682947: determine whether a secret's rotation is due (pure)
 func IsDue(s *Secret, name string, now time.Time) bool {
 	last, ok := s.Annotations[AnnRotatedAt+name]
 	if !ok {
@@ -64,7 +62,6 @@ func IsDue(s *Secret, name string, now time.Time) bool {
 }
 
 // AgeDays returns whole days since the last rotation, or -1 if never rotated.
-// SEM@3b682947: compute a secret's age in days since last rotation (pure)
 func AgeDays(s *Secret, name string, now time.Time) int {
 	at, err := time.Parse(time.RFC3339, s.Annotations[AnnRotatedAt+name])
 	if err != nil {

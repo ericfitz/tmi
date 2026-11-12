@@ -13,20 +13,17 @@ import (
 )
 
 // GormTimmyEmbeddingStore implements TimmyEmbeddingStore using GORM
-// SEM@38c9cd78ea6f81a7cfa5891e34a980915566378b: GORM-backed store for Timmy vector embedding records with a read-write mutex
 type GormTimmyEmbeddingStore struct {
 	db    *gorm.DB
 	mutex sync.RWMutex
 }
 
 // NewGormTimmyEmbeddingStore creates a new GORM-backed embedding store
-// SEM@38c9cd78ea6f81a7cfa5891e34a980915566378b: build a new GORM-backed Timmy embedding store (pure)
 func NewGormTimmyEmbeddingStore(db *gorm.DB) *GormTimmyEmbeddingStore {
 	return &GormTimmyEmbeddingStore{db: db}
 }
 
 // ListByThreatModelAndIndexType returns all embeddings for a threat model and index type ordered by entity_type, entity_id, chunk_index
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch all embeddings for a threat model and index type ordered by entity and chunk (reads DB)
 func (s *GormTimmyEmbeddingStore) ListByThreatModelAndIndexType(ctx context.Context, threatModelID, indexType string) ([]models.TimmyEmbedding, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -49,7 +46,6 @@ func (s *GormTimmyEmbeddingStore) ListByThreatModelAndIndexType(ctx context.Cont
 }
 
 // CreateBatch creates a batch of embeddings
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a batch of embedding records in a single retryable transaction (reads DB)
 func (s *GormTimmyEmbeddingStore) CreateBatch(ctx context.Context, embeddings []models.TimmyEmbedding) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -73,7 +69,6 @@ func (s *GormTimmyEmbeddingStore) CreateBatch(ctx context.Context, embeddings []
 }
 
 // DeleteByEntity deletes all embeddings for a specific entity within a threat model
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: delete all embeddings for a specific entity within a threat model and return count removed (reads DB)
 func (s *GormTimmyEmbeddingStore) DeleteByEntity(ctx context.Context, threatModelID, entityType, entityID string) (int64, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -106,7 +101,6 @@ func (s *GormTimmyEmbeddingStore) DeleteByEntity(ctx context.Context, threatMode
 }
 
 // DeleteByThreatModel deletes all embeddings for a threat model
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: delete all embeddings for a threat model and return count removed (reads DB)
 func (s *GormTimmyEmbeddingStore) DeleteByThreatModel(ctx context.Context, threatModelID string) (int64, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -135,7 +129,6 @@ func (s *GormTimmyEmbeddingStore) DeleteByThreatModel(ctx context.Context, threa
 }
 
 // DeleteByThreatModelAndIndexType deletes all embeddings for a threat model and index type
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: delete all embeddings for a threat model and index type and return count removed (reads DB)
 func (s *GormTimmyEmbeddingStore) DeleteByThreatModelAndIndexType(ctx context.Context, threatModelID, indexType string) (int64, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -165,7 +158,6 @@ func (s *GormTimmyEmbeddingStore) DeleteByThreatModelAndIndexType(ctx context.Co
 
 // ListEntityMetadataByThreatModelAndIndexType returns one EntityEmbeddingMeta
 // per entity. See TimmyEmbeddingStore.ListEntityMetadataByThreatModelAndIndexType.
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a map of entity keys to embedding metadata for a threat model and index type (reads DB)
 func (s *GormTimmyEmbeddingStore) ListEntityMetadataByThreatModelAndIndexType(
 	ctx context.Context, threatModelID, indexType string,
 ) (map[EntityKey]EntityEmbeddingMeta, error) {
@@ -215,7 +207,6 @@ func (s *GormTimmyEmbeddingStore) ListEntityMetadataByThreatModelAndIndexType(
 // DeleteEntitiesWithStaleEmbeddingMetadata deletes rows where the stored
 // embedding_model or embedding_dim disagrees with (currentModel, currentDim).
 // See TimmyEmbeddingStore.DeleteEntitiesWithStaleEmbeddingMetadata.
-// SEM@6081f52fc388ecc8072369db4a8490b7b7f499c6: delete embeddings whose model or dimension disagrees with the current configuration (reads DB)
 func (s *GormTimmyEmbeddingStore) DeleteEntitiesWithStaleEmbeddingMetadata(
 	ctx context.Context, threatModelID, indexType, currentModel string, currentDim int,
 ) (int64, error) {

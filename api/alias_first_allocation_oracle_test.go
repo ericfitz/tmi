@@ -22,7 +22,6 @@ import (
 // "row exists" and still hand out distinct, gapless aliases.
 //
 // Run via `make test-integration-oci`.
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: verify concurrent first-ever alias allocations yield distinct gapless aliases on Oracle ADB (writes DB)
 func TestAliasFirstAllocationRaceOracleIntegration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()

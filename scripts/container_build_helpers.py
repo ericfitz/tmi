@@ -11,7 +11,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # --- Colors ---
@@ -115,7 +115,7 @@ def get_git_commit() -> str:
 
 def get_build_date() -> str:
     """Get current UTC timestamp in ISO8601 format."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # --- Build Args ---
@@ -395,7 +395,6 @@ def get_image_tags(
     ]
 
 
-# SEM@c161adfd8ba839441ccd825e818d342a09c63849: run a docker buildx build, returning the pushed manifest digest if known
 def run_docker_build(
     config: TargetConfig,
     dockerfile: str,

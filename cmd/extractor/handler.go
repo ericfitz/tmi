@@ -12,7 +12,6 @@ import (
 
 // subjectTypeToken maps a MIME content type to the extract-subject token
 // (ooxml | pdf | html | plaintext). Unknown types fall back to plaintext.
-// SEM@36720db6f1f6739799ded7c10487674e25b41268: map a MIME content type to the extractor subject token (pure)
 func subjectTypeToken(contentType string) string {
 	ct := strings.ToLower(contentType)
 	switch {
@@ -32,7 +31,6 @@ func subjectTypeToken(contentType string) string {
 // buildExtractorRegistry constructs the registry with every extractor the
 // worker hosts, in priority order. Identical set to the monolith's
 // in-process registry — the extractors are the same pkg/extract code.
-// SEM@36720db6f1f6739799ded7c10487674e25b41268: build the content extractor registry with all supported formats in priority order (pure)
 func buildExtractorRegistry(limits extract.Limits) *extract.ContentExtractorRegistry {
 	reg := extract.NewContentExtractorRegistry()
 	reg.Register(extract.NewDOCXExtractor(limits))
@@ -45,7 +43,6 @@ func buildExtractorRegistry(limits extract.Limits) *extract.ContentExtractorRegi
 }
 
 // extractHandler is the JobHandler for tmi-extractor.
-// SEM@36720db6f1f6739799ded7c10487674e25b41268: worker job handler that extracts text from source blobs and publishes to the chunkembed stage
 type extractHandler struct {
 	conn   *worker.Conn
 	reg    *extract.ContentExtractorRegistry
@@ -54,7 +51,6 @@ type extractHandler struct {
 
 // newExtractHandler builds the handler. limits carries the per-extraction
 // caps and the wall-clock budget.
-// SEM@36720db6f1f6739799ded7c10487674e25b41268: build an extractHandler with a worker connection and extraction limits (pure)
 func newExtractHandler(conn *worker.Conn, limits extract.Limits) *extractHandler {
 	return &extractHandler{conn: conn, reg: buildExtractorRegistry(limits), limits: limits}
 }
@@ -63,7 +59,6 @@ func newExtractHandler(conn *worker.Conn, limits extract.Limits) *extractHandler
 // job or a failure result. A terminal extraction failure is published as a
 // result envelope here and a terminal *worker.JobError is returned so the
 // consumer terminates the message.
-// SEM@36720db6f1f6739799ded7c10487674e25b41268: fetch blob, extract text via registry, and publish extracted content or failure result
 func (h *extractHandler) Handle(ctx context.Context, job jobenvelope.Job) error {
 	logger := slogging.Get()
 
@@ -114,7 +109,6 @@ func (h *extractHandler) Handle(ctx context.Context, job jobenvelope.Job) error 
 
 // extract runs the chosen extractor under the wall-clock budget, using the
 // context-aware path when the extractor supports it.
-// SEM@36720db6f1f6739799ded7c10487674e25b41268: run a content extractor under a wall-clock deadline budget (pure)
 func (h *extractHandler) extract(ctx context.Context, ext extract.ContentExtractor,
 	data []byte, job jobenvelope.Job) (extract.ExtractedContent, error) {
 	budget := h.limits.WallClockBudget
@@ -136,14 +130,12 @@ func (h *extractHandler) extract(ctx context.Context, ext extract.ContentExtract
 
 // publishFailure classifies the error, publishes a failed Result envelope,
 // and returns a terminal *worker.JobError so the message is terminated.
-// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: classify an extraction error and publish a job failure result
 func (h *extractHandler) publishFailure(ctx context.Context, job jobenvelope.Job, extractErr error) error {
 	c := extract.ClassifyError(extractErr)
 	return h.conn.PublishFailureResult(ctx, job.JobID, c.ReasonCode, c.ReasonDetail)
 }
 
 // mergeMetadata folds the extractor's title into the forwarded metadata.
-// SEM@36720db6f1f6739799ded7c10487674e25b41268: merge extractor output title into forwarded job metadata map (pure)
 func mergeMetadata(in map[string]string, out extract.ExtractedContent) map[string]string {
 	m := map[string]string{}
 	for k, v := range in {

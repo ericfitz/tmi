@@ -19,7 +19,6 @@ import (
 // isDBValidationError checks if a database error is related to validation
 // (e.g., string too long, invalid characters, encoding issues).
 // These should be returned as 400 Bad Request rather than 500 Internal Server Error.
-// SEM@b650823b66084bdf6c24237cb2cf375aff547400: validate that a DB error is a field-length or encoding constraint violation (pure)
 func isDBValidationError(err error) bool {
 	if err == nil {
 		return false
@@ -51,7 +50,6 @@ func isDBValidationError(err error) bool {
 }
 
 // ListAdminGroups handles GET /admin/groups
-// SEM@bd2649370a397ca1c5a2e6a68d5d431ba4132bc6: list admin groups with pagination, filtering, and enriched membership data (reads DB)
 func (s *Server) ListAdminGroups(c *gin.Context, params ListAdminGroupsParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -140,7 +138,6 @@ func (s *Server) ListAdminGroups(c *gin.Context, params ListAdminGroupsParams) {
 }
 
 // GetAdminGroup handles GET /admin/groups/{group_id}
-// SEM@0734f383e8c73aef4842c88dc88e90d0440f048a: fetch a single admin group by UUID with enriched authorization data (reads DB)
 func (s *Server) GetAdminGroup(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -181,7 +178,6 @@ func (s *Server) GetAdminGroup(c *gin.Context, internalUuid openapi_types.UUID) 
 // Note: CreateAdminGroupRequest is now generated from OpenAPI spec in api.go
 
 // CreateAdminGroup handles POST /admin/groups
-// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: store a new built-in provider group and audit the creation (writes DB)
 func (s *Server) CreateAdminGroup(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -264,7 +260,6 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 // Note: UpdateAdminGroupRequest is now generated from OpenAPI spec in api.go
 
 // UpdateAdminGroup handles PATCH /admin/groups/{group_id}
-// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: update a group's name or description and audit the change (writes DB)
 func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -360,7 +355,6 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 }
 
 // DeleteAdminGroup handles DELETE /admin/groups/{group_id}
-// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: delete a group and its data; reject protected built-in groups (writes DB)
 func (s *Server) DeleteAdminGroup(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 

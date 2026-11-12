@@ -21,7 +21,7 @@
 - **Test command is `make test-unit`**, never `go test` directly. Single test: `make test-unit name=TestName`.
 - **Lint gate:** `make lint` must report 0 issues before every commit.
 - **Go style:** `gofmt`; imports grouped stdlib / external / internal; exported symbols get godoc comments.
-- **SEM markers:** every new or behavior-changed function gets a `SEM@` marker line. Run `/sem-annotate --update <files>` *after* the code commit (`sem blame` cannot anchor a file not yet in HEAD).
+- **SEM markers:** every new or behavior-changed function gets a `SEM-` marker line. Run `/sem-annotate --update <files>` *after* the code commit (`sem blame` cannot anchor a file not yet in HEAD).
 
 ---
 

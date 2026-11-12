@@ -16,7 +16,6 @@ import (
 
 // credentialDeleter is an interface for deleting client credentials.
 // It is satisfied by *ClientCredentialService and allows unit testing without a real database.
-// SEM@f93cac6939c0b475226359c9bdf3284c0b8d6d1a: interface for deleting a client credential by ID and owner
 type credentialDeleter interface {
 	Delete(ctx context.Context, credID uuid.UUID, ownerUUID uuid.UUID) error
 }
@@ -24,7 +23,6 @@ type credentialDeleter interface {
 // getAutomationUser looks up a user by UUID and verifies they are an automation account.
 // Returns the AdminUser on success. On failure, writes the appropriate error response
 // and returns nil.
-// SEM@f39bc21c3978f8bbff043ff8d3184ec21ff5224f: fetch and authorize an automation user account, rejecting non-automation accounts (reads DB)
 func (s *Server) getAutomationUser(c *gin.Context, internalUuid openapi_types.UUID) *AdminUser {
 	logger := slogging.Get().WithContext(c)
 
@@ -51,7 +49,6 @@ func (s *Server) getAutomationUser(c *gin.Context, internalUuid openapi_types.UU
 }
 
 // ListAdminUserClientCredentials handles GET /admin/users/{user_id}/client_credentials
-// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: list client credentials of an automation user account with pagination (reads DB)
 func (s *Server) ListAdminUserClientCredentials(c *gin.Context, internalUuid openapi_types.UUID, params ListAdminUserClientCredentialsParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -142,7 +139,6 @@ func (s *Server) ListAdminUserClientCredentials(c *gin.Context, internalUuid ope
 }
 
 // CreateAdminUserClientCredential handles POST /admin/users/{user_id}/client_credentials
-// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: build and store a client credential for an automation user, refusing direct_write for administrators, bypassing quota (writes DB)
 func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -293,7 +289,6 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 }
 
 // DeleteAdminUserClientCredential handles DELETE /admin/users/{user_id}/client_credentials/{credential_id}
-// SEM@469dc723f406bfcd7fd46bc19ba3a1f279f40f25: delete a client credential belonging to an automation user account (mutates shared state)
 func (s *Server) DeleteAdminUserClientCredential(c *gin.Context, internalUuid openapi_types.UUID, credentialId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
