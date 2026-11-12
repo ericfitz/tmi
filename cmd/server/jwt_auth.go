@@ -692,7 +692,8 @@ func (a *JWTAuthenticator) checkRevocation(c *gin.Context, logger slogging.Simpl
 }
 
 // autoPromoteFirstUser checks if any administrators exist and promotes the current user if none exist.
-// Adds the user to the Administrators and Security Reviewers built-in groups.
+// Adds the user to the Administrators built-in group only; Security Reviewers
+// membership comes from everyone_is_a_reviewer or an explicit grant (#1156).
 func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.SimpleLogger) error {
 	// Only check if GlobalGroupMemberRepository is initialized
 	if api.GlobalGroupMemberRepository == nil {
@@ -721,7 +722,7 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 		return fmt.Errorf("missing user context (userInternalUUID or provider)")
 	}
 
-	logger.Info("Auto-promoting first user to administrator and security reviewer: email=%s, provider=%s", userEmail, provider)
+	logger.Info("Auto-promoting first user to administrator: email=%s, provider=%s", userEmail, provider)
 
 	// Parse user UUID
 	userUUID, err := uuid.Parse(userInternalUUID)
@@ -738,18 +739,8 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 		return fmt.Errorf("failed to add user to Administrators group: %w", err)
 	}
 
-	// Add user to the Security Reviewers group
-	secReviewersGroupUUID := uuid.MustParse(api.SecurityReviewersGroupUUID)
-	secReviewerNotes := "Auto-promoted as first security reviewer"
-	_, err = api.GlobalGroupMemberRepository.AddMember(c.Request.Context(), secReviewersGroupUUID, userUUID, nil, &secReviewerNotes)
-	if err != nil {
-		logger.Error("Failed to auto-promote first user to security reviewer: email=%s, provider=%s, error=%v",
-			userEmail, provider, err)
-		return fmt.Errorf("failed to add user to Security Reviewers group: %w", err)
-	}
-
 	// AUDIT LOG: Log auto-promotion success
-	logger.Info("[AUDIT] Successfully auto-promoted first user to administrator and security reviewer: user_id=%s, email=%s, provider=%s",
+	logger.Info("[AUDIT] Successfully auto-promoted first user to administrator: user_id=%s, email=%s, provider=%s",
 		userInternalUUID, userEmail, provider)
 
 	return nil

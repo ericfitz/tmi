@@ -94,10 +94,10 @@ func TestStepUpRoundTrip(t *testing.T) {
 	// 2a. Look up the admin user's internal UUID from the DB.
 	t.Log("Step 2a: Looking up admin user's internal UUID")
 	adminInternalUUID, err := db.QueryString(
-		"SELECT internal_uuid FROM users WHERE provider_user_id = 'test-admin' AND provider = 'tmi' FETCH FIRST 1 ROWS ONLY",
+		"SELECT internal_uuid FROM users WHERE provider_user_id = '" + framework.AdminUserID + "' AND provider = 'tmi' FETCH FIRST 1 ROWS ONLY",
 	)
 	if err != nil || adminInternalUUID == "" {
-		t.Fatalf("Could not find test-admin user in DB (err=%v uuid=%q); is the dev server running and test-admin previously authenticated?",
+		t.Fatalf("Could not find charlie user in DB (err=%v uuid=%q); is the dev server running and charlie previously authenticated?",
 			err, adminInternalUUID)
 	}
 	t.Logf("Step 2a: admin internal_uuid = %s", adminInternalUUID)
@@ -149,7 +149,7 @@ func TestStepUpRoundTrip(t *testing.T) {
 	t.Log("Step 3: Re-authenticating admin to get fresh JWT")
 	// Force a new OAuth flow — AuthenticateAdmin caches with sync.Once so we
 	// call AuthenticateUser directly to get uncached fresh tokens.
-	freshTokens2, err := framework.AuthenticateUser("test-admin")
+	freshTokens2, err := framework.AuthenticateUser(framework.AdminUserID)
 	framework.AssertNoError(t, err, "Second AuthenticateUser failed")
 
 	// Mark the time before the write so we can find the audit row.
@@ -204,10 +204,10 @@ func TestStepUpRoundTrip(t *testing.T) {
 
 	// Look up the admin's email to match against the audit row.
 	adminEmail, _ := db.QueryString(
-		"SELECT email FROM users WHERE provider_user_id = 'test-admin' AND provider = 'tmi' FETCH FIRST 1 ROWS ONLY",
+		"SELECT email FROM users WHERE provider_user_id = '" + framework.AdminUserID + "' AND provider = 'tmi' FETCH FIRST 1 ROWS ONLY",
 	)
 	if adminEmail == "" {
-		t.Log("Warning: could not determine test-admin email; audit row check will be less precise")
+		t.Log("Warning: could not determine charlie email; audit row check will be less precise")
 	}
 
 	// Poll briefly for the audit row — the middleware writes it synchronously, but

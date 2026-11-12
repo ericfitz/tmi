@@ -14,9 +14,10 @@ import (
 
 // TestAuditAlertSinkE2E covers the end-to-end acceptance criterion for #395:
 // a PUT /admin/settings write must BOTH:
-//   (a) persist an in-band system audit row (GET /admin/audit/system?field_path=<key>), AND
-//   (b) fire a system_audit.admin_write webhook event delivered to every active
-//       subscription that declared the event type (convenience-feed path).
+//
+//	(a) persist an in-band system audit row (GET /admin/audit/system?field_path=<key>), AND
+//	(b) fire a system_audit.admin_write webhook event delivered to every active
+//	    subscription that declared the event type (convenience-feed path).
 //
 // This test cannot reconfigure the running server's operator config, so it
 // covers the T7 pinned-subscription path at the unit level (Tasks 4/5) and
@@ -173,7 +174,7 @@ func TestAuditAlertSinkE2E(t *testing.T) {
 		t.Logf("entry_id: %s", entryID)
 
 		// actor_email — charlie's email per the login-hint convention
-		charlieEmail := "test-admin@tmi.local"
+		charlieEmail := "charlie@tmi.local"
 		if ae, _ := data["actor_email"].(string); ae != charlieEmail {
 			t.Errorf("envelope.data.actor_email: got %q, want %q", ae, charlieEmail)
 		}

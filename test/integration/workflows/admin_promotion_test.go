@@ -14,13 +14,14 @@ import (
 const administratorsGroupUUID = "00000000-0000-0000-0000-000000000002"
 
 // securityReviewersGroupUUID is the well-known UUID for the built-in Security Reviewers group.
-// auto_promote_first_user adds promoted users to BOTH Administrators and Security Reviewers,
-// so tests that exercise the promotion path must drain both groups for a clean precondition.
+// auto_promote_first_user adds promoted users to Administrators only (#1156), but tests
+// that exercise the promotion path drain both groups so that "first user is not a
+// reviewer" is asserted against a clean Security Reviewers group.
 const securityReviewersGroupUUID = "00000000-0000-0000-0000-000000000001"
 
 // drainAdminGroups removes only TEST-user memberships (provider = 'tmi') from the
 // Administrators and Security Reviewers groups, then polls the dev DB until the
-// test-admin count for both groups settles to 0. Polling absorbs the brief window
+// test-user admin count settles to 0. Polling absorbs the brief window
 // where committed deletes are not yet visible to a subsequent SELECT through a
 // different connection (full-suite runs see this as flakiness; isolated runs do not).
 //
@@ -50,7 +51,7 @@ func drainAdminGroups(db *framework.TestDatabase) error {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("Administrators group still has %s test-admin member(s) after drain", count)
+			return fmt.Errorf("Administrators group still has %s test admin member(s) after drain", count)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -112,7 +113,7 @@ func requireDrainableAdminGroups(t *testing.T, db *framework.TestDatabase) {
 // - PostgreSQL database running with TEST_DB_* environment variables set
 //
 // The test flow:
-// 1. Drain Administrators + Security Reviewers groups (auto-promote populates both)
+// 1. Drain Administrators + Security Reviewers groups (so the reviewer assertion below is meaningful)
 // 2. Authenticate as first user
 // 3. Verify user is promoted to admin (is_admin: true in /me response)
 // 4. Verify admin appears in Administrators group member list
@@ -147,7 +148,7 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		// often leave the Administrators group populated. Skips if a non-test admin is
 		// present (we must not remove real users from built-in groups).
 		requireDrainableAdminGroups(t, db)
-		t.Log("Verified: Administrators group has no test-admin members")
+		t.Log("Verified: Administrators group has no test admin members")
 
 		// Step 2: Now authenticate (this triggers auto-promotion during OAuth flow)
 		firstUserID := framework.UniqueUserID()
@@ -218,6 +219,19 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		}
 		if !foundFirstUser {
 			t.Error("First user not found in Administrators group members")
+		}
+
+		// Step 4b (#1156): first-user promotion grants Administrators only; the
+		// auto-promoted user must NOT be in Security Reviewers (everyone_is_a_reviewer
+		// is off in the dev/integration default).
+		reviewerCount, err := db.QueryString(
+			"SELECT COUNT(*) FROM group_members gm " +
+				"JOIN users u ON u.internal_uuid = gm.user_internal_uuid " +
+				"WHERE gm.group_internal_uuid = '" + securityReviewersGroupUUID + "' " +
+				"AND gm.subject_type = 'user' AND u.email = '" + firstUserEmail + "'")
+		framework.AssertNoError(t, err, "Failed to count first user's Security Reviewers membership")
+		if reviewerCount != "0" {
+			t.Errorf("Auto-promoted first user must not be a Security Reviewer, found %s membership(s)", reviewerCount)
 		}
 	})
 
@@ -338,32 +352,32 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		t.Log("First user admin promotion with clean database verified")
 	})
 
-	// Restore test-admin as admin so subsequent tests that use AuthenticateAdmin() work.
+	// Restore charlie (the harness admin) so subsequent tests that use AuthenticateAdmin() work.
 	// The subtests above clear the Administrators group for isolation, but the cached
-	// test-admin tokens from TestMain rely on test-admin being in the Administrators group.
+	// admin tokens rely on charlie being in the Administrators group.
 	t.Cleanup(func() {
-		// Re-promote test-admin via the same mechanism as AuthenticateAdmin.
+		// Re-promote charlie via the same mechanism as AuthenticateAdmin.
 		// This ensures the cached tokens remain valid for subsequent tests.
 		adminDB, err := framework.NewDevDatabase()
 		if err != nil {
-			t.Logf("Warning: could not restore test-admin (DB connect failed): %v", err)
+			t.Logf("Warning: could not restore charlie (DB connect failed): %v", err)
 			return
 		}
 		defer adminDB.Close()
 
 		userUUID, _ := adminDB.QueryString(
-			"SELECT internal_uuid FROM users WHERE provider_user_id = 'test-admin' AND provider = 'tmi' FETCH FIRST 1 ROWS ONLY",
+			"SELECT internal_uuid FROM users WHERE provider_user_id = '" + framework.AdminUserID + "' AND provider = 'tmi' FETCH FIRST 1 ROWS ONLY",
 		)
 		if userUUID == "" {
-			t.Log("Warning: test-admin user not found in DB, cannot restore admin status")
+			t.Log("Warning: charlie user not found in DB, cannot restore admin status")
 			return
 		}
 		_ = adminDB.InsertIgnoreDuplicate(fmt.Sprintf(
 			"INSERT INTO group_members (id, group_internal_uuid, user_internal_uuid, subject_type, added_at, notes) "+
-				"VALUES ('test-admin-restore', '%s', '%s', 'user', CURRENT_TIMESTAMP, 'Restored by admin_promotion_test cleanup')",
+				"VALUES ('charlie-restore', '%s', '%s', 'user', CURRENT_TIMESTAMP, 'Restored by admin_promotion_test cleanup')",
 			administratorsGroupUUID, userUUID,
 		))
-		t.Log("Restored test-admin to Administrators group")
+		t.Log("Restored charlie to Administrators group")
 	})
 
 	t.Log("All admin promotion tests completed")

@@ -31,7 +31,7 @@ func TestTimmyRuntimeToggle(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
-	tokens, err := framework.AuthenticateUser("charlie")
+	tokens, err := framework.AuthenticateUser(framework.AdminUserID)
 	framework.AssertNoError(t, err, "auth failed")
 
 	client, err := framework.NewClient(serverURL, tokens)

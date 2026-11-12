@@ -73,13 +73,19 @@ func TestSurveyResponseWorkflow(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
-	tokens, err := framework.AuthenticateAdmin()
-	framework.AssertNoError(t, err, "Authentication failed")
+	// The admin (charlie) creates and deletes the survey; the submitter is an
+	// ordinary user (alice) who is not a reviewer on any database state, so the
+	// reviewer-only triage assertions hold on fresh and non-fresh databases (#1156).
+	adminTokens, err := framework.AuthenticateAdmin()
+	framework.AssertNoError(t, err, "Admin authentication failed")
+	adminClient, err := framework.NewClient(serverURL, adminTokens)
+	framework.AssertNoError(t, err, "Failed to create admin client")
 
+	tokens, err := framework.AuthenticateUser("alice")
+	framework.AssertNoError(t, err, "Submitter authentication failed")
 	client, err := framework.NewClient(serverURL, tokens)
 	framework.AssertNoError(t, err, "Failed to create integration client")
 
-	// Admin user is ready (promoted via AuthenticateAdmin)
 	meResp, err := client.Do(framework.Request{Method: "GET", Path: "/me"})
 	framework.AssertNoError(t, err, "Failed to get user profile")
 	framework.AssertStatusOK(t, meResp)
@@ -90,7 +96,7 @@ func TestSurveyResponseWorkflow(t *testing.T) {
 	framework.AssertNoError(t, err, "Failed to parse user profile")
 	userEmail, _ := meData["email"].(string)
 	userProvider, _ := meData["provider"].(string)
-	t.Logf("Admin user ready: %s (%s)", userEmail, userProvider)
+	t.Logf("Submitter ready: %s (%s)", userEmail, userProvider)
 
 	var surveyID string
 	var responseID string
@@ -101,7 +107,7 @@ func TestSurveyResponseWorkflow(t *testing.T) {
 			WithName(framework.UniqueName("Response Test Survey")).
 			WithStatus("active")
 
-		resp, err := client.Do(framework.Request{
+		resp, err := adminClient.Do(framework.Request{
 			Method: "POST",
 			Path:   "/admin/surveys",
 			Body:   fixture,
@@ -287,7 +293,7 @@ func TestSurveyResponseWorkflow(t *testing.T) {
 	})
 
 	// #1100: triage is open only to reviewer-group members; the submitter (here
-	// the admin user, who owns the response) gets 404 on the per-id routes.
+	// the ordinary user alice, who owns the response) gets 404 on the per-id routes.
 	srClient := newReviewerClient(t, serverURL, "test-sr-reviewer", securityReviewersGroupUUID)
 	cprClient := newReviewerClient(t, serverURL, "test-cpr-reviewer", confidentialReviewersGroupUUID)
 
@@ -440,7 +446,7 @@ func TestSurveyResponseWorkflow(t *testing.T) {
 	// Cleanup
 	t.Run("Cleanup_DeleteSurvey", func(t *testing.T) {
 		// Note: survey with responses cannot be deleted, so this tests the conflict case
-		resp, err := client.Do(framework.Request{
+		resp, err := adminClient.Do(framework.Request{
 			Method: "DELETE",
 			Path:   "/admin/surveys/" + surveyID,
 		})

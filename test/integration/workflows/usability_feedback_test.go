@@ -35,7 +35,7 @@ func TestUsabilityFeedback_PostThenAdminGet(t *testing.T) {
 	aliceClient, err := framework.NewClient(serverURL, aliceTokens)
 	framework.AssertNoError(t, err, "Failed to create client for alice")
 
-	// Authenticate as admin (test-admin) to list feedback
+	// Authenticate as admin (charlie) to list feedback
 	adminTokens, err := framework.AuthenticateAdmin()
 	framework.AssertNoError(t, err, "Authentication failed for admin")
 
