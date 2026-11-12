@@ -632,18 +632,17 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 		return
 	}
 
-	// Check if setting is controlled by config/environment
+	// Config-known keys are writable only when a runtime DB write can take
+	// effect (#1160); see configWriteBlock.
 	if s.configProvider != nil {
-		for _, cs := range s.configProvider.GetMigratableSettings() {
-			if cs.Key == key {
-				logger.Warn("Attempted to update config-controlled setting: %s (source: %s)", key, cs.Source)
-				HandleRequestError(c, &RequestError{
-					Status:  http.StatusConflict,
-					Code:    errcode.Conflict,
-					Message: "Setting '" + key + "' is controlled by " + cs.Source + " and cannot be modified via the API",
-				})
-				return
-			}
+		if blocked, source := configWriteBlock(s.configProvider, key); blocked {
+			logger.Warn("Attempted to update config-controlled setting: %s (source: %s)", key, source)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusConflict,
+				Code:    errcode.Conflict,
+				Message: "Setting '" + key + "' is controlled by " + source + " and cannot be modified via the API",
+			})
+			return
 		}
 	}
 
@@ -932,4 +931,59 @@ func modelToAPISystemSetting(m models.SystemSetting) SystemSetting {
 	}
 	setting.Origin = &origin
 	return setting
+}
+
+// providerSubtreePrefixes are the keyed-collection setting subtrees whose
+// config-defined entries shadow database entries with the same provider ID.
+var providerSubtreePrefixes = []string{
+	"auth.oauth.providers.",
+	"auth.saml.providers.",
+	"content_oauth.providers.",
+}
+
+// configWriteBlock reports whether PUT /admin/settings/{key} must be refused
+// with 409 because the config layer controls the key, and the source to name
+// in the error.
+//
+// The rule is def-based, not presence-based. If the key has a SettingDef
+// (config.DefFor) it is writable only when the def is Operational and Hot, the
+// key is not in a provider subtree, and the matching GetMigratableSettings
+// entry (if any; keys omitted when empty have none) is not Explicit. The def
+// is consulted rather than the entry's Class because GetMigratableSettings
+// projects Class from the key registry, which lacks the per-def Static
+// overrides. A key with no def but present in GetMigratableSettings (a
+// generated provider-subtree key) is refused. A key with neither is a custom
+// key and is not blocked.
+func configWriteBlock(provider ConfigProvider, key string) (bool, string) {
+	var entry *MigratableSetting
+	for _, cs := range provider.GetMigratableSettings() {
+		if cs.Key == key {
+			cs := cs
+			entry = &cs
+			break
+		}
+	}
+	source := "server configuration"
+	if entry != nil && entry.Source != "" {
+		source = entry.Source
+	}
+
+	def, hasDef := config.DefFor(key)
+	if !hasDef {
+		return entry != nil, source
+	}
+	if entry != nil && entry.Explicit {
+		return true, source
+	}
+	// Defensive: no SettingDef exists under the provider prefixes today, so
+	// generated provider keys take the !hasDef branch above. This keeps a
+	// future def under those prefixes from making provider config writable.
+	for _, p := range providerSubtreePrefixes {
+		if strings.HasPrefix(key, p) {
+			return true, source
+		}
+	}
+	writable := def.Class.Category == config.CategoryOperational &&
+		def.Class.Mutability == config.MutabilityHot
+	return !writable, source
 }
