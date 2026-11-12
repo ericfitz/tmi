@@ -254,6 +254,10 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 		return
 	}
 
+	// Stamp one microsecond instant; the store persists it and the response
+	// returns it (#1155).
+	user.ModifiedAt = time.Now().UTC().Truncate(time.Microsecond)
+
 	// Update in database
 	err = GlobalUserStore.Update(c.Request.Context(), *user)
 	if err != nil {

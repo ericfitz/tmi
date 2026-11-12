@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth"
@@ -161,11 +162,18 @@ func (s *GormUserStore) GetByProviderAndID(ctx context.Context, provider string,
 
 // Update updates user metadata (email, name, email_verified)
 func (s *GormUserStore) Update(ctx context.Context, user AdminUser) error {
-	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
+	// modified_at: the caller's value (the handler stamps it and returns it), so
+	// the response equals the stored row; zero falls back to now. Keyed by Go
+	// field name so autoUpdateTime does not inject a second instant (#1155).
+	modifiedAt := user.ModifiedAt.UTC().Truncate(time.Microsecond)
+	if user.ModifiedAt.IsZero() {
+		modifiedAt = time.Now().UTC().Truncate(time.Microsecond)
+	}
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.User{}).
 			Where("internal_uuid = ?", user.InternalUuid.String()).
 			Updates(map[string]any{
+				"ModifiedAt":     modifiedAt,
 				"email":          string(user.Email),
 				"name":           user.Name,
 				"email_verified": user.EmailVerified,

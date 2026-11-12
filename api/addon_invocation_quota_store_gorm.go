@@ -120,7 +120,7 @@ func (s *GormAddonInvocationQuotaStore) Count(ctx context.Context) (int, error) 
 func (s *GormAddonInvocationQuotaStore) Set(ctx context.Context, quota *AddonInvocationQuota) error {
 	logger := slogging.Get()
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	if quota.CreatedAt.IsZero() {
 		quota.CreatedAt = now
 	}

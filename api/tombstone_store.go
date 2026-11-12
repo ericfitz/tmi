@@ -79,7 +79,7 @@ func (s *GormThreatModelStore) SoftDelete(ctx context.Context, id string) error 
 	defer s.mutex.Unlock()
 
 	logger := slogging.Get()
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Verify the threat model exists and is not already deleted
@@ -284,7 +284,7 @@ func (s *GormDiagramStore) SoftDelete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// 1. Soft-delete the diagram
@@ -357,7 +357,7 @@ func (s *GormDocumentRepository) SoftDelete(ctx context.Context, id string) erro
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Use Model with primary key set to satisfy Oracle GORM driver's WHERE clause check.
 		// Oracle's GORM driver rejects UpdateColumn with Model(&empty{}).Where(...) as
@@ -431,7 +431,7 @@ func (s *GormNoteRepository) SoftDelete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.Note{ID: models.DBVarchar(id)}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 		if result.Error != nil {
@@ -501,7 +501,7 @@ func (s *GormRepositoryRepository) SoftDelete(ctx context.Context, id string) er
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.Repository{ID: models.DBVarchar(id)}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 		if result.Error != nil {
@@ -568,7 +568,7 @@ func (s *GormRepositoryRepository) GetIncludingDeleted(ctx context.Context, id s
 // GormAssetRepository tombstone methods
 
 func (s *GormAssetRepository) SoftDelete(ctx context.Context, id string) error {
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.Asset{ID: models.DBVarchar(id)}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 		if result.Error != nil {
@@ -629,7 +629,7 @@ func (s *GormAssetRepository) GetIncludingDeleted(ctx context.Context, id string
 // GormThreatRepository tombstone methods
 
 func (s *GormThreatRepository) SoftDelete(ctx context.Context, id string) error {
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.Threat{ID: models.DBVarchar(id)}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 		if result.Error != nil {
@@ -674,7 +674,7 @@ func (s *GormThreatRepository) BulkSoftDelete(ctx context.Context, threatModelID
 		return nil
 	}
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.Threat{}).
 			Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID).

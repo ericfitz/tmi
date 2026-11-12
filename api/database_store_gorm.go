@@ -849,11 +849,17 @@ func (s *GormThreatModelStore) Create(ctx context.Context, item ThreatModel, idS
 		}
 
 		// Set timestamps
+		// Normalize the caller's values (UTC, microsecond) and mirror them back,
+		// as update() does, so the response equals the stored row (#1155).
 		if item.CreatedAt != nil {
-			tm.CreatedAt = *item.CreatedAt
+			createdAt := item.CreatedAt.UTC().Truncate(time.Microsecond)
+			tm.CreatedAt = createdAt
+			item.CreatedAt = &createdAt
 		}
 		if item.ModifiedAt != nil {
-			tm.ModifiedAt = *item.ModifiedAt
+			modifiedAt := item.ModifiedAt.UTC().Truncate(time.Microsecond)
+			tm.ModifiedAt = modifiedAt
+			item.ModifiedAt = &modifiedAt
 		}
 
 		// Allocate alias before inserting
@@ -942,7 +948,10 @@ func (s *GormThreatModelStore) Create(ctx context.Context, item ThreatModel, idS
 // Contract: callers must stamp ModifiedAt (UpdateTimestamps) before calling.
 // The stored modified_at is exactly the caller's value, so a stale value is
 // stored as stale. A nil ModifiedAt falls back to the current microsecond
-// instant (#1155).
+// instant (#1155). The stamp is taken before the store mutex, so overlapping
+// unversioned writes can commit in the opposite order to their stamps and
+// modified_at can step back by milliseconds; versioned (If-Match) writes are
+// unaffected.
 func (s *GormThreatModelStore) update(ctx context.Context, id string, item ThreatModel, expectedVersion *int) (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -1754,11 +1763,17 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 	}
 
 	// Set timestamps
+	// Normalize the caller's values (UTC, microsecond) and mirror them back so
+	// the response equals the stored row (#1155).
 	if item.CreatedAt != nil {
-		diagram.CreatedAt = *item.CreatedAt
+		createdAt := item.CreatedAt.UTC().Truncate(time.Microsecond)
+		diagram.CreatedAt = createdAt
+		item.CreatedAt = &createdAt
 	}
 	if item.ModifiedAt != nil {
-		diagram.ModifiedAt = *item.ModifiedAt
+		modifiedAt := item.ModifiedAt.UTC().Truncate(time.Microsecond)
+		diagram.ModifiedAt = modifiedAt
+		item.ModifiedAt = &modifiedAt
 	}
 
 	// Allocate alias and insert diagram inside a transaction
@@ -1802,7 +1817,10 @@ func (s *GormDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, str
 // Contract: callers must stamp ModifiedAt (UpdateTimestamps) before calling.
 // The stored modified_at is exactly the caller's value, so a stale value is
 // stored as stale. A nil ModifiedAt falls back to the current microsecond
-// instant (#1155).
+// instant (#1155). The stamp is taken before the store mutex, so overlapping
+// unversioned writes can commit in the opposite order to their stamps and
+// modified_at can step back by milliseconds; versioned (If-Match) writes are
+// unaffected.
 func (s *GormDiagramStore) update(ctx context.Context, id string, item DfdDiagram, expectedVersion *int) (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

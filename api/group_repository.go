@@ -172,10 +172,10 @@ func (r *GormGroupRepository) Create(ctx context.Context, group Group) error {
 		group.InternalUUID = uuid.New()
 	}
 	if group.FirstUsed.IsZero() {
-		group.FirstUsed = time.Now().UTC()
+		group.FirstUsed = time.Now().UTC().Truncate(time.Microsecond)
 	}
 	if group.LastUsed.IsZero() {
-		group.LastUsed = time.Now().UTC()
+		group.LastUsed = time.Now().UTC().Truncate(time.Microsecond)
 	}
 	if group.UsageCount == 0 {
 		group.UsageCount = 1
@@ -199,13 +199,21 @@ func (r *GormGroupRepository) Create(ctx context.Context, group Group) error {
 
 // Update updates group metadata (name, description)
 func (r *GormGroupRepository) Update(ctx context.Context, group Group) error {
+	// last_used: the caller's value (the handler returns it), zero falls back to
+	// now. Keyed "LastUsed" (Go field name): Group.LastUsed is autoUpdateTime and
+	// hooks run here, so a lowercase key would not suppress gorm-oracle's
+	// injection and LAST_USED would be assigned twice (ORA-00957) (#1155).
+	lastUsed := group.LastUsed.UTC().Truncate(time.Microsecond)
+	if group.LastUsed.IsZero() {
+		lastUsed = time.Now().UTC().Truncate(time.Microsecond)
+	}
 	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.Group{}).
 			Where("internal_uuid = ?", group.InternalUUID.String()).
 			Updates(map[string]any{
 				"name":        ptrOrNil(group.Name),
 				"description": ptrOrNil(group.Description),
-				"last_used":   time.Now().UTC(),
+				"LastUsed":    lastUsed,
 			})
 
 		if result.Error != nil {

@@ -214,48 +214,72 @@ func (h *AuditHandler) performRollback(c *gin.Context, entry *AuditEntryResponse
 		return nil, ServerError(fmt.Sprintf("Failed to deserialize snapshot: %v", err))
 	}
 
+	var (
+		times rollbackTimes
+		err   error
+	)
 	switch entry.ObjectType {
 	case models.ObjectTypeThreatModel:
-		// The stored row carries the fresh modified_at stamped by the rollback,
-		// not the snapshot's historical one; report the stored value (#1155).
-		modifiedAt, err := h.rollbackThreatModel(ctx, entry, snapshotData)
-		if err == nil {
-			restoredMap["modified_at"] = modifiedAt
-		}
-		return restoredMap, err
+		times, err = h.rollbackThreatModel(ctx, entry, snapshotData)
 	case models.ObjectTypeDiagram:
-		modifiedAt, err := h.rollbackDiagram(ctx, entry, snapshotData)
-		if err == nil {
-			restoredMap["modified_at"] = modifiedAt
-		}
-		return restoredMap, err
+		times, err = h.rollbackDiagram(ctx, entry, snapshotData)
 	case models.ObjectTypeThreat:
-		return restoredMap, h.rollbackThreat(ctx, entry, snapshotData)
+		times, err = h.rollbackThreat(ctx, entry, snapshotData)
 	case models.ObjectTypeAsset:
-		return restoredMap, h.rollbackAsset(ctx, entry, snapshotData)
+		times, err = h.rollbackAsset(ctx, entry, snapshotData)
 	case models.ObjectTypeDocument:
-		return restoredMap, h.rollbackDocument(ctx, entry, snapshotData)
+		times, err = h.rollbackDocument(ctx, entry, snapshotData)
 	case models.ObjectTypeNote:
-		return restoredMap, h.rollbackNote(ctx, entry, snapshotData)
+		times, err = h.rollbackNote(ctx, entry, snapshotData)
 	case models.ObjectTypeRepository:
-		return restoredMap, h.rollbackRepository(ctx, entry, snapshotData)
+		times, err = h.rollbackRepository(ctx, entry, snapshotData)
 	default:
 		return nil, ServerError(fmt.Sprintf("Unsupported object type for rollback: %s", entry.ObjectType))
 	}
-}
-
-// stamped pairs the modified_at a rollback stored with the store call's error.
-func stamped(modifiedAt *time.Time, err error) (time.Time, error) {
-	if err != nil || modifiedAt == nil {
-		return time.Time{}, err
+	if err != nil {
+		return restoredMap, err
 	}
-	return *modifiedAt, nil
+	// The stored row carries the timestamps the store stamped during the
+	// rollback, not the snapshot's historical ones; report the stored values
+	// in the response and the audit CurrentState (#1155).
+	times.overlay(restoredMap)
+	return restoredMap, nil
 }
 
-func (h *AuditHandler) rollbackThreatModel(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) (time.Time, error) {
+// rollbackTimes holds the timestamps a rollback's store call stamped on the
+// row, so the response can report what is stored.
+type rollbackTimes struct {
+	createdAt  *time.Time
+	modifiedAt *time.Time
+}
+
+// overlay writes the stored timestamps onto the restored entity map.
+func (r rollbackTimes) overlay(restored map[string]interface{}) {
+	if r.createdAt != nil {
+		restored["created_at"] = *r.createdAt
+	}
+	if r.modifiedAt != nil {
+		restored["modified_at"] = *r.modifiedAt
+	}
+}
+
+// rollbackResult pairs a rollback store call's error with the timestamps it
+// stamped. A successful rollback must have stamped modified_at; a missing value
+// is an error rather than a zero time in the response.
+func rollbackResult(created, modified *time.Time, err error) (rollbackTimes, error) {
+	if err != nil {
+		return rollbackTimes{}, err
+	}
+	if modified == nil {
+		return rollbackTimes{}, ServerError("Rollback did not record modified_at")
+	}
+	return rollbackTimes{createdAt: created, modifiedAt: modified}, nil
+}
+
+func (h *AuditHandler) rollbackThreatModel(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) (rollbackTimes, error) {
 	var tm ThreatModel
 	if err := json.Unmarshal(snapshotData, &tm); err != nil {
-		return time.Time{}, ServerError(fmt.Sprintf("Failed to deserialize threat model snapshot: %v", err))
+		return rollbackTimes{}, ServerError(fmt.Sprintf("Failed to deserialize threat model snapshot: %v", err))
 	}
 
 	// The snapshot carries its historical modified_at; stamp a fresh one so the
@@ -265,18 +289,18 @@ func (h *AuditHandler) rollbackThreatModel(ctx context.Context, entry *AuditEntr
 	if entry.ChangeType == models.ChangeTypeDeleted {
 		// Try to restore the tombstone first; fall back to create if already hard-deleted
 		if err := ThreatModelStore.Restore(entry.ObjectID); err == nil {
-			return stamped(tm.ModifiedAt, ThreatModelStore.Update(ctx, entry.ObjectID, tm))
+			return rollbackResult(nil, tm.ModifiedAt, ThreatModelStore.Update(ctx, entry.ObjectID, tm))
 		}
 		_, err := ThreatModelStore.Create(ctx, tm, func(t ThreatModel, id string) ThreatModel { return t })
-		return stamped(tm.ModifiedAt, err)
+		return rollbackResult(nil, tm.ModifiedAt, err)
 	}
-	return stamped(tm.ModifiedAt, ThreatModelStore.Update(ctx, entry.ObjectID, tm))
+	return rollbackResult(nil, tm.ModifiedAt, ThreatModelStore.Update(ctx, entry.ObjectID, tm))
 }
 
-func (h *AuditHandler) rollbackDiagram(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) (time.Time, error) {
+func (h *AuditHandler) rollbackDiagram(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) (rollbackTimes, error) {
 	var diagram DfdDiagram
 	if err := json.Unmarshal(snapshotData, &diagram); err != nil {
-		return time.Time{}, ServerError(fmt.Sprintf("Failed to deserialize diagram snapshot: %v", err))
+		return rollbackTimes{}, ServerError(fmt.Sprintf("Failed to deserialize diagram snapshot: %v", err))
 	}
 
 	// Stamp a fresh modified_at instead of the snapshot's historical one (#1155).
@@ -284,87 +308,102 @@ func (h *AuditHandler) rollbackDiagram(ctx context.Context, entry *AuditEntryRes
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
 		if err := DiagramStore.Restore(entry.ObjectID); err == nil {
-			return stamped(diagram.ModifiedAt, DiagramStore.Update(ctx, entry.ObjectID, diagram))
+			return rollbackResult(nil, diagram.ModifiedAt, DiagramStore.Update(ctx, entry.ObjectID, diagram))
 		}
 		_, err := DiagramStore.CreateWithThreatModel(diagram, entry.ThreatModelID, func(d DfdDiagram, id string) DfdDiagram { return d })
-		return stamped(diagram.ModifiedAt, err)
+		return rollbackResult(nil, diagram.ModifiedAt, err)
 	}
-	return stamped(diagram.ModifiedAt, DiagramStore.Update(ctx, entry.ObjectID, diagram))
+	return rollbackResult(nil, diagram.ModifiedAt, DiagramStore.Update(ctx, entry.ObjectID, diagram))
 }
 
-func (h *AuditHandler) rollbackThreat(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
+func (h *AuditHandler) rollbackThreat(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) (rollbackTimes, error) {
 	var threat Threat
 	if err := json.Unmarshal(snapshotData, &threat); err != nil {
-		return ServerError(fmt.Sprintf("Failed to deserialize threat snapshot: %v", err))
+		return rollbackTimes{}, ServerError(fmt.Sprintf("Failed to deserialize threat snapshot: %v", err))
 	}
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
 		if err := GlobalThreatRepository.Restore(ctx, entry.ObjectID); err == nil {
-			return GlobalThreatRepository.Update(ctx, &threat)
+			err := GlobalThreatRepository.Update(ctx, &threat)
+			return rollbackResult(threat.CreatedAt, threat.ModifiedAt, err)
 		}
-		return GlobalThreatRepository.Create(ctx, &threat)
+		err := GlobalThreatRepository.Create(ctx, &threat)
+		return rollbackResult(threat.CreatedAt, threat.ModifiedAt, err)
 	}
-	return GlobalThreatRepository.Update(ctx, &threat)
+	err := GlobalThreatRepository.Update(ctx, &threat)
+	return rollbackResult(threat.CreatedAt, threat.ModifiedAt, err)
 }
 
-func (h *AuditHandler) rollbackAsset(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
+func (h *AuditHandler) rollbackAsset(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) (rollbackTimes, error) {
 	var asset Asset
 	if err := json.Unmarshal(snapshotData, &asset); err != nil {
-		return ServerError(fmt.Sprintf("Failed to deserialize asset snapshot: %v", err))
+		return rollbackTimes{}, ServerError(fmt.Sprintf("Failed to deserialize asset snapshot: %v", err))
 	}
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
 		if err := GlobalAssetRepository.Restore(ctx, entry.ObjectID); err == nil {
-			return GlobalAssetRepository.Update(ctx, &asset, entry.ThreatModelID)
+			err := GlobalAssetRepository.Update(ctx, &asset, entry.ThreatModelID)
+			return rollbackResult(asset.CreatedAt, asset.ModifiedAt, err)
 		}
-		return GlobalAssetRepository.Create(ctx, &asset, entry.ThreatModelID)
+		err := GlobalAssetRepository.Create(ctx, &asset, entry.ThreatModelID)
+		return rollbackResult(asset.CreatedAt, asset.ModifiedAt, err)
 	}
-	return GlobalAssetRepository.Update(ctx, &asset, entry.ThreatModelID)
+	err := GlobalAssetRepository.Update(ctx, &asset, entry.ThreatModelID)
+	return rollbackResult(asset.CreatedAt, asset.ModifiedAt, err)
 }
 
-func (h *AuditHandler) rollbackDocument(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
+func (h *AuditHandler) rollbackDocument(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) (rollbackTimes, error) {
 	var doc Document
 	if err := json.Unmarshal(snapshotData, &doc); err != nil {
-		return ServerError(fmt.Sprintf("Failed to deserialize document snapshot: %v", err))
+		return rollbackTimes{}, ServerError(fmt.Sprintf("Failed to deserialize document snapshot: %v", err))
 	}
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
 		if err := GlobalDocumentRepository.Restore(ctx, entry.ObjectID); err == nil {
-			return GlobalDocumentRepository.Update(ctx, &doc, entry.ThreatModelID)
+			err := GlobalDocumentRepository.Update(ctx, &doc, entry.ThreatModelID)
+			return rollbackResult(doc.CreatedAt, doc.ModifiedAt, err)
 		}
-		return GlobalDocumentRepository.Create(ctx, &doc, entry.ThreatModelID)
+		err := GlobalDocumentRepository.Create(ctx, &doc, entry.ThreatModelID)
+		return rollbackResult(doc.CreatedAt, doc.ModifiedAt, err)
 	}
-	return GlobalDocumentRepository.Update(ctx, &doc, entry.ThreatModelID)
+	err := GlobalDocumentRepository.Update(ctx, &doc, entry.ThreatModelID)
+	return rollbackResult(doc.CreatedAt, doc.ModifiedAt, err)
 }
 
-func (h *AuditHandler) rollbackNote(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
+func (h *AuditHandler) rollbackNote(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) (rollbackTimes, error) {
 	var note Note
 	if err := json.Unmarshal(snapshotData, &note); err != nil {
-		return ServerError(fmt.Sprintf("Failed to deserialize note snapshot: %v", err))
+		return rollbackTimes{}, ServerError(fmt.Sprintf("Failed to deserialize note snapshot: %v", err))
 	}
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
 		if err := GlobalNoteRepository.Restore(ctx, entry.ObjectID); err == nil {
-			return GlobalNoteRepository.Update(ctx, &note, entry.ThreatModelID)
+			err := GlobalNoteRepository.Update(ctx, &note, entry.ThreatModelID)
+			return rollbackResult(note.CreatedAt, note.ModifiedAt, err)
 		}
-		return GlobalNoteRepository.Create(ctx, &note, entry.ThreatModelID)
+		err := GlobalNoteRepository.Create(ctx, &note, entry.ThreatModelID)
+		return rollbackResult(note.CreatedAt, note.ModifiedAt, err)
 	}
-	return GlobalNoteRepository.Update(ctx, &note, entry.ThreatModelID)
+	err := GlobalNoteRepository.Update(ctx, &note, entry.ThreatModelID)
+	return rollbackResult(note.CreatedAt, note.ModifiedAt, err)
 }
 
-func (h *AuditHandler) rollbackRepository(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
+func (h *AuditHandler) rollbackRepository(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) (rollbackTimes, error) {
 	var repo Repository
 	if err := json.Unmarshal(snapshotData, &repo); err != nil {
-		return ServerError(fmt.Sprintf("Failed to deserialize repository snapshot: %v", err))
+		return rollbackTimes{}, ServerError(fmt.Sprintf("Failed to deserialize repository snapshot: %v", err))
 	}
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
 		if err := GlobalRepositoryRepository.Restore(ctx, entry.ObjectID); err == nil {
-			return GlobalRepositoryRepository.Update(ctx, &repo, entry.ThreatModelID)
+			err := GlobalRepositoryRepository.Update(ctx, &repo, entry.ThreatModelID)
+			return rollbackResult(repo.CreatedAt, repo.ModifiedAt, err)
 		}
-		return GlobalRepositoryRepository.Create(ctx, &repo, entry.ThreatModelID)
+		err := GlobalRepositoryRepository.Create(ctx, &repo, entry.ThreatModelID)
+		return rollbackResult(repo.CreatedAt, repo.ModifiedAt, err)
 	}
-	return GlobalRepositoryRepository.Update(ctx, &repo, entry.ThreatModelID)
+	err := GlobalRepositoryRepository.Update(ctx, &repo, entry.ThreatModelID)
+	return rollbackResult(repo.CreatedAt, repo.ModifiedAt, err)
 }
 
 // Sub-resource audit trail handlers - delegate to TM-level query with object type filter
