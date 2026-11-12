@@ -731,7 +731,7 @@ func (s *GormDocumentRepository) UpdateAccessStatusWithDiagnostics(
 	// than writing "" verbatim, which a raw string in the map would do.
 	updates := map[string]interface{}{
 		"access_status":            models.NewNullableDBVarchar(&accessStatus),
-		"access_status_updated_at": time.Now(),
+		"access_status_updated_at": time.Now().UTC().Truncate(time.Microsecond),
 	}
 	if contentSource != "" {
 		updates["content_source"] = contentSource
@@ -884,7 +884,7 @@ func (s *GormDocumentRepository) SetPickerMetadata(
 		"picker_mime_type":         models.NewNullableDBVarchar(&mimeType),
 		"access_status":            AccessStatusUnknown,
 		"content_source":           models.NewNullableDBVarchar(&providerID),
-		"access_status_updated_at": time.Now(),
+		"access_status_updated_at": time.Now().UTC().Truncate(time.Microsecond),
 	}
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Table(models.Document{}.TableName()).
@@ -924,7 +924,7 @@ func (s *GormDocumentRepository) ClearPickerMetadataForOwner(
 		"access_status":            AccessStatusUnknown,
 		"access_reason_code":       nil,
 		"access_reason_detail":     nil,
-		"access_status_updated_at": time.Now(),
+		"access_status_updated_at": time.Now().UTC().Truncate(time.Microsecond),
 	}
 	var rowsAffected int64
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {

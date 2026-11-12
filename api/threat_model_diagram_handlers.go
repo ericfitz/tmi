@@ -137,7 +137,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	request.Description = SanitizeOptionalString(request.Description)
 
 	// Create new diagram
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	cells := []DfdDiagram_Cells_Item{}
 	metadata := []Metadata{}
 	initialUpdateVector := int64(0)

@@ -33,6 +33,16 @@ func (s *GormTimmySessionStore) Create(ctx context.Context, session *models.Timm
 	logger := slogging.Get()
 	logger.Debug("Creating Timmy session for user %s, threat model %s", session.UserID, session.ThreatModelID)
 
+	// One explicit microsecond instant, so the SSE session_created event equals
+	// what a later GET returns (#1155).
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	if session.CreatedAt.IsZero() {
+		session.CreatedAt = now
+	}
+	if session.ModifiedAt.IsZero() {
+		session.ModifiedAt = now
+	}
+
 	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(session).Error; err != nil {
@@ -122,7 +132,7 @@ func (s *GormTimmySessionStore) SoftDelete(ctx context.Context, id string) error
 	logger := slogging.Get()
 	logger.Debug("Soft deleting Timmy session %s", id)
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.
 			Model(&models.TimmySession{}).
@@ -233,6 +243,11 @@ func (s *GormTimmyMessageStore) Create(ctx context.Context, message *models.Timm
 
 	logger := slogging.Get()
 	logger.Debug("Creating Timmy message for session %s (sequence=%d)", message.SessionID, message.Sequence)
+
+	// Explicit microsecond instant for the SSE message_end event (#1155).
+	if message.CreatedAt.IsZero() {
+		message.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
+	}
 
 	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {

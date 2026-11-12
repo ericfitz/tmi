@@ -74,7 +74,7 @@ func (r *GormMetadataRepository) Create(ctx context.Context, entityType, entityI
 		return err
 	}
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	model := models.Metadata{
 		ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
@@ -200,7 +200,7 @@ func (r *GormMetadataRepository) Update(ctx context.Context, entityType, entityI
 			Where("entity_type = ? AND entity_id = ? AND key = ?", entityType, entityID, metadata.Key).
 			Updates(AssignmentMap(tx.Name(), map[string]any{
 				"value":       metadata.Value,
-				"modified_at": time.Now().UTC(),
+				"modified_at": time.Now().UTC().Truncate(time.Microsecond),
 			}))
 
 		if result.Error != nil {
@@ -361,7 +361,7 @@ func (r *GormMetadataRepository) BulkCreate(ctx context.Context, entityType, ent
 		return err
 	}
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	// keys is also the fallback conflict set: if a duplicate-key error surfaces
 	// from the batch insert but the existing-keys probe below can't name the
@@ -456,7 +456,7 @@ func (r *GormMetadataRepository) BulkUpdate(ctx context.Context, entityType, ent
 		return err
 	}
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	entries := make([]models.Metadata, len(metadata))
 	for i, meta := range metadata {
@@ -538,7 +538,7 @@ func (r *GormMetadataRepository) BulkReplace(ctx context.Context, entityType, en
 		return err
 	}
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	entries := make([]models.Metadata, len(metadata))
 	for i, meta := range metadata {

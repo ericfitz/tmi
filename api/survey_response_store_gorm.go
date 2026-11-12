@@ -610,7 +610,7 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 	}
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	updates := map[string]any{
 		"status": newStatus,
 	}

@@ -129,6 +129,11 @@ func (s *GormTeamNoteStore) Create(ctx context.Context, note *TeamNote, teamID s
 
 	record := teamNoteToRecord(note, teamID)
 	record.ID = models.DBVarchar(note.Id.String())
+	// One explicit microsecond instant for both columns, so the response equals
+	// what a later GET returns (#1155).
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	record.CreatedAt = now
+	record.ModifiedAt = now
 
 	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
@@ -193,12 +198,26 @@ func (s *GormTeamNoteStore) Update(ctx context.Context, id string, note *TeamNot
 	if note.Sharable != nil {
 		existing.Sharable = models.DBBool(*note.Sharable)
 	}
-	existing.ModifiedAt = time.Now().UTC()
+	existing.ModifiedAt = time.Now().UTC().Truncate(time.Microsecond)
 
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		if err := tx.Save(&existing).Error; err != nil {
+		// Updates with an explicit "ModifiedAt" (Go field name) rather than
+		// Save: Save lets autoUpdateTime overwrite ModifiedAt with a second
+		// instant, so the response would differ from the stored value (#1155).
+		res := tx.Model(&existing).Updates(map[string]any{
+			"Name":         existing.Name,
+			"Content":      existing.Content,
+			"Description":  existing.Description,
+			"TimmyEnabled": existing.TimmyEnabled,
+			"Sharable":     existing.Sharable,
+			"ModifiedAt":   existing.ModifiedAt,
+		})
+		if err := res.Error; err != nil {
 			logger.Error("Failed to update team note: %v", err)
 			return dberrors.Classify(err)
+		}
+		if res.RowsAffected == 0 {
+			return ErrTeamNoteNotFound
 		}
 		return nil
 	})

@@ -130,7 +130,7 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 	result := tx.Clauses(clause.OnConflict{
 		Columns: []clause.Column{Col(dialect, "provider"), Col(dialect, "group_name")},
 		DoUpdates: clause.Assignments(AssignmentMap(dialect, map[string]any{
-			"last_used":   time.Now().UTC(),
+			"last_used":   time.Now().UTC().Truncate(time.Microsecond),
 			"usage_count": gorm.Expr("usage_count + 1"),
 		})),
 	}).Create(&group)
@@ -818,7 +818,7 @@ func (s *GormThreatModelStore) Create(ctx context.Context, item ThreatModel, idS
 		if item.Status != nil && *item.Status != "" {
 			status = *item.Status
 		}
-		statusUpdated := time.Now().UTC()
+		statusUpdated := time.Now().UTC().Truncate(time.Microsecond)
 
 		// Create GORM model
 		isConfidential := models.DBBool(false)
@@ -974,7 +974,7 @@ func (s *GormThreatModelStore) update(ctx context.Context, id string, item Threa
 		}
 		var statusUpdated *time.Time
 		if newStatus != existingTM.Status {
-			now := time.Now().UTC()
+			now := time.Now().UTC().Truncate(time.Microsecond)
 			statusUpdated = &now
 		}
 
@@ -1022,8 +1022,17 @@ func (s *GormThreatModelStore) update(ctx context.Context, id string, item Threa
 		// models.NullableDB* constructor so Value() gets a chance to
 		// normalize empty string to NULL (#700); a raw *string in the map
 		// bypasses the Valuer and would persist "" verbatim.
-		// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
+		// modified_at: use the caller's value, which the handler already returned
+		// or will return, so the response equals the stored row. Keyed by Go field
+		// name ("ModifiedAt") so GORM's autoUpdateTime does not inject a second
+		// instant, and so Oracle does not see a duplicate column (ORA-00957) while
+		// the BeforeUpdate hook runs (#1155).
+		modifiedAt := time.Now().UTC().Truncate(time.Microsecond)
+		if item.ModifiedAt != nil {
+			modifiedAt = item.ModifiedAt.UTC().Truncate(time.Microsecond)
+		}
 		updates := map[string]any{
+			"ModifiedAt":                      modifiedAt,
 			"name":                            item.Name,
 			"description":                     models.NewNullableDBText(item.Description),
 			"owner_internal_uuid":             ownerUUID,
@@ -1822,12 +1831,20 @@ func (s *GormDiagramStore) update(ctx context.Context, id string, item DfdDiagra
 		colorPaletteJSON = models.JSONRaw(cpJSON)
 	}
 
-	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag.
+	// modified_at: use the caller's value (the one the response carries) so the
+	// response equals the stored row. Keyed by Go field name ("ModifiedAt") so
+	// autoUpdateTime does not inject a second instant and Oracle sees no
+	// duplicate column (ORA-00957) while the BeforeUpdate hook runs (#1155).
+	modifiedAt := time.Now().UTC().Truncate(time.Microsecond)
+	if item.ModifiedAt != nil {
+		modifiedAt = item.ModifiedAt.UTC().Truncate(time.Microsecond)
+	}
 	// Nullable-typed columns pass through their models.NullableDB*
 	// constructor so Value() gets a chance to normalize empty string to NULL
 	// (#700); a raw *string in the map bypasses the Valuer and would persist
 	// "" verbatim.
 	updates := map[string]any{
+		"ModifiedAt":          modifiedAt,
 		"name":                item.Name,
 		"description":         models.NewNullableDBText(item.Description),
 		"type":                models.NewNullableDBVarchar(diagType),

@@ -209,7 +209,7 @@ func findOrCreateUserWithResolver(ctx context.Context, c *gin.Context, r userRes
 	logger.Debug("No existing user found, will create new: provider=%s, provider_id=%s, email=%s",
 		providerID, providerUserID, email)
 
-	nowTime := time.Now()
+	nowTime := time.Now().UTC().Truncate(time.Microsecond)
 	newUser := User{
 		Provider:       providerID,
 		ProviderUserID: providerUserID,
@@ -259,7 +259,7 @@ func (h *Handlers) updateUserOnLogin(ctx context.Context, c *gin.Context, user *
 	logger := slogging.Get().WithContext(c)
 	updateNeeded := false
 
-	now := time.Now()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	user.LastLogin = &now
 	user.ModifiedAt = now
 

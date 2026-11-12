@@ -53,7 +53,7 @@ type SurveyAnswerStore interface {
 // corresponding key in answers, AnswerValue is left nil.
 func buildAnswerRows(responseID string, questions []SurveyQuestion, answers map[string]any, responseStatus string) ([]SurveyAnswerRow, error) {
 	rows := make([]SurveyAnswerRow, 0, len(questions))
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	for _, q := range questions {
 		row := SurveyAnswerRow{

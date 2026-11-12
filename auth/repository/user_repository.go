@@ -191,7 +191,7 @@ func (r *GormUserRepository) Create(ctx context.Context, user *User) (*User, err
 	}
 
 	// Set timestamps if not provided
-	now := time.Now()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	if user.CreatedAt.IsZero() {
 		user.CreatedAt = now
 	}

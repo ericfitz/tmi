@@ -108,8 +108,8 @@ func (s *AddonInvocationQuotaDatabaseStore) GetOrDefault(ctx context.Context, ow
 			OwnerId:               ownerID,
 			MaxActiveInvocations:  DefaultMaxActiveInvocations,
 			MaxInvocationsPerHour: DefaultMaxInvocationsPerHour,
-			CreatedAt:             time.Now(),
-			ModifiedAt:            time.Now(),
+			CreatedAt:             time.Now().UTC().Truncate(time.Microsecond),
+			ModifiedAt:            time.Now().UTC().Truncate(time.Microsecond),
 		}, nil
 	}
 

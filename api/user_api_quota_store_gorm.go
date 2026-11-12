@@ -208,7 +208,7 @@ func (s *GormUserAPIQuotaStore) Upsert(ctx context.Context, item UserAPIQuota) (
 
 	logger := slogging.Get()
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	item.ModifiedAt = now
 	if item.CreatedAt.IsZero() {
 		item.CreatedAt = now

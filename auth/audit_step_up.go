@@ -122,7 +122,7 @@ func (a *StepUpAuditor) write(ctx context.Context, actor StepUpActor, fieldPath 
 		FieldPath:        fieldPath,
 		NewValueRedacted: &newValStr,
 		ChangeSummary:    &summary,
-		CreatedAt:        time.Now().UTC(),
+		CreatedAt:        time.Now().UTC().Truncate(time.Microsecond),
 	}
 	if err := a.writer.WriteSystemAudit(ctx, rec); err != nil {
 		slogging.Get().Error("StepUpAuditor: write failed for %s: %v", fieldPath, err)

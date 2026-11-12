@@ -496,7 +496,7 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenP
 	}
 
 	// Update the last login time
-	now := time.Now()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	user.LastLogin = &now
 	if err := s.UpdateUser(ctx, user); err != nil {
 		logger.Error("Failed to update user last login: %v", err)

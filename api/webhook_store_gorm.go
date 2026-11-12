@@ -408,7 +408,7 @@ func (s *GormWebhookSubscriptionStore) UpdatePublicationStats(ctx context.Contex
 	defer s.mutex.Unlock()
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		var result *gorm.DB
@@ -800,7 +800,7 @@ func (s *GormWebhookUrlDenyListStore) Create(ctx context.Context, item WebhookUr
 
 	// Set created_at if not set
 	if item.CreatedAt.IsZero() {
-		item.CreatedAt = time.Now().UTC()
+		item.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
 	}
 
 	// Generate ID if not set

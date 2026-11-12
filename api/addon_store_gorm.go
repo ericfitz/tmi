@@ -36,7 +36,7 @@ func (s *GormAddonStore) Create(ctx context.Context, addon *Addon) error {
 
 	// Set creation time if not set
 	if addon.CreatedAt.IsZero() {
-		addon.CreatedAt = time.Now().UTC()
+		addon.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
 	}
 
 	model := s.apiToModel(*addon)

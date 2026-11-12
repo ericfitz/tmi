@@ -224,7 +224,7 @@ func (r *GormGroupMemberRepository) AddMember(ctx context.Context, groupInternal
 
 	// Build the membership model
 	memberID := uuid.New()
-	addedAt := time.Now().UTC()
+	addedAt := time.Now().UTC().Truncate(time.Microsecond)
 	userUUIDStr := userInternalUUID.String()
 
 	model := models.GroupMember{
@@ -406,7 +406,7 @@ func (r *GormGroupMemberRepository) AddGroupMember(ctx context.Context, groupInt
 
 	// Build the membership model
 	memberID := uuid.New()
-	addedAt := time.Now().UTC()
+	addedAt := time.Now().UTC().Truncate(time.Microsecond)
 	memberGroupStr := memberGroupInternalUUID.String()
 
 	model := models.GroupMember{
