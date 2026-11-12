@@ -91,7 +91,7 @@ func EnsurePinnedAlertSubscription(
 	}
 
 	ownerUUID := uuid.MustParse(OperatorSystemUserUUID)
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	if len(existing) > 0 {
 		// Update the existing pinned subscription in-place.

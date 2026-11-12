@@ -156,7 +156,7 @@ func (s *GormLinkedIdentityStore) ListByUser(ctx context.Context, userInternalUU
 
 // TouchLastUsed updates last_used_at to now for the given identity id.
 func (s *GormLinkedIdentityStore) TouchLastUsed(ctx context.Context, id string) error {
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	if err := s.db.WithContext(ctx).
 		Model(&models.LinkedIdentity{}).
 		Where("id = ?", id).

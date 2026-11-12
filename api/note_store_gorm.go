@@ -204,10 +204,12 @@ func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModel
 		return &RequestError{Status: http.StatusBadRequest, Code: errcode.InvalidInput, Message: err.Error()}
 	}
 
-	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag.
+	// modified_at: one explicit microsecond instant, keyed by the Go field name
+	// so GORM's autoUpdateTime does not inject a second one (#1155).
 	// description is a NullableDBText column; route through the typed
 	// constructor so Value() normalizes an empty string to NULL (#700).
 	updates := map[string]any{
+		"ModifiedAt":  time.Now().UTC().Truncate(time.Microsecond),
 		"name":        note.Name,
 		"content":     note.Content,
 		"description": models.NewNullableDBText(note.Description),

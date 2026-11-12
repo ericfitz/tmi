@@ -1425,7 +1425,7 @@ func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse
 	isConfidential := response.IsConfidential
 
 	// Step 7: Build and create threat model
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	emptyThreats := []Threat{}
 	defaultStatus := DefaultThreatModelStatus
 

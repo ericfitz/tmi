@@ -28,7 +28,7 @@ func NewGormContentFeedbackRepository(db *gorm.DB) *GormContentFeedbackRepositor
 // pattern (see #380).
 func (r *GormContentFeedbackRepository) Create(ctx context.Context, fb *models.ContentFeedback) error {
 	if fb.CreatedAt.IsZero() {
-		fb.CreatedAt = time.Now().UTC()
+		fb.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
 	}
 	if err := r.db.WithContext(ctx).Create(fb).Error; err != nil {
 		slogging.Get().Error("ContentFeedback Create failed: %v", err)
@@ -47,7 +47,7 @@ func (r *GormContentFeedbackRepository) Create(ctx context.Context, fb *models.C
 // via the surrounding transaction's default isolation.
 func (r *GormContentFeedbackRepository) CreateWithTargetCheck(ctx context.Context, fb *models.ContentFeedback, target ContentFeedbackTargetRef) error {
 	if fb.CreatedAt.IsZero() {
-		fb.CreatedAt = time.Now().UTC()
+		fb.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
 	}
 	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		type idRow struct{ ID string }

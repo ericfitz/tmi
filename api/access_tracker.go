@@ -42,7 +42,7 @@ func NewAccessTrackerWithDebounce(db *gorm.DB, debounce time.Duration) *AccessTr
 // RecordAccess updates last_accessed_at for a threat model, debouncing writes.
 // The DB update runs in a fire-and-forget goroutine to avoid adding latency.
 func (at *AccessTracker) RecordAccess(threatModelID string) {
-	now := time.Now()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	// Check debounce: skip if we wrote recently
 	if lastWrite, ok := at.lastWriteTimes.Load(threatModelID); ok {

@@ -157,7 +157,7 @@ func (d *DelegatedSource) refresh(ctx context.Context, tokenID string) (*Content
 		}
 
 		// Success: update all token fields.
-		now := time.Now()
+		now := time.Now().UTC().Truncate(time.Microsecond)
 		current.AccessToken = resp.AccessToken
 		if resp.RefreshToken != "" {
 			current.RefreshToken = resp.RefreshToken

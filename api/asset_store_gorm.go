@@ -205,9 +205,11 @@ func (s *GormAssetRepository) update(ctx context.Context, asset *Asset, threatMo
 	//
 	// modified_at is set explicitly, truncated to microseconds (the resolution
 	// TIMESTAMP(6) and timestamptz store; see repository_store_gorm.go), rather
-	// than left to the autoUpdateTime tag: GORM's NowFunc carries nanoseconds
-	// on Linux, so the value it mirrors back would not match the next read
-	// (#1150).
+	// than left to the autoUpdateTime tag: the tag would fill a second instant
+	// (the clock read at statement time, not the one returned), so the value
+	// mirrored back would not equal the stored row (#1150). The shared GORM
+	// clock (db.NowFunc) now truncates too (#1155), but the explicit value is
+	// still what guarantees one instant.
 	//
 	// The key is the Go field name "ModifiedAt", NOT "modified_at": this
 	// Updates runs with hooks enabled, and the autoUpdateTime injector skips a

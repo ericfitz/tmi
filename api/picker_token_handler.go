@@ -246,7 +246,7 @@ func (h *PickerTokenHandler) refreshIfNeeded(c *gin.Context, tok *ContentToken, 
 		}
 
 		// Success: update token fields.
-		now := time.Now()
+		now := time.Now().UTC().Truncate(time.Microsecond)
 		current.AccessToken = resp.AccessToken
 		if resp.RefreshToken != "" {
 			current.RefreshToken = resp.RefreshToken

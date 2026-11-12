@@ -2823,6 +2823,8 @@ func (cop *CellOperationProcessor) ProcessCellOperations(diagramID string, opera
 	if result.Valid && result.StateChanged {
 		// Save the updated diagram. WebSocket update path uses
 		// context.Background(); see #334.
+		// Stamp a fresh modified_at; the store persists the caller's value (#1155).
+		UpdateTimestamps(&diagram, false)
 		if err := cop.diagramStore.Update(context.Background(), diagramID, diagram); err != nil {
 			result.Valid = false
 			result.Reason = wsReasonSaveFailed

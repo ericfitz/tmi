@@ -167,7 +167,7 @@ func (s *Server) CreateCurrentUserPreferences(c *gin.Context) {
 	}
 
 	// Create new preferences
-	now := time.Now()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	pref := models.UserPreference{
 		ID:               models.DBVarchar(uuid.New().String()),
 		UserInternalUUID: models.DBVarchar(userUUID),
@@ -239,7 +239,7 @@ func (s *Server) UpdateCurrentUserPreferences(c *gin.Context) {
 		Where("user_internal_uuid = ?", userUUID).
 		First(&existing)
 
-	now := time.Now()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	switch {
 	case errors.Is(result.Error, gorm.ErrRecordNotFound):

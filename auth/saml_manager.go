@@ -356,8 +356,8 @@ func processSAMLUser(ctx context.Context, r samlUserResolver, userInfo *saml.Use
 		Email:          userInfo.Email,
 		Name:           userInfo.Name,
 		EmailVerified:  true, // SAML assertions are considered verified
-		CreatedAt:      time.Now(),
-		ModifiedAt:     time.Now(),
+		CreatedAt:      time.Now().UTC().Truncate(time.Microsecond),
+		ModifiedAt:     time.Now().UTC().Truncate(time.Microsecond),
 	}
 
 	createdUser, err := r.CreateUser(ctx, newUser)
@@ -388,7 +388,7 @@ func processSAMLUser(ctx context.Context, r samlUserResolver, userInfo *saml.Use
 // replace a real one.
 func updateSAMLUserOnLogin(ctx context.Context, r samlUserResolver, user User, userInfo *saml.UserInfo, match samlMatchType) (*User, error) {
 	logger := slogging.Get()
-	now := time.Now()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	user.LastLogin = &now
 	user.ModifiedAt = now
 

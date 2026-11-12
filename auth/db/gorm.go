@@ -421,10 +421,8 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 
 	// Configure GORM
 	gormConfig := &gorm.Config{
-		Logger: newGormLogger(log),
-		NowFunc: func() time.Time {
-			return time.Now().UTC()
-		},
+		Logger:  newGormLogger(log),
+		NowFunc: NowFunc,
 		// PrepareStmt stays on (oracle-db-admin, #763): flipping it would change
 		// the execution path of every DML statement on Oracle. The one
 		// consequence to know: on Oracle, DDL executed through gorm.DB.Exec/Raw
@@ -742,4 +740,12 @@ func configureSessionTimezone(db *gorm.DB, dbType DatabaseType, log *slogging.Lo
 	}
 
 	return nil
+}
+
+// NowFunc is the GORM clock for autoCreateTime/autoUpdateTime and hooks. It
+// returns UTC truncated to microseconds: PostgreSQL timestamptz and Oracle
+// TIMESTAMP(6) store microsecond precision, so a nanosecond value echoed in a
+// write response would differ from what a later GET returns (#1155).
+func NowFunc() time.Time {
+	return time.Now().UTC().Truncate(time.Microsecond)
 }

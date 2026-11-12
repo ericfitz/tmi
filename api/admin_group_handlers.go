@@ -211,14 +211,16 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 		description = *req.Description
 	}
 
+	// One microsecond instant for both columns (#1155).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	group := Group{
 		InternalUUID: uuid.New(),
 		Provider:     BuiltInProvider, // Provider-independent group
 		GroupName:    req.GroupName,
 		Name:         req.Name,
 		Description:  description,
-		FirstUsed:    time.Now().UTC(),
-		LastUsed:     time.Now().UTC(),
+		FirstUsed:    now,
+		LastUsed:     now,
 		UsageCount:   1,
 	}
 
@@ -326,6 +328,10 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 		c.JSON(http.StatusOK, group)
 		return
 	}
+
+	// Stamp last_used once; the repository stores it and the response returns it
+	// (#1155).
+	group.LastUsed = time.Now().UTC().Truncate(time.Microsecond)
 
 	// Update in database
 	err = GlobalGroupRepository.Update(c.Request.Context(), *group)

@@ -132,7 +132,7 @@ func (a *IdentityLinkAuditor) write(
 		FieldPath:        fieldPath,
 		NewValueRedacted: &newValStr,
 		ChangeSummary:    &summary,
-		CreatedAt:        time.Now().UTC(),
+		CreatedAt:        time.Now().UTC().Truncate(time.Microsecond),
 	}
 	if err := a.writer.WriteSystemAudit(ctx, rec); err != nil {
 		slogging.Get().Error("IdentityLinkAuditor: write failed for %s: %v", fieldPath, err)

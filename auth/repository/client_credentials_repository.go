@@ -28,7 +28,7 @@ func NewGormClientCredentialRepository(db *gorm.DB) *GormClientCredentialReposit
 
 // Create creates a new client credential
 func (r *GormClientCredentialRepository) Create(ctx context.Context, params ClientCredentialCreateParams) (*ClientCredential, error) {
-	now := time.Now()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	gormCred := &models.ClientCredential{
 		ID:               models.DBVarchar(uuid.New().String()),
@@ -94,7 +94,7 @@ func (r *GormClientCredentialRepository) ListByOwner(ctx context.Context, ownerU
 func (r *GormClientCredentialRepository) UpdateLastUsed(ctx context.Context, id uuid.UUID) error {
 	result := r.db.WithContext(ctx).Model(&models.ClientCredential{}).
 		Where("id = ?", id.String()).
-		Update("last_used_at", time.Now())
+		Update("last_used_at", time.Now().UTC().Truncate(time.Microsecond))
 
 	if result.Error != nil {
 		return dberrors.Classify(result.Error)

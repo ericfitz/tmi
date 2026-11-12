@@ -674,7 +674,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 		SettingKey:  models.DBVarchar(key),
 		Value:       models.DBText(req.Value),
 		SettingType: models.DBVarchar(string(req.Type)),
-		ModifiedAt:  time.Now(),
+		ModifiedAt:  time.Now().UTC().Truncate(time.Microsecond),
 		ModifiedBy:  models.NewNullableDBVarchar(modifiedBy),
 		Description: models.NewNullableDBText(req.Description),
 		Origin:      models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true},

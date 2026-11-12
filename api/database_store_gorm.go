@@ -130,7 +130,7 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 	result := tx.Clauses(clause.OnConflict{
 		Columns: []clause.Column{Col(dialect, "provider"), Col(dialect, "group_name")},
 		DoUpdates: clause.Assignments(AssignmentMap(dialect, map[string]any{
-			"last_used":   time.Now().UTC(),
+			"last_used":   time.Now().UTC().Truncate(time.Microsecond),
 			"usage_count": gorm.Expr("usage_count + 1"),
 		})),
 	}).Create(&group)
@@ -818,7 +818,7 @@ func (s *GormThreatModelStore) Create(ctx context.Context, item ThreatModel, idS
 		if item.Status != nil && *item.Status != "" {
 			status = *item.Status
 		}
-		statusUpdated := time.Now().UTC()
+		statusUpdated := time.Now().UTC().Truncate(time.Microsecond)
 
 		// Create GORM model
 		isConfidential := models.DBBool(false)
@@ -849,11 +849,17 @@ func (s *GormThreatModelStore) Create(ctx context.Context, item ThreatModel, idS
 		}
 
 		// Set timestamps
+		// Normalize the caller's values (UTC, microsecond) and mirror them back,
+		// as update() does, so the response equals the stored row (#1155).
 		if item.CreatedAt != nil {
-			tm.CreatedAt = *item.CreatedAt
+			createdAt := item.CreatedAt.UTC().Truncate(time.Microsecond)
+			tm.CreatedAt = createdAt
+			item.CreatedAt = &createdAt
 		}
 		if item.ModifiedAt != nil {
-			tm.ModifiedAt = *item.ModifiedAt
+			modifiedAt := item.ModifiedAt.UTC().Truncate(time.Microsecond)
+			tm.ModifiedAt = modifiedAt
+			item.ModifiedAt = &modifiedAt
 		}
 
 		// Allocate alias before inserting
@@ -938,6 +944,14 @@ func (s *GormThreatModelStore) Create(ctx context.Context, item ThreatModel, idS
 
 // update runs the threat model content write inside one retryable
 // transaction, CAS-guarded first when expectedVersion is non-nil (#594).
+//
+// Contract: callers must stamp ModifiedAt (UpdateTimestamps) before calling.
+// The stored modified_at is exactly the caller's value, so a stale value is
+// stored as stale. A nil ModifiedAt falls back to the current microsecond
+// instant (#1155). The stamp is taken before the store mutex, so overlapping
+// unversioned writes can commit in the opposite order to their stamps and
+// modified_at can step back by milliseconds; versioned (If-Match) writes are
+// unaffected.
 func (s *GormThreatModelStore) update(ctx context.Context, id string, item ThreatModel, expectedVersion *int) (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -974,7 +988,7 @@ func (s *GormThreatModelStore) update(ctx context.Context, id string, item Threa
 		}
 		var statusUpdated *time.Time
 		if newStatus != existingTM.Status {
-			now := time.Now().UTC()
+			now := time.Now().UTC().Truncate(time.Microsecond)
 			statusUpdated = &now
 		}
 
@@ -1022,8 +1036,21 @@ func (s *GormThreatModelStore) update(ctx context.Context, id string, item Threa
 		// models.NullableDB* constructor so Value() gets a chance to
 		// normalize empty string to NULL (#700); a raw *string in the map
 		// bypasses the Valuer and would persist "" verbatim.
-		// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
+		//
+		// modified_at: use the caller's value, which the handler already returned
+		// or will return, so the response equals the stored row. Keyed by Go field
+		// name so GORM's autoUpdateTime does not inject a second instant.
+		// gorm-oracle skips its autoUpdateTime injection only when the map key is the Go field name ("ModifiedAt") or the DBName
+		// (MODIFIED_AT on Oracle). A lowercase "modified_at" key would resolve to
+		// the column but would not suppress the injection, so with hooks enabled
+		// the statement gets MODIFIED_AT twice (ORA-00957). The trigger is hooks
+		// being enabled, not the hook body (#1155).
+		modifiedAt := time.Now().UTC().Truncate(time.Microsecond)
+		if item.ModifiedAt != nil {
+			modifiedAt = item.ModifiedAt.UTC().Truncate(time.Microsecond)
+		}
 		updates := map[string]any{
+			"ModifiedAt":                      modifiedAt,
 			"name":                            item.Name,
 			"description":                     models.NewNullableDBText(item.Description),
 			"owner_internal_uuid":             ownerUUID,
@@ -1736,11 +1763,17 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 	}
 
 	// Set timestamps
+	// Normalize the caller's values (UTC, microsecond) and mirror them back so
+	// the response equals the stored row (#1155).
 	if item.CreatedAt != nil {
-		diagram.CreatedAt = *item.CreatedAt
+		createdAt := item.CreatedAt.UTC().Truncate(time.Microsecond)
+		diagram.CreatedAt = createdAt
+		item.CreatedAt = &createdAt
 	}
 	if item.ModifiedAt != nil {
-		diagram.ModifiedAt = *item.ModifiedAt
+		modifiedAt := item.ModifiedAt.UTC().Truncate(time.Microsecond)
+		diagram.ModifiedAt = modifiedAt
+		item.ModifiedAt = &modifiedAt
 	}
 
 	// Allocate alias and insert diagram inside a transaction
@@ -1780,6 +1813,14 @@ func (s *GormDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, str
 
 // update runs the diagram content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
+//
+// Contract: callers must stamp ModifiedAt (UpdateTimestamps) before calling.
+// The stored modified_at is exactly the caller's value, so a stale value is
+// stored as stale. A nil ModifiedAt falls back to the current microsecond
+// instant (#1155). The stamp is taken before the store mutex, so overlapping
+// unversioned writes can commit in the opposite order to their stamps and
+// modified_at can step back by milliseconds; versioned (If-Match) writes are
+// unaffected.
 func (s *GormDiagramStore) update(ctx context.Context, id string, item DfdDiagram, expectedVersion *int) (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -1822,12 +1863,24 @@ func (s *GormDiagramStore) update(ctx context.Context, id string, item DfdDiagra
 		colorPaletteJSON = models.JSONRaw(cpJSON)
 	}
 
-	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag.
+	// modified_at: use the caller's value (the one the response carries) so the
+	// response equals the stored row. Keyed by Go field name so autoUpdateTime
+	// does not inject a second instant.
+	// gorm-oracle skips its autoUpdateTime injection only when the map key is the Go field name ("ModifiedAt") or the DBName
+	// (MODIFIED_AT on Oracle). A lowercase "modified_at" key would resolve to
+	// the column but would not suppress the injection, so with hooks enabled
+	// the statement gets MODIFIED_AT twice (ORA-00957). The trigger is hooks
+	// being enabled, not the hook body (#1155).
+	modifiedAt := time.Now().UTC().Truncate(time.Microsecond)
+	if item.ModifiedAt != nil {
+		modifiedAt = item.ModifiedAt.UTC().Truncate(time.Microsecond)
+	}
 	// Nullable-typed columns pass through their models.NullableDB*
 	// constructor so Value() gets a chance to normalize empty string to NULL
 	// (#700); a raw *string in the map bypasses the Valuer and would persist
 	// "" verbatim.
 	updates := map[string]any{
+		"ModifiedAt":          modifiedAt,
 		"name":                item.Name,
 		"description":         models.NewNullableDBText(item.Description),
 		"type":                models.NewNullableDBVarchar(diagType),

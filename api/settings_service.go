@@ -584,8 +584,14 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 	}
 
 	// Upsert the setting
-	dbSetting.ModifiedAt = time.Now()
-	result := s.gormDB.WithContext(ctx).Save(&dbSetting)
+	// Save lets autoUpdateTime overwrite ModifiedAt with the session clock, so
+	// pin that clock to one explicit microsecond instant; the value copied back
+	// to the caller then equals the stored row (#1155).
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	dbSetting.ModifiedAt = now
+	result := s.gormDB.WithContext(ctx).
+		Session(&gorm.Session{NowFunc: func() time.Time { return now }}).
+		Save(&dbSetting)
 	if result.Error != nil {
 		return fmt.Errorf("failed to save setting %s: %w", setting.SettingKey, result.Error)
 	}
@@ -648,7 +654,7 @@ func (s *SettingsService) SeedDefaults(ctx context.Context) error {
 			Value:       models.DBText(ms.Value),
 			SettingType: models.DBVarchar(ms.Type), // same verbatim token as DefaultSystemSettings (#811)
 			Description: models.NewNullableDBText(&desc),
-			ModifiedAt:  time.Now(),
+			ModifiedAt:  time.Now().UTC().Truncate(time.Microsecond),
 		})
 	}
 
@@ -680,7 +686,7 @@ func (s *SettingsService) SeedDefaults(ctx context.Context) error {
 		}
 
 		// Create the setting
-		dbSetting.ModifiedAt = time.Now()
+		dbSetting.ModifiedAt = time.Now().UTC().Truncate(time.Microsecond)
 		if err := s.gormDB.WithContext(ctx).Create(&dbSetting).Error; err != nil {
 			return fmt.Errorf("failed to seed setting %s: %w", setting.SettingKey, err)
 		}

@@ -28,7 +28,7 @@ func NewGormUsabilityFeedbackRepository(db *gorm.DB) *GormUsabilityFeedbackRepos
 // inserts (see #380).
 func (r *GormUsabilityFeedbackRepository) Create(ctx context.Context, fb *models.UsabilityFeedback) error {
 	if fb.CreatedAt.IsZero() {
-		fb.CreatedAt = time.Now().UTC()
+		fb.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
 	}
 	if err := r.db.WithContext(ctx).Create(fb).Error; err != nil {
 		slogging.Get().Error("UsabilityFeedback Create failed: %v", err)

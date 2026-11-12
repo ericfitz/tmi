@@ -112,7 +112,7 @@ const unknownDocumentRef = "__unknown__"
 // so the Oracle GORM driver receives uppercase column identifiers.
 func (s *ExtractionJobStore) MarkTerminal(ctx context.Context, jobID, status, reasonCode string) (bool, error) {
 	dialect := s.db.Name()
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	reasonCodeVal := models.NullableDBVarchar{Valid: false}
 	if reasonCode != "" {

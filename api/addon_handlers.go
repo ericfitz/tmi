@@ -87,7 +87,7 @@ func CreateAddon(c *gin.Context) {
 
 	// Create add-on
 	addon := &Addon{
-		CreatedAt:     time.Now(),
+		CreatedAt:     time.Now().UTC().Truncate(time.Microsecond),
 		Name:          req.Name,
 		WebhookID:     req.WebhookId,
 		Description:   strFromPtr(req.Description),
