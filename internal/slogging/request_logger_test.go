@@ -13,8 +13,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Credential header values must never reach the request/response debug log,
-// even with redact_auth_tokens off (CodeQL alert 1308).
+// Credential and unrecognized header values must never reach the
+// request/response debug log, even with redact_auth_tokens off (#1158,
+// CodeQL alert 1308).
 
 const testCredential = "s3cr3t-credential-value-abcdefghijklmnopqrstuvwxyz"
 
@@ -36,6 +37,7 @@ func TestLogRequestDetails_NeverLogsCredentialHeaders(t *testing.T) {
 		c.Request.Header.Set("Proxy-Authorization", "Basic "+testCredential)
 		c.Request.Header.Set("Cookie", "session="+testCredential)
 		c.Request.Header.Set("X-Api-Key", testCredential)
+		c.Request.Header.Set("X-Webhook-Signature", testCredential) // unknown header: default-deny
 		c.Request.Header.Set("X-Request-Id", "req-123")
 
 		logRequestDetails(c, captureContextLogger(&buf), RequestResponseLoggingConfig{RedactTokens: scrub})
@@ -83,6 +85,17 @@ func TestIsCredentialHeader(t *testing.T) {
 	for _, name := range []string{"Content-Type", "X-Request-Id", "User-Agent", "", "Authorization-Hint"} {
 		if IsCredentialHeader(name) {
 			t.Errorf("%q should not be a credential header", name)
+		}
+	}
+}
+
+func TestValueLoggableHeaders_ExcludesCredentials(t *testing.T) {
+	for name := range valueLoggableHeaders {
+		if IsCredentialHeader(name) {
+			t.Errorf("credential header %q is on the value-loggable allowlist", name)
+		}
+		if name != strings.ToLower(name) {
+			t.Errorf("allowlist entry %q must be lowercase", name)
 		}
 	}
 }

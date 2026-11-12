@@ -25,16 +25,43 @@ func IsCredentialHeader(name string) bool {
 	return credentialHeaders[strings.ToLower(name)]
 }
 
-// loggableHeaders returns the first value of each header for logging.
-// Credential headers are always replaced by a constant placeholder, whatever
-// scrubValues says; other values are pattern-scrubbed when scrubValues is set.
+// valueLoggableHeaders lists, in lowercase, the headers whose values are safe
+// to log. Every other header is logged by name only: default-deny, so custom
+// headers (webhook signatures, vendor tokens) never leak. Leave out headers
+// whose values can embed tokens, such as Location and Referer.
+var valueLoggableHeaders = map[string]bool{
+	"accept":            true,
+	"accept-encoding":   true,
+	"accept-language":   true,
+	"cache-control":     true,
+	"content-encoding":  true,
+	"content-length":    true,
+	"content-type":      true,
+	"etag":              true,
+	"if-match":          true,
+	"if-none-match":     true,
+	"origin":            true,
+	"retry-after":       true,
+	"traceparent":       true,
+	"user-agent":        true,
+	"vary":              true,
+	"x-correlation-id":  true,
+	"x-forwarded-for":   true,
+	"x-forwarded-proto": true,
+	"x-real-ip":         true,
+	"x-request-id":      true,
+}
+
+// loggableHeaders returns the first value of each header for logging. Only
+// allowlisted headers keep their value (pattern-scrubbed when scrubValues is
+// set); every other header, credentials included, logs a constant placeholder.
 func loggableHeaders(h http.Header, scrubValues bool) map[string]string {
 	out := make(map[string]string, len(h))
 	for name, values := range h {
 		if len(values) == 0 {
 			continue
 		}
-		if IsCredentialHeader(name) {
+		if !valueLoggableHeaders[strings.ToLower(name)] {
 			out[name] = redactedPlaceholder
 			continue
 		}
