@@ -136,7 +136,6 @@ func AuthenticateUserWithStub(userID, stubURL string) (*OAuthTokens, error) {
 	return nil, fmt.Errorf("OAuth flow timed out after %d seconds", maxAttempts)
 }
 
-
 // RefreshToken refreshes an access token using a refresh token
 func RefreshToken(refreshToken, userID string) (*OAuthTokens, error) {
 	return RefreshTokenWithStub(refreshToken, userID, OAuthStubURL)
@@ -177,6 +176,9 @@ func RefreshTokenWithStub(refreshToken, userID, stubURL string) (*OAuthTokens, e
 	return &tokens, nil
 }
 
+// AdminUserID is the login hint of the harness administrator.
+const AdminUserID = "charlie"
+
 var (
 	adminTokens     *OAuthTokens
 	adminTokensOnce sync.Once
@@ -184,14 +186,17 @@ var (
 )
 
 // AuthenticateAdmin authenticates a user with admin privileges.
-// Uses "test-admin" login hint. After first authentication, promotes the user
-// to admin via direct DB insert into the Administrators group, then re-authenticates
+// Uses the "charlie" login hint (project convention: charlie is the administrator).
+// charlie must be the first user authenticated against a fresh database so that
+// first-user promotion makes it the administrator (Administrators only, not Security
+// Reviewers; #1156). As a fallback for non-fresh databases, it then promotes the user
+// via an idempotent direct DB insert into the Administrators group and re-authenticates
 // to get a JWT that reflects the new membership.
 // Results are cached with sync.Once for efficiency.
 func AuthenticateAdmin() (*OAuthTokens, error) {
 	adminTokensOnce.Do(func() {
 		// Step 1: Authenticate to create the user
-		_, adminTokensErr = AuthenticateUser("test-admin")
+		_, adminTokensErr = AuthenticateUser(AdminUserID)
 		if adminTokensErr != nil {
 			return
 		}
@@ -200,15 +205,15 @@ func AuthenticateAdmin() (*OAuthTokens, error) {
 		promoteToAdmin()
 
 		// Step 3: Re-authenticate to get JWT with admin membership
-		adminTokens, adminTokensErr = AuthenticateUser("test-admin")
+		adminTokens, adminTokensErr = AuthenticateUser(AdminUserID)
 	})
 	if adminTokensErr != nil {
-		return AuthenticateUser("test-admin")
+		return AuthenticateUser(AdminUserID)
 	}
 	return adminTokens, nil
 }
 
-// promoteToAdmin adds test-admin to the Administrators group via the development
+// promoteToAdmin adds charlie to the Administrators group via the development
 // database (the same DB the running server uses). The workflow tests run against
 // the dev server (not a test server), so we must modify the dev DB directly.
 func promoteToAdmin() {
@@ -225,7 +230,7 @@ func promoteToAdmin() {
 	var userUUID string
 	for range 10 {
 		userUUID, _ = db.QueryString(
-			"SELECT internal_uuid FROM users WHERE provider_user_id = 'test-admin' AND provider = 'tmi' FETCH FIRST 1 ROWS ONLY",
+			"SELECT internal_uuid FROM users WHERE provider_user_id = '" + AdminUserID + "' AND provider = 'tmi' FETCH FIRST 1 ROWS ONLY",
 		)
 		if userUUID != "" {
 			break
@@ -237,7 +242,7 @@ func promoteToAdmin() {
 	}
 
 	// Idempotent insert into group_members
-	id := fmt.Sprintf("test-admin-%s", adminsGroupUUID[:8])
+	id := fmt.Sprintf("%s-%s", AdminUserID, adminsGroupUUID[:8])
 	_ = db.InsertIgnoreDuplicate(fmt.Sprintf(
 		"INSERT INTO group_members (id, group_internal_uuid, user_internal_uuid, subject_type, added_at, notes) "+
 			"VALUES ('%s', '%s', '%s', 'user', CURRENT_TIMESTAMP, 'Integration test admin')",

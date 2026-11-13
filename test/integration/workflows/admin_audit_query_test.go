@@ -63,9 +63,9 @@ func TestAdminAuditQuery(t *testing.T) {
 	// admin JWT by doing a settings lookup which records a system audit row; the
 	// actor.email in that row is charlie's canonical email.
 	//
-	// The login hint "test-admin" → email "test-admin@tmi.local" per the TMI OAuth stub
+	// The login hint "charlie" → email "charlie@tmi.local" per the TMI OAuth stub
 	// convention. Hardcode it so the test does not depend on any extra API endpoint.
-	charlieEmail := "test-admin@tmi.local"
+	charlieEmail := "charlie@tmi.local"
 
 	// Use a unique key so parallel runs don't collide.
 	settingKey := "test.auditquery." + uuid.New().String()[:8]
@@ -116,10 +116,10 @@ func TestAdminAuditQuery(t *testing.T) {
 		}
 
 		var page1 struct {
-			Entries []map[string]interface{} `json:"entries"`
-			Total   float64                  `json:"total"`
-			Limit   float64                  `json:"limit"`
-			NextCursor *string               `json:"next_cursor"`
+			Entries    []map[string]interface{} `json:"entries"`
+			Total      float64                  `json:"total"`
+			Limit      float64                  `json:"limit"`
+			NextCursor *string                  `json:"next_cursor"`
 		}
 		framework.AssertNoError(t, json.Unmarshal(resp.Body, &page1), "parse page 1")
 

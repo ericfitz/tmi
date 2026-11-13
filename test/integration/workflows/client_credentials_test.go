@@ -479,7 +479,7 @@ func TestClientCredentialsDeniedOnAdminRoutes(t *testing.T) {
 	}
 
 	// Owner is an administrator (framework.AuthenticateAdmin authenticates with
-	// login hint "test-admin" and promotes that user) — the denial must hold anyway.
+	// login hint "charlie" and promotes that user) — the denial must hold anyway.
 	tokens, err := framework.AuthenticateAdmin()
 	framework.AssertNoError(t, err, "Admin authentication failed")
 	adminClient, err := framework.NewClient(serverURL, tokens)
