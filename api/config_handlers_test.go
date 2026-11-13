@@ -788,7 +788,7 @@ func TestUpdateSystemSetting_409_ConfigSourced(t *testing.T) {
 		settingsService: NewMockSettingsService(),
 		configProvider: &MockConfigProvider{
 			settings: []MigratableSetting{
-				{Key: "server.port", Value: "8080", Type: "string", Source: "config"},
+				{Key: "server.port", Value: "8080", Type: "string", Source: "config", Explicit: true, Class: config.ConfigClass{Category: config.CategoryBootstrap, Mutability: config.MutabilityStatic}},
 			},
 		},
 	}
