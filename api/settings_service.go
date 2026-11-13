@@ -320,30 +320,37 @@ func (s *SettingsService) GetResolvedString(ctx context.Context, key string) (st
 		return "", false, err
 	}
 
-	// An empty row value is treated as absent. On Oracle '' binds as NULL, so
-	// an empty-but-present row is indistinguishable from a missing one anyway
-	// — collapsing them here keeps the rule engine-independent
-	// (oracle-db-admin review of #767, note 3).
-	dbHasValue := row != nil && string(row.Value) != ""
-
-	switch {
-	case !dbHasValue:
-		// Nothing usable in the database — the config layer is all there is,
-		// explicit or not.
+	if configOutranksRow(cfgFound && cfg.Explicit, row) {
 		return cfg.Value, cfgFound && cfg.Value != "", nil
+	}
+	return string(row.Value), true, nil
+}
+
+// configOutranksRow reports whether the config layer's value, rather than the
+// database row, is the one in effect for a non-bootstrap setting. It is the
+// single implementation of the precedence table on GetResolvedString, shared
+// by the runtime read path and the admin settings read endpoints so that the
+// admin API reports the value the server actually uses (#1161). row may be
+// nil (no row).
+func configOutranksRow(cfgExplicit bool, row *models.SystemSetting) bool {
+	switch {
+	case row == nil || string(row.Value) == "":
+		// Nothing usable in the database — the config layer is all there is,
+		// explicit or not. An empty row value is treated as absent: on Oracle
+		// '' binds as NULL, so an empty-but-present row is indistinguishable
+		// from a missing one anyway — collapsing them keeps the rule
+		// engine-independent (oracle-db-admin review of #767, note 3).
+		return true
 	case row.IsExplicit():
 		// An operator deliberately set this row, via the admin API or a
 		// dbtool import. It outranks config either way, which is what keeps
 		// runtime edits effective without a redeploy (#419/#767).
-		return string(row.Value), true, nil
-	case cfgFound && cfg.Explicit:
-		// The row is a seeded registry default and the operator supplied a
-		// value explicitly. This is the case that broke production.
-		return cfg.Value, cfg.Value != "", nil
+		return false
 	default:
-		// Both sides are defaults; prefer the one an admin can change at
-		// runtime.
-		return string(row.Value), true, nil
+		// The row is a seeded registry default. An explicit operator value
+		// beats it (the case that broke production); when both sides are
+		// defaults, prefer the row, which an admin can change at runtime.
+		return cfgExplicit
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -435,8 +436,27 @@ func configSettingToAPI(cs MigratableSetting) SystemSetting {
 	return setting
 }
 
+// dbSettingToAPI converts a database row to an API SystemSetting reported as
+// database-sourced and writable, masking secret values.
+func dbSettingToAPI(row models.SystemSetting) SystemSetting {
+	apiSetting := modelToAPISystemSetting(row)
+	source := SystemSettingSource("database")
+	apiSetting.Source = &source
+	readOnly := false
+	apiSetting.ReadOnly = &readOnly
+	if shouldMaskSettingValue(string(row.SettingKey)) {
+		if apiSetting.Value != "" {
+			apiSetting.Value = secretMaskConfigured
+		} else {
+			apiSetting.Value = secretMaskNotConfigured
+		}
+	}
+	return apiSetting
+}
+
 // mergeSettingsWithConfig builds a merged view of database and config settings.
-// Config settings take priority over database settings for the same key.
+// When a key has both, the one reported is the one in effect, decided by
+// configOutranksRow — the same rule the runtime read path uses (#1161).
 // Settings classified VisibilityInternal are excluded: they are bootstrap or
 // server-internal settings that must never appear in any API response.
 func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []SystemSetting {
@@ -468,24 +488,13 @@ func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []Sy
 	result := make([]SystemSetting, 0, len(allKeys))
 	for key := range allKeys {
 		configSetting, inConfig := configMap[key]
-		_, inDB := dbMap[key]
+		row, inDB := dbMap[key]
 
-		if inConfig {
+		switch {
+		case inConfig && (!inDB || configOutranksRow(configSetting.Explicit, &row)):
 			result = append(result, configSettingToAPI(configSetting))
-		} else if inDB {
-			apiSetting := modelToAPISystemSetting(dbMap[key])
-			source := SystemSettingSource("database")
-			apiSetting.Source = &source
-			readOnly := false
-			apiSetting.ReadOnly = &readOnly
-			if shouldMaskSettingValue(key) {
-				if apiSetting.Value != "" {
-					apiSetting.Value = secretMaskConfigured
-				} else {
-					apiSetting.Value = secretMaskNotConfigured
-				}
-			}
-			result = append(result, apiSetting)
+		case inDB:
+			result = append(result, dbSettingToAPI(row))
 		}
 	}
 
@@ -563,17 +572,43 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		return
 	}
 
-	// Check config provider first
+	var configEntry *MigratableSetting
 	if s.configProvider != nil {
 		for _, cs := range s.configProvider.GetMigratableSettings() {
 			if cs.Key == key {
-				c.JSON(http.StatusOK, configSettingToAPI(cs))
-				return
+				configEntry = &cs
+				break
 			}
 		}
 	}
+	// Bootstrap keys are never database-backed (SettingsService.Get refuses
+	// them), so config is their only source, as in GetResolvedString.
+	if configEntry != nil && config.ClassificationCategoryFor(key) == config.CategoryBootstrap {
+		c.JSON(http.StatusOK, configSettingToAPI(*configEntry))
+		return
+	}
 
-	setting, err := s.settingsService.Get(ctx, key)
+	// Retried on transient faults, as in GetResolvedString: this read now runs
+	// for config-supplied keys too, and an ADB connection blip should not turn
+	// a read the config layer could answer into a hard failure.
+	var setting *models.SystemSetting
+	err := db.WithRetryableGormRead(ctx, db.DefaultRetryConfig(), func() error {
+		var readErr error
+		setting, readErr = s.settingsService.Get(ctx, key)
+		if readErr != nil {
+			return dberrors.Classify(readErr)
+		}
+		return nil
+	})
+	if errors.Is(err, dberrors.ErrTransient) {
+		logger.Warn("Transient database error getting system setting %s: %v", key, err)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusServiceUnavailable,
+			Code:    errcode.ServiceUnavailable,
+			Message: "Settings temporarily unavailable; retry",
+		})
+		return
+	}
 	if err != nil {
 		logger.Error("Failed to get system setting %s: %v", key, err)
 		HandleRequestError(c, &RequestError{
@@ -581,6 +616,13 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 			Code:    errcode.ServerError,
 			Message: "Failed to get setting",
 		})
+		return
+	}
+
+	// Report the value in effect: the same rule as the runtime read path and
+	// the list endpoint (#1161).
+	if configEntry != nil && configOutranksRow(configEntry.Explicit, setting) {
+		c.JSON(http.StatusOK, configSettingToAPI(*configEntry))
 		return
 	}
 
@@ -594,20 +636,8 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		return
 	}
 
-	apiSetting := modelToAPISystemSetting(*setting)
-	source := SystemSettingSource("database")
-	apiSetting.Source = &source
-	readOnly := false
-	apiSetting.ReadOnly = &readOnly
-	if shouldMaskSettingValue(key) {
-		if apiSetting.Value != "" {
-			apiSetting.Value = secretMaskConfigured
-		} else {
-			apiSetting.Value = secretMaskNotConfigured
-		}
-	}
 	logger.Debug("Retrieved system setting: %s", key)
-	c.JSON(http.StatusOK, apiSetting)
+	c.JSON(http.StatusOK, dbSettingToAPI(*setting))
 }
 
 // UpdateSystemSetting creates or updates a system setting (admin only)

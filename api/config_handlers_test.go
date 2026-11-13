@@ -27,6 +27,7 @@ var _ SettingsServiceInterface = (*MockSettingsService)(nil)
 // MockSettingsService is a mock implementation of SettingsService for testing
 type MockSettingsService struct {
 	reencryptErr error // returned by ReEncryptAll; nil = success
+	getErr       error // returned by Get when set
 	settings     map[string]*models.SystemSetting
 }
 
@@ -37,6 +38,9 @@ func NewMockSettingsService() *MockSettingsService {
 }
 
 func (m *MockSettingsService) Get(ctx context.Context, key string) (*models.SystemSetting, error) {
+	if m.getErr != nil {
+		return nil, m.getErr
+	}
 	if setting, ok := m.settings[key]; ok {
 		return setting, nil
 	}
@@ -615,8 +619,9 @@ func TestListSystemSettings_MergedWithConfigSettings(t *testing.T) {
 			settings: []MigratableSetting{
 				// auth.auto_promote_first_user is VisibilityAdminOnly — config-only entry.
 				{Key: "auth.auto_promote_first_user", Value: "false", Type: "bool", Description: "Auto-promote first user", Source: "config"},
-				// websocket.inactivity_timeout_seconds is VisibilityAdminOnly — config overrides DB.
-				{Key: "websocket.inactivity_timeout_seconds", Value: "200", Type: "int", Description: "WS inactivity timeout from config", Source: "config"},
+				// websocket.inactivity_timeout_seconds is VisibilityAdminOnly. An explicit
+				// config value overrides a non-explicit (seeded) DB row (#1161).
+				{Key: "websocket.inactivity_timeout_seconds", Value: "200", Type: "int", Description: "WS inactivity timeout from config", Source: "config", Explicit: true},
 			},
 		},
 	}
@@ -655,7 +660,7 @@ func TestListSystemSettings_MergedWithConfigSettings(t *testing.T) {
 	assert.Equal(t, "config", autoPromote["source"])
 	assert.Equal(t, true, autoPromote["read_only"])
 
-	// Config value overrides DB value for the same key.
+	// An explicit config value overrides a seeded DB value for the same key.
 	var wsTimeout map[string]interface{}
 	for _, s := range settings {
 		if s["key"] == "websocket.inactivity_timeout_seconds" {
