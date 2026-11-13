@@ -163,13 +163,25 @@ func (c *Config) GetMigratableSettings() []MigratableSetting {
 		// Explicit = an operator actually supplied this value, rather than it
 		// being the struct default every key carries. Source already reports
 		// "environment" when the env var is set; explicitFileKeys records the
-		// keys the YAML file named. See the Explicit field's doc comment for
-		// why Source alone is not enough.
+		// dotted YAML paths the file named, so look it up by YAML path, not by
+		// setting key (#1166). See the Explicit field's doc comment for why
+		// Source alone is not enough.
 		settings[i].Explicit = settings[i].Source == "environment" ||
-			c.explicitFileKeys[settings[i].Key]
+			c.explicitFileKeys[yamlPathFor(settings[i].Key)]
 	}
 
 	return settings
+}
+
+// yamlPathFor returns the dotted YAML path for a migratable setting key: the
+// def's YAMLPath when it declares one, otherwise the key itself. Generated
+// provider keys (auth.oauth.providers.* etc.) have no def and are already
+// YAML paths.
+func yamlPathFor(key string) string {
+	if d, ok := DefFor(key); ok && d.YAMLPath != "" {
+		return d.YAMLPath
+	}
+	return key
 }
 
 // getMigratableOAuthSettings returns settings generated per configured OAuth
