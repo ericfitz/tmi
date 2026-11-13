@@ -1,0 +1,22 @@
+# Replace the base emptyDir "data" volume with a longhorn claim of the same
+# name. 3Gi covers jetstream max_file_store (2GB) plus filesystem overhead.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nats
+  namespace: tmi-platform
+spec:
+  template:
+    spec:
+      volumes:
+        - name: data
+          $patch: delete
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 3Gi

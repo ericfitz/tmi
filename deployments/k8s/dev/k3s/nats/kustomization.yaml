@@ -1,0 +1,18 @@
+# k3s NATS: the shared platform/nats.yml with the JetStream store on a longhorn
+# PVC instead of an emptyDir. The node rolling reboot drains with
+# --delete-emptydir-data, which would wipe an emptyDir store; longhorn (3
+# replicas) also lets nats-0 reschedule onto another node with its data.
+# docker-desktop and aws keep the base manifest (emptyDir, ephemeral).
+#
+# volumeClaimTemplates is immutable on an existing StatefulSet, so
+# scripts/lib/deploy.py (apply_platform_base) orphan-deletes a pre-PVC nats
+# StatefulSet before applying this overlay.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../platform/nats.yml
+patches:
+  - path: jetstream-pvc.yaml
+    target:
+      kind: StatefulSet
+      name: nats
