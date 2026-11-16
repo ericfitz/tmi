@@ -6,8 +6,8 @@ replace github.com/ericfitz/tmi => ../..
 
 require (
 	github.com/ericfitz/tmi v0.0.0-00010101000000-000000000000
-	github.com/getkin/kin-openapi v0.152.0
-	github.com/godror/godror v0.51.5
+	github.com/getkin/kin-openapi v0.153.0
+	github.com/godror/godror v0.51.6
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
 	github.com/nats-io/nats.go v1.55.0
@@ -125,8 +125,6 @@ require (
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/oapi-codegen/gin-middleware v1.2.1 // indirect
 	github.com/oapi-codegen/runtime v1.8.0 // indirect
-	github.com/oasdiff/yaml v0.1.3 // indirect
-	github.com/oasdiff/yaml3 v0.0.16 // indirect
 	github.com/openai/openai-go/v3 v3.96.0 // indirect
 	github.com/oracle-samples/gorm-oracle v1.1.3 // indirect
 	github.com/pandatix/go-abnf v0.5.3 // indirect
@@ -181,6 +179,7 @@ require (
 	go.uber.org/atomic v1.12.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.5 // indirect
 	go.yaml.in/yaml/v3 v3.0.6 // indirect
+	go.yaml.in/yaml/v4 v4.0.0 // indirect
 	golang.org/x/arch v0.32.0 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
