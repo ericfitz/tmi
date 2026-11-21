@@ -575,6 +575,10 @@ func ServiceUnavailableError(message string) *RequestError {
 	}
 }
 
+// invalidAuthorizationSubjectMessage is the fixed 400 message for an
+// authorization entry whose user does not exist (no identifiers echoed, #725).
+const invalidAuthorizationSubjectMessage = "One or more users in the authorization list do not exist. Users must log in at least once before they can be added."
+
 // StoreErrorToRequestError converts a store error to an appropriate RequestError.
 // If the error is already a *RequestError, it is returned as-is (preserving its status code).
 // All store errors must use typed dberrors sentinels (#271 umbrella migration is complete).
@@ -592,6 +596,10 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 	var valErr *validation.ValidationError
 	if errors.As(err, &valErr) {
 		return InvalidInputError(valErr.Error())
+	}
+
+	if errors.Is(err, ErrInvalidAuthorizationSubject) {
+		return InvalidInputError(invalidAuthorizationSubjectMessage)
 	}
 
 	// Typed error checks (from repositories using dberrors)
@@ -720,6 +728,9 @@ func WriteErrorToRequestError(err error, serverErrorMsg string) *RequestError {
 	var valErr *validation.ValidationError
 	if errors.As(err, &valErr) {
 		return InvalidInputError(valErr.Error())
+	}
+	if errors.Is(err, ErrInvalidAuthorizationSubject) {
+		return InvalidInputError(invalidAuthorizationSubjectMessage)
 	}
 	if errors.Is(err, dberrors.ErrTransient) {
 		return ServiceUnavailableError("Storage service temporarily unavailable - please retry")

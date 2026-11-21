@@ -1417,7 +1417,7 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 		return nil
 	}
 
-	for _, auth := range authorization {
+	for i, auth := range authorization {
 		subjectTypeStr := string(AddGroupMemberRequestSubjectTypeUser)
 		if auth.PrincipalType == AuthorizationPrincipalTypeGroup {
 			subjectTypeStr = string(AddGroupMemberRequestSubjectTypeGroup)
@@ -1434,11 +1434,15 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 
 			resolvedUUID, err := s.resolveUserIdentifierToUUID(tx, identifier)
 			if err != nil {
-				logger.Debug("Could not resolve user identifier %s to internal_uuid: %v", identifier, err)
-				userUUID = &identifier
-			} else {
-				userUUID = &resolvedUUID
+				if errors.Is(err, ErrUserNotFound) {
+					// Never write an unresolved identifier into user_internal_uuid:
+					// it is varchar(36) and a foreign key to users.
+					logger.Debug("[GORM-STORE] saveAuthorizationTx: authorization subject %d (user) did not resolve to a known user", i)
+					return fmt.Errorf("authorization subject %d: %w", i, ErrInvalidAuthorizationSubject)
+				}
+				return dberrors.Classify(err)
 			}
+			userUUID = &resolvedUUID
 		case string(AddGroupMemberRequestSubjectTypeGroup):
 			if auth.ProviderId == EveryonePseudoGroup {
 				everyoneUUID := EveryonePseudoGroupUUID

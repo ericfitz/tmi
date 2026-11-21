@@ -93,10 +93,13 @@ var (
 	ErrDenyListEntryNotFound  = fmt.Errorf("webhook url deny list entry: %w", dberrors.ErrNotFound)
 	ErrTriageNoteNotFound     = fmt.Errorf("triage note: %w", dberrors.ErrNotFound)
 	ErrTombstoneNotFound      = fmt.Errorf("tombstone: %w", dberrors.ErrNotFound)
-	ErrUserNotFound           = fmt.Errorf("user: %w", dberrors.ErrNotFound)
-	ErrThreatModelNotFound    = fmt.Errorf("threat model: %w", dberrors.ErrNotFound)
-	ErrDiagramNotFound        = fmt.Errorf("diagram: %w", dberrors.ErrNotFound)
-	ErrTicketNotFound         = fmt.Errorf("ticket: %w", dberrors.ErrNotFound)
+	// ErrInvalidAuthorizationSubject: an authorization entry names a user that
+	// does not exist. Not a dberrors.ErrNotFound: it maps to 400, not 404.
+	ErrInvalidAuthorizationSubject = errors.New("authorization subject does not resolve to a known user")
+	ErrUserNotFound                = fmt.Errorf("user: %w", dberrors.ErrNotFound)
+	ErrThreatModelNotFound         = fmt.Errorf("threat model: %w", dberrors.ErrNotFound)
+	ErrDiagramNotFound             = fmt.Errorf("diagram: %w", dberrors.ErrNotFound)
+	ErrTicketNotFound              = fmt.Errorf("ticket: %w", dberrors.ErrNotFound)
 
 	// Duplicate / conflict errors
 	ErrGroupDuplicate       = fmt.Errorf("group: %w", dberrors.ErrDuplicate)
