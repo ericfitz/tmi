@@ -29,8 +29,9 @@ import (
 // the admin settings reads) applies one rule, implemented by configOutranksRow:
 // an explicit (admin-set or dbtool-imported) database row wins over config,
 // explicit or not; a seeded default row yields to explicit config (an env var
-// or a key written in the config file); with no usable row (missing, empty or
-// unreadable) the config layer's value, explicit or default, is used.
+// or a key written in the config file); with no usable row (missing, empty,
+// unreadable, or failing its per-key semantic validator) the config layer's
+// value, explicit or default, is used.
 // Bootstrap settings are never database-backed, so config is their only source.
 //
 // The ConfigProvider (via GetMigratableSettings) already merges environment
@@ -56,6 +57,9 @@ type SettingsService struct {
 
 	// Encryptor for at-rest encryption of setting values
 	encryptor *crypto.SettingsEncryptor
+
+	// warnedInvalidRows records keys whose invalid row has been logged (#1181).
+	warnedInvalidRows sync.Map
 }
 
 // settingsCacheEntry represents a cached setting value
@@ -254,7 +258,7 @@ func (s *SettingsService) resolveSetting(ctx context.Context, key string) (value
 			return "", false, false, classified
 		}
 	}
-	if configOutranksRow(cfgFound && cfg.Explicit, row) {
+	if s.configOutranksRow(key, cfgFound && cfg.Explicit, row) {
 		if !cfgFound || (cfg.Value == "" && !cfg.Explicit) {
 			return "", false, true, nil
 		}
@@ -331,7 +335,7 @@ func (s *SettingsService) GetResolvedString(ctx context.Context, key string) (st
 		return "", false, err
 	}
 
-	if configOutranksRow(cfgFound && cfg.Explicit, row) {
+	if s.configOutranksRow(key, cfgFound && cfg.Explicit, row) {
 		return cfg.Value, cfgFound && cfg.Value != "", nil
 	}
 	return string(row.Value), true, nil
@@ -343,15 +347,16 @@ func (s *SettingsService) GetResolvedString(ctx context.Context, key string) (st
 // by the runtime read path and the admin settings read endpoints so that the
 // admin API reports the value the server actually uses (#1161). row may be
 // nil (no row).
-func configOutranksRow(cfgExplicit bool, row *models.SystemSetting) bool {
+func configOutranksRow(cfgExplicit bool, row *models.SystemSetting, productionMode bool) bool {
 	switch {
-	case row == nil || row.Unreadable || string(row.Value) == "":
+	case row == nil || row.Unreadable || string(row.Value) == "" || rowFailsSemantics(row, productionMode):
 		// Nothing usable in the database — the config layer is all there is,
 		// explicit or not. An empty row value is treated as absent: on Oracle
 		// '' binds as NULL, so an empty-but-present row is indistinguishable
 		// from a missing one anyway — collapsing them keeps the rule
 		// engine-independent (oracle-db-admin review of #767, note 3). A row
-		// that could not be decrypted is likewise no usable row (#1169).
+		// that could not be decrypted is likewise no usable row (#1169), and so
+		// is one whose value fails its per-key semantic validator (#1181).
 		return true
 	case row.IsExplicit():
 		// An operator deliberately set this row, via the admin API or a
@@ -364,6 +369,30 @@ func configOutranksRow(cfgExplicit bool, row *models.SystemSetting) bool {
 		// defaults, prefer the row, which an admin can change at runtime.
 		return cfgExplicit
 	}
+}
+
+// rowFailsSemantics reports whether a stored row's value fails the per-key
+// semantic validator, which makes it unusable (#1181). It is computed at
+// resolution time rather than stored on the row, because cached rows would not
+// carry a flag and a validator can tighten in a later release. Keys without a
+// validator never fail. The validator's message is deliberately dropped: it
+// may echo the value.
+func rowFailsSemantics(row *models.SystemSetting, productionMode bool) bool {
+	return ValidateSettingSemantics(string(row.SettingKey), string(row.Value), productionMode) != nil
+}
+
+// configOutranksRow is the service-side entry to the package-level rule: it
+// supplies the build mode and, for an invalid row, logs the key (once per key
+// per process, since resolution runs on every read) so the ignored row is
+// visible. Values are never logged.
+func (s *SettingsService) configOutranksRow(key string, cfgExplicit bool, row *models.SystemSetting) bool {
+	prod := s.isProductionMode()
+	if row != nil && !row.Unreadable && string(row.Value) != "" && rowFailsSemantics(row, prod) {
+		if _, seen := s.warnedInvalidRows.LoadOrStore(key, struct{}{}); !seen {
+			slogging.Get().Warn("System setting %s has a stored value that fails validation; ignoring the row and using the config layer value", key)
+		}
+	}
+	return configOutranksRow(cfgExplicit, row, prod)
 }
 
 // settingLayer names the winning layer for parse-error messages.
@@ -486,8 +515,8 @@ func (s *SettingsService) ListByPrefix(ctx context.Context, prefix string) ([]mo
 // settingSemanticValidators is the single key -> validator map applied by Set,
 // so semantic checks on specific settings are enforced for every writer that
 // goes through Set (the admin API) rather than per handler. Writers that
-// bypass Set (raw DB writes) are not covered here; the startup check catches
-// their values at the next boot. dbtool reuses this map through
+// bypass Set (raw DB writes) are not covered here; a stored value that fails
+// its validator is ignored at read time instead (#1181). dbtool reuses this map through
 // ValidateSettingSemantics so its direct writes obey the same rules (#1108).
 // The validators mirror the startup checks in config.ValidateTimmyConfig (#1102).
 var settingSemanticValidators = map[string]func(value string, productionMode bool) error{

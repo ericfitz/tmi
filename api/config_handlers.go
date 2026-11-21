@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -478,6 +479,20 @@ func dbSettingToAPI(row models.SystemSetting, readOnly bool) SystemSetting {
 	return apiSetting
 }
 
+// isProductionMode reports whether the config layer says this is a production
+// build, falling back to TMI_BUILD_MODE like SettingsService.isProductionMode.
+// The admin reads need it to judge a row's semantic validity (#1181).
+func (s *Server) isProductionMode() bool {
+	if s.configProvider != nil {
+		for _, cs := range s.configProvider.GetMigratableSettings() {
+			if cs.Key == "auth.build_mode" {
+				return cs.Value == "production"
+			}
+		}
+	}
+	return os.Getenv("TMI_BUILD_MODE") == "production"
+}
+
 // mergeSettingsWithConfig builds a merged view of database and config settings.
 // When a key has both, the one reported is the one in effect, decided by
 // configOutranksRow — the same rule the runtime read path uses (#1161).
@@ -518,6 +533,8 @@ func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []Sy
 	// readOnly mirrors configWriteBlock, the single decision PUT makes.
 	readOnly := func(key string) bool { return s.settingReadOnly(allConfig[key], key) }
 
+	prodMode := s.isProductionMode()
+
 	result := make([]SystemSetting, 0, len(allKeys))
 	for key := range allKeys {
 		configSetting, inConfig := configMap[key]
@@ -529,7 +546,7 @@ func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []Sy
 		bootstrap := config.ClassificationCategoryFor(key) == config.CategoryBootstrap
 
 		switch {
-		case inConfig && (bootstrap || !inDB || configOutranksRow(configSetting.Explicit, &row)):
+		case inConfig && (bootstrap || !inDB || configOutranksRow(configSetting.Explicit, &row, prodMode)):
 			result = append(result, configSettingToAPI(configSetting, readOnly(key)))
 		case inDB && bootstrap:
 			// no config value to report and no usable row
@@ -693,8 +710,9 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 	}
 
 	// Report the value in effect: the same rule as the runtime read path and
-	// the list endpoint (#1161).
-	if configEntry != nil && configOutranksRow(configEntry.Explicit, setting) {
+	// the list endpoint (#1161). A row that fails its semantic validator is no
+	// usable row (#1181), so the config value is reported for it too.
+	if configEntry != nil && configOutranksRow(configEntry.Explicit, setting, s.isProductionMode()) {
 		c.JSON(http.StatusOK, configSettingToAPI(*configEntry, readOnly))
 		return
 	}

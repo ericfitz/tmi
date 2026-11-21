@@ -221,8 +221,8 @@ func TestConfigOutranksRow_UnreadableRow(t *testing.T) {
 		Origin:     models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true},
 		Unreadable: true,
 	}
-	assert.True(t, configOutranksRow(false, row))
-	assert.True(t, configOutranksRow(true, row))
+	assert.True(t, configOutranksRow(false, row, false))
+	assert.True(t, configOutranksRow(true, row, false))
 }
 
 // An operator must be able to delete the unreadable row to repair it.

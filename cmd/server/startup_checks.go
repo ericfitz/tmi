@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/ericfitz/tmi/api"
@@ -261,11 +260,15 @@ func validateEffectiveTimmyAtStartup(ctx context.Context, settings api.SettingsS
 	return validateTimmyAtStartup("settings", api.NewTimmyConfigProvider(settings).Current(ctx), buildMode)
 }
 
-// exitOnInvalidEffectiveTimmy logs the failure and exits the process when the
-// effective Timmy config is invalid.
-func exitOnInvalidEffectiveTimmy(ctx context.Context, settings api.SettingsServiceInterface, buildMode string) {
-	if err := validateEffectiveTimmyAtStartup(ctx, settings, buildMode); err != nil {
+// logInvalidEffectiveTimmy logs, but never exits on, an invalid effective Timmy
+// config. A database row that fails validation is ignored by the settings
+// service (#1181), so the effective config can only be invalid when the env/YAML
+// layer is, and that is checked, and exits, separately; database content must
+// not be able to stop the server. It returns the error for tests.
+func logInvalidEffectiveTimmy(ctx context.Context, settings api.SettingsServiceInterface, buildMode string) error {
+	err := validateEffectiveTimmyAtStartup(ctx, settings, buildMode)
+	if err != nil {
 		slogging.Get().Error("%v", err)
-		os.Exit(1)
 	}
+	return err
 }
