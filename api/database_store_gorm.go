@@ -1471,15 +1471,19 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 				groupUUID = &everyoneUUID
 			} else {
 				resolvedUUID, err := resolveGroupUUID(tx, auth.ProviderId, &auth.Provider)
-				if err != nil {
+				switch {
+				case err == nil:
+					groupUUID = &resolvedUUID
+				case errors.Is(err, ErrGroupNotFound):
 					logger.Debug("Could not resolve group identifier %s to internal_uuid: %v", auth.ProviderId, err)
 					newGroupUUID, err := s.ensureGroupExists(tx, auth.ProviderId, &auth.Provider)
 					if err != nil {
 						return dberrors.Classify(err)
 					}
 					groupUUID = &newGroupUUID
-				} else {
-					groupUUID = &resolvedUUID
+				default:
+					// A real lookup failure must not fall into group creation.
+					return dberrors.Classify(err)
 				}
 			}
 		}

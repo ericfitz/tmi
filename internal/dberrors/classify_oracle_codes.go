@@ -108,6 +108,9 @@ var oracleCodeSentinels = map[int]error{
 	// pre-11g spelling of ORA-12899, folded in for completeness.
 	1438: ErrConstraint,
 	1401: ErrInvalidValue,
+	// ORA-01461: can bind a LONG value only for insert into a LONG column —
+	// raised when an over-long string is bound as a LOB/LONG parameter.
+	1461: ErrInvalidValue,
 
 	// Serialization / deadlock / lock contention
 	8177: ErrTransient, // can't serialize access
