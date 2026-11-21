@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -139,7 +140,33 @@ func writeExportedConfig(rows []exportRow, outputPath string, explicitOnly bool)
 	if err != nil {
 		return fmt.Errorf("failed to marshal YAML: %w", err)
 	}
-	return os.WriteFile(outputPath, append([]byte(header), yamlData...), 0o600)
+	return writeFileAtomic(outputPath, append([]byte(header), yamlData...))
+}
+
+// writeFileAtomic writes data to path (mode 0600) via a temp file in the same
+// directory and a rename, so an interrupted export can never leave a truncated
+// file where a good snapshot was.
+func writeFileAtomic(path string, data []byte) (err error) {
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tmp.Close()
+			_ = os.Remove(tmp.Name())
+		}
+	}()
+	if err = tmp.Chmod(0o600); err != nil {
+		return err
+	}
+	if _, err = tmp.Write(data); err != nil {
+		return err
+	}
+	if err = tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
 
 // runConfigExport reads all system_settings rows and writes them as a nested
@@ -154,8 +181,11 @@ func writeExportedConfig(rows []exportRow, outputPath string, explicitOnly bool)
 // "explicit" (SystemSetting.IsExplicit, the same test the read path uses; NULL
 // and unexpected origins are not exported), plus the format marker that
 // --restore-snapshot requires (#1180). Seeded rows need no snapshot because
-// SeedDefaults recreates them.
-func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecrets, explicitOnly bool) error {
+// SeedDefaults recreates them. In that mode an explicit row that cannot be
+// exported (secret or encrypted value with no decryptor, empty value) would be
+// silently lost on the next nuke, so the file is still written but the export
+// fails naming the keys, unless allowSkips is set (then it warns).
+func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecrets, explicitOnly, allowSkips bool) error {
 	log := slogging.Get()
 
 	cfg, err := config.Load(cfgPath)
@@ -196,6 +226,7 @@ func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecre
 	var skippedEncrypted int
 	var skippedEmpty int
 	var skippedNonExplicit int
+	var lostExplicit []string // explicit rows that could not be exported
 	for _, s := range settings {
 		key := string(s.SettingKey)
 		if explicitOnly && !s.IsExplicit() {
@@ -215,6 +246,7 @@ func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecre
 			// error on an ENC:-prefixed value instead of skipping it.
 			if encryptor == nil || !encryptor.IsEnabled() {
 				skippedSecrets++
+				lostExplicit = append(lostExplicit, key)
 				log.Warn("Skipping secret setting %s (no decryptor available)", key)
 				continue
 			}
@@ -229,6 +261,7 @@ func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecre
 			// ciphertext that --import-config cannot parse (#1033).
 			if encryptor == nil || !encryptor.IsEnabled() {
 				skippedEncrypted++
+				lostExplicit = append(lostExplicit, key)
 				log.Warn("Skipping encrypted setting %s (no decryptor available)", key)
 				continue
 			}
@@ -247,6 +280,7 @@ func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecre
 		// paths in lockstep (#549).
 		if value == "" {
 			skippedEmpty++
+			lostExplicit = append(lostExplicit, key)
 			log.Warn("Skipping empty setting %s (not portable; import skips empty values — Oracle stores '' as NULL, ORA-01400)", key)
 			continue
 		}
@@ -269,5 +303,14 @@ func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecre
 		return fmt.Errorf("failed to write export: %w", err)
 	}
 	log.Info("Exported %d settings to %s (%d secrets skipped, %d encrypted skipped, %d empty skipped, %d non-explicit skipped)", len(rows), outputFile, skippedSecrets, skippedEncrypted, skippedEmpty, skippedNonExplicit)
+	if explicitOnly && len(lostExplicit) > 0 {
+		sort.Strings(lostExplicit)
+		msg := fmt.Sprintf("%d explicit setting(s) were NOT written to the snapshot and will be lost on a database wipe: %s",
+			len(lostExplicit), strings.Join(lostExplicit, ", "))
+		if !allowSkips {
+			return fmt.Errorf("%s (snapshot file written without them; pass --allow-skips to accept)", msg)
+		}
+		log.Warn("%s", msg)
+	}
 	return nil
 }

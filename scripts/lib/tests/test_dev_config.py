@@ -86,15 +86,18 @@ class TestSnapshotRestoreModes(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             args = self._args(root)
-            (root / "snap.yaml").write_text("x")  # makes chmod/relative_to succeed
+
+            def fake(argv, cluster, with_settings_key=False):
+                Path(argv[argv.index("--output") + 1]).write_text("a: 1\n")
 
             with mock.patch.object(dc, "get_project_root", return_value=root), \
                     mock.patch.object(dc, "build_dbtool"), \
-                    mock.patch.object(dc, "_dbtool") as run:
+                    mock.patch.object(dc, "_dbtool", side_effect=fake) as run:
                 dc.cmd_snapshot(args)
             argv = run.call_args.args[0]
             self.assertIn("--export-config", argv)
             self.assertIn("--explicit-only", argv)
+            self.assertIn("--allow-skips", argv)
             self.assertTrue(run.call_args.kwargs["with_settings_key"])
 
     def test_restore_uses_restore_snapshot_not_import_config(self):
@@ -126,6 +129,83 @@ class TestSnapshotRestoreModes(unittest.TestCase):
         with mock.patch("sys.argv", ["dev-config.py", "restore", "--overwrite"]), \
                 mock.patch("sys.stderr"), self.assertRaises(SystemExit):
             dc.parse_args()
+
+
+class TestSnapshotSafety(unittest.TestCase):
+    """The good snapshot must survive an export of a database with no explicit rows."""
+
+    GOOD = "# tmi-dbtool-snapshot: format=explicit-only/v1\noperator:\n  name: Eric\n"
+    EMPTY = "# tmi-dbtool-snapshot: format=explicit-only/v1\n"
+
+    def _snap(self, root, new_content, existing=None, prev=None):
+        out = root / "snap.yaml"
+        if existing is not None:
+            out.write_text(existing)
+        if prev is not None:
+            (root / "snap.yaml.prev").write_text(prev)
+
+        def fake_dbtool(argv, cluster, with_settings_key=False):
+            self.assertIn("--explicit-only", argv)
+            Path(argv[argv.index("--output") + 1]).write_text(new_content)
+
+        args = argparse.Namespace(cluster="k3s", file=str(out), config="config.yml")
+        with mock.patch.object(dc, "get_project_root", return_value=root), \
+                mock.patch.object(dc, "build_dbtool"), \
+                mock.patch.object(dc, "_dbtool", side_effect=fake_dbtool):
+            dc.cmd_snapshot(args)
+        return out
+
+    def test_empty_export_keeps_good_snapshot_and_prev(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = self._snap(root, self.EMPTY, existing=self.GOOD, prev="older")
+            self.assertEqual(out.read_text(), self.GOOD)
+            self.assertEqual((root / "snap.yaml.prev").read_text(), "older")
+            self.assertFalse((root / "snap.yaml.new").exists())
+
+    def test_old_format_good_file_also_kept_over_empty_export(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = self._snap(root, self.EMPTY, existing="operator:\n  name: Eric\n")
+            self.assertEqual(out.read_text(), "operator:\n  name: Eric\n")
+
+    def test_normal_rotation(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            new = self.GOOD.replace("Eric", "Bob")
+            out = self._snap(root, new, existing=self.GOOD, prev="older")
+            self.assertEqual(out.read_text(), new)
+            prev = root / "snap.yaml.prev"
+            self.assertEqual(prev.read_text(), self.GOOD)
+            self.assertEqual(stat.S_IMODE(prev.stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(out.stat().st_mode), 0o600)
+            self.assertFalse((root / "snap.yaml.new").exists())
+
+    def test_first_snapshot_even_if_empty(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = self._snap(root, self.EMPTY)
+            self.assertEqual(out.read_text(), self.EMPTY)
+            self.assertFalse((root / "snap.yaml.prev").exists())
+
+    def test_failed_export_leaves_good_file_and_cleans_temp(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = root / "snap.yaml"
+            out.write_text(self.GOOD)
+
+            def boom(argv, cluster, with_settings_key=False):
+                Path(argv[argv.index("--output") + 1]).write_text("partial")
+                raise RuntimeError("export failed")
+
+            args = argparse.Namespace(cluster="k3s", file=str(out), config="config.yml")
+            with mock.patch.object(dc, "get_project_root", return_value=root), \
+                    mock.patch.object(dc, "build_dbtool"), \
+                    mock.patch.object(dc, "_dbtool", side_effect=boom), \
+                    self.assertRaises(RuntimeError):
+                dc.cmd_snapshot(args)
+            self.assertEqual(out.read_text(), self.GOOD)
+            self.assertFalse((root / "snap.yaml.new").exists())
 
 
 if __name__ == "__main__":

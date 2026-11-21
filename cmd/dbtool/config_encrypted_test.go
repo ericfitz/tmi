@@ -48,7 +48,7 @@ func TestRunConfigExport_DecryptsNonSecretTypedValues_RoundTrip(t *testing.T) {
 	seedSystemSetting(t, db, "websocket.inactivity_timeout_seconds", encInt, "int")
 
 	out := filepath.Join(t.TempDir(), "export.yml")
-	if err := runConfigExport(db, cfgPath, out, true, false); err != nil {
+	if err := runConfigExport(db, cfgPath, out, true, false, false); err != nil {
 		t.Fatalf("runConfigExport: %v", err)
 	}
 	data, err := os.ReadFile(out)
@@ -98,7 +98,7 @@ func TestRunConfigExport_SkipsEncryptedNonSecretWhenNoEncryptor(t *testing.T) {
 	seedSystemSetting(t, db, "operator.name", "Eric", "string")
 
 	out := filepath.Join(t.TempDir(), "export.yml")
-	if err := runConfigExport(db, cfgPath, out, true, false); err != nil {
+	if err := runConfigExport(db, cfgPath, out, true, false, false); err != nil {
 		t.Fatalf("runConfigExport: %v", err)
 	}
 	data, err := os.ReadFile(out)

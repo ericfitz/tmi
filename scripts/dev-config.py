@@ -86,6 +86,8 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from deploy import (  # noqa: E402
     NS, OAUTH_PROVIDERS_ENV_FILE, ensure_port_forward, kubectl, set_active_context,
@@ -203,28 +205,76 @@ def _dbtool(argv: list[str], cluster: str, *, with_settings_key: bool = False) -
         run_cmd(argv, cwd=str(get_project_root()))
 
 
+def snapshot_key_count(path: Path) -> int:
+    """Number of leaf settings in a snapshot file; 0 for a missing, empty or
+    marker-only file. Unparseable files count as 0 keys but are not "empty" to
+    callers that only compare against an existing good file."""
+    try:
+        doc = yaml.safe_load(path.read_text())
+    except (OSError, yaml.YAMLError):
+        return 0
+
+    def leaves(node) -> int:
+        if isinstance(node, dict):
+            return sum(leaves(v) for v in node.values())
+        return 1
+
+    return leaves(doc) if isinstance(doc, dict) else 0
+
+
+def _write_private(path: Path, data: bytes) -> None:
+    """Write data to path with mode 0600 from creation (snapshots hold decrypted secrets)."""
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(data)
+    os.chmod(path, 0o600)
+
+
 def cmd_snapshot(args: argparse.Namespace) -> None:
     out = Path(args.file) if args.file else snapshot_path(args.cluster)
     out.parent.mkdir(parents=True, exist_ok=True)
+    root = get_project_root()
 
-    if out.exists():
-        # Keep one generation back. The snapshot is the only copy of settings
-        # that exist nowhere else, so an export that fails halfway (or exports
-        # an already-wiped database) must not be able to destroy the good one.
-        backup = out.with_suffix(out.suffix + ".prev")
-        backup.write_bytes(out.read_bytes())
-        log_info(f"Previous snapshot kept at {backup.relative_to(get_project_root())}")
+    # Export to a sibling temp file and only then replace the good snapshot.
+    # The snapshot is the only copy of settings that exist nowhere else, so a
+    # failed export, or an export of a database with no explicit rows (a freshly
+    # nuked one whose restore was refused or failed), must not be able to destroy
+    # it or its .prev generation.
+    tmp = out.with_name(out.name + ".new")
+    tmp.unlink(missing_ok=True)
 
     build_dbtool()
-    log_info(f"Exporting operational settings from the {args.cluster} dev database...")
-    _dbtool([
-        "./bin/tmi-dbtool", "--export-config", "--explicit-only",
-        f"--config={args.config}",
-        "-f", args.config,
-        "--output", str(out),
-    ], cluster=args.cluster, with_settings_key=True)
-    os.chmod(out, 0o600)
-    log_success(f"Snapshot written: {out.relative_to(get_project_root())}")
+    log_info(f"Exporting explicit settings from the {args.cluster} dev database...")
+    try:
+        # --allow-skips: an explicit row dbtool cannot export (a secret with no
+        # decryptor, an empty value) must not fail the best-effort snapshot that
+        # runs before every teardown; dbtool warns with the key names instead.
+        _dbtool([
+            "./bin/tmi-dbtool", "--export-config", "--explicit-only", "--allow-skips",
+            f"--config={args.config}",
+            "-f", args.config,
+            "--output", str(tmp),
+        ], cluster=args.cluster, with_settings_key=True)
+
+        new_keys = snapshot_key_count(tmp)
+        if out.exists() and new_keys == 0 and snapshot_key_count(out) > 0:
+            log_warn(
+                f"The database has no explicit settings but {out.relative_to(root)} "
+                "has some: keeping the existing snapshot and its .prev unchanged "
+                "(a wiped database must not overwrite the good copy)."
+            )
+            return
+
+        if out.exists():
+            # Keep one generation back.
+            backup = out.with_suffix(out.suffix + ".prev")
+            _write_private(backup, out.read_bytes())
+            log_info(f"Previous snapshot kept at {backup.relative_to(root)}")
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, out)
+    finally:
+        tmp.unlink(missing_ok=True)
+    log_success(f"Snapshot written: {out.relative_to(root)} ({new_keys} keys)")
 
 
 def cmd_restore(args: argparse.Namespace) -> None:

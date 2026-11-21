@@ -42,6 +42,7 @@ func run() int {
 	exportConfig := flag.Bool("export-config", false, "Export database settings to a config YAML file")
 	restoreSnapshot := flag.Bool("restore-snapshot", false, "Restore a dev settings snapshot written by --export-config --explicit-only")
 	explicitOnly := flag.Bool("explicit-only", false, "With --export-config: write only explicit (operator-set) rows plus the snapshot format marker")
+	allowSkips := flag.Bool("allow-skips", false, "With --export-config --explicit-only: do not fail when an explicit row cannot be exported (warn instead)")
 	noDecrypt := flag.Bool("no-decrypt", false, "With --export-config: skip secret settings instead of decrypting")
 
 	backfillEmptyStrings := flag.Bool("backfill-empty-strings", false, "PostgreSQL only: normalize stored '' to NULL on NullableDB* columns (#700)")
@@ -160,6 +161,7 @@ func run() int {
 		exportConfig:         *exportConfig,
 		restoreSnapshot:      *restoreSnapshot,
 		explicitOnly:         *explicitOnly,
+		allowSkips:           *allowSkips,
 		backfillEmptyStrings: *backfillEmptyStrings,
 		inputFile:            *inputFile,
 		outputFile:           *outputFile,
@@ -199,6 +201,7 @@ type cliFlags struct {
 	noRewrite            bool
 	noDecrypt            bool
 	explicitOnly         bool
+	allowSkips           bool
 	restoreSnapshot      bool
 	serverURL            string
 	user                 string
@@ -219,6 +222,8 @@ func dispatchOperation(db *testdb.TestDB, log *slogging.Logger, opCount int, f c
 		return fmt.Errorf("only one operation flag can be specified at a time (-s, -c, -t, -l, --export-config, --restore-snapshot, --backfill-empty-strings)")
 	case f.explicitOnly && !f.exportConfig:
 		return fmt.Errorf("--explicit-only requires --export-config")
+	case f.allowSkips && !f.explicitOnly:
+		return fmt.Errorf("--allow-skips requires --export-config --explicit-only")
 	case f.schema:
 		// #758: a cancellable context so Ctrl-C / SIGTERM releases the
 		// cross-replica migration lock (pg_advisory_lock otherwise waits
@@ -299,7 +304,7 @@ func dispatchExportConfig(db *testdb.TestDB, f cliFlags) error {
 	case f.inputFile == "":
 		return fmt.Errorf("--input-file / -f is required for --export-config")
 	}
-	return runConfigExport(db, f.inputFile, f.outputFile, !f.noDecrypt, f.explicitOnly)
+	return runConfigExport(db, f.inputFile, f.outputFile, !f.noDecrypt, f.explicitOnly, f.allowSkips)
 }
 
 // dispatchRestoreSnapshot runs --restore-snapshot after validating its flags.
@@ -380,6 +385,8 @@ Behavior:
                             untouched (with -l; mutually exclusive with --output)
       --explicit-only       With --export-config: export only explicit (operator-set)
                             rows, plus the marker --restore-snapshot requires
+      --allow-skips         With --explicit-only: warn instead of failing when an explicit
+                            row cannot be exported (secret with no decryptor, empty value)
       --no-decrypt          With --export-config: skip secret settings instead of decrypting
   -v, --verbose             Print step-by-step operations and DB messages
   -h, --help                Print usage

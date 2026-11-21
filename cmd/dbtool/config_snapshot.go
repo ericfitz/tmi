@@ -218,6 +218,9 @@ func applySnapshotSettings(tx *gorm.DB, toWrite []config.MigratableSetting, encr
 		}
 
 		value := s.Value
+		if s.Secret && encryptor == nil {
+			log.Warn("Writing secret setting %s in plaintext (no settings encryptor available)", s.Key)
+		}
 		if s.Secret && encryptor != nil {
 			enc, encErr := encryptor.Encrypt(value)
 			if encErr != nil {
@@ -228,13 +231,24 @@ func applySnapshotSettings(tx *gorm.DB, toWrite []config.MigratableSetting, encr
 		description := s.Description
 
 		if exists {
-			if upErr := tx.Model(&existing).Updates(map[string]any{
-				"value":        value,
-				"setting_type": s.Type,
-				"description":  description,
-				"origin":       models.SystemSettingOriginExplicit,
-			}).Error; upErr != nil {
-				return 0, 0, 0, fmt.Errorf("failed to update setting %s: %w", s.Key, upErr)
+			// Conditional replace: only a row that is still not explicit. The
+			// explicit NULL branch keeps this identical on Oracle and PostgreSQL
+			// (<> alone is unknown for NULL). 0 rows affected means the row
+			// became explicit since the Find, so it is skipped.
+			upd := tx.Model(&models.SystemSetting{}).
+				Where("setting_key = ? AND (origin IS NULL OR origin <> ?)", s.Key, models.SystemSettingOriginExplicit).
+				Updates(map[string]any{
+					"value":        value,
+					"setting_type": s.Type,
+					"description":  description,
+					"origin":       models.SystemSettingOriginExplicit,
+				})
+			if upd.Error != nil {
+				return 0, 0, 0, fmt.Errorf("failed to update setting %s: %w", s.Key, upd.Error)
+			}
+			if upd.RowsAffected == 0 {
+				skipped++
+				continue
 			}
 			replaced++
 			continue

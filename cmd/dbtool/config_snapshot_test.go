@@ -96,7 +96,7 @@ func TestRunConfigExport_ExplicitOnlyFiltersAndMarks(t *testing.T) {
 	seedSettingWithOrigin(t, db, "ui.default_theme", "dark", "string", "bogus")     // unexpected origin
 
 	out := filepath.Join(t.TempDir(), "snap.yaml")
-	if err := runConfigExport(db, cfgPath, out, true, true); err != nil {
+	if err := runConfigExport(db, cfgPath, out, true, true, false); err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(out)
@@ -121,7 +121,7 @@ func TestRunConfigExport_DefaultModeHasNoMarker(t *testing.T) {
 	db, cfgPath := newExportTestDB(t)
 	seedSettingWithOrigin(t, db, "operator.name", "Eric", "string", models.SystemSettingOriginSeeded)
 	out := filepath.Join(t.TempDir(), "e.yaml")
-	if err := runConfigExport(db, cfgPath, out, true, false); err != nil {
+	if err := runConfigExport(db, cfgPath, out, true, false, false); err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(out)
@@ -258,7 +258,7 @@ func TestSnapshotExportRestoreRoundTrip(t *testing.T) {
 	seedSettingWithOrigin(t, src, "extraction.async_enabled", "true", "bool", models.SystemSettingOriginExplicit)
 	seedSettingWithOrigin(t, src, "websocket.inactivity_timeout_seconds", "300", "int", models.SystemSettingOriginSeeded)
 	out := filepath.Join(t.TempDir(), "snap.yaml")
-	if err := runConfigExport(src, cfgPath, out, true, true); err != nil {
+	if err := runConfigExport(src, cfgPath, out, true, true, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -293,5 +293,61 @@ func TestDispatchRestoreSnapshotRejectsOverwriteAndMissingFile(t *testing.T) {
 	}
 	if err := dispatchOperation(db, nil, 1, cliFlags{restoreSnapshot: true, inputFile: "x", overwrite: true}); err == nil || !strings.Contains(err.Error(), "--overwrite") {
 		t.Errorf("want --overwrite error, got %v", err)
+	}
+}
+
+func TestRunConfigExport_ExplicitOnlyReportsUnexportableExplicitRows(t *testing.T) {
+	db, cfgPath := newExportTestDB(t)
+	t.Setenv("TMI_SECRET_SETTINGS_ENCRYPTION_KEY", "")
+	seedSettingWithOrigin(t, db, "operator.name", "Eric", "string", models.SystemSettingOriginExplicit)
+	seedSettingWithOrigin(t, db, "auth.jwt.secret", "ENC:v1:1:1700000000:c29tZS1jaXBoZXJ0ZXh0Cg==", "string", models.SystemSettingOriginExplicit)
+
+	out := filepath.Join(t.TempDir(), "snap.yaml")
+	err := runConfigExport(db, cfgPath, out, true, true, false)
+	if err == nil || !strings.Contains(err.Error(), "auth.jwt.secret") || !strings.Contains(err.Error(), "--allow-skips") {
+		t.Fatalf("want an error naming the skipped key and --allow-skips, got %v", err)
+	}
+	if strings.Contains(err.Error(), "c29tZS1j") || strings.Contains(err.Error(), "Eric") {
+		t.Errorf("error leaks a value: %v", err)
+	}
+	if _, statErr := os.Stat(out); statErr != nil {
+		t.Errorf("snapshot file should still be written: %v", statErr)
+	}
+	if err := runConfigExport(db, cfgPath, out, true, true, true); err != nil {
+		t.Errorf("--allow-skips should downgrade to a warning, got %v", err)
+	}
+}
+
+func TestWriteFileAtomic_Mode0600AndNoLeftovers(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "snap.yaml")
+	if err := os.WriteFile(p, []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(p, 0o644); err != nil { // #nosec G302 -- test setup: prove the rewrite tightens the mode
+		t.Fatal(err)
+	}
+	if err := writeFileAtomic(p, []byte("new")); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(p)
+	fi, _ := os.Stat(p)
+	if string(b) != "new" || fi.Mode().Perm() != 0o600 {
+		t.Errorf("content=%q mode=%v", b, fi.Mode().Perm())
+	}
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 1 {
+		t.Errorf("temp file left behind: %v", entries)
+	}
+	if err := writeFileAtomic(filepath.Join(dir, "missing", "x"), []byte("x")); err == nil {
+		t.Error("expected error writing into a missing directory")
+	}
+}
+
+func TestDispatchRejectsAllowSkipsWithoutExplicitOnly(t *testing.T) {
+	db, _ := newExportTestDB(t)
+	err := dispatchOperation(db, nil, 1, cliFlags{exportConfig: true, allowSkips: true, inputFile: "x", outputFile: "y"})
+	if err == nil || !strings.Contains(err.Error(), "--allow-skips") {
+		t.Errorf("want --allow-skips error, got %v", err)
 	}
 }

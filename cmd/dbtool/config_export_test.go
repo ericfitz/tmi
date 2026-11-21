@@ -262,7 +262,7 @@ func TestRunConfigExport_DecryptsSecretWhenEncryptorAvailable(t *testing.T) {
 	seedSystemSetting(t, db, "auth.jwt.secret", encrypted, "string")
 
 	out := filepath.Join(t.TempDir(), "export.yml")
-	if err := runConfigExport(db, cfgPath, out, true, false); err != nil {
+	if err := runConfigExport(db, cfgPath, out, true, false, false); err != nil {
 		t.Fatalf("runConfigExport: %v", err)
 	}
 
@@ -301,7 +301,7 @@ func TestRunConfigExport_SkipsSecretWhenNoEncryptor(t *testing.T) {
 	seedSystemSetting(t, db, "operator.name", "Eric", "string")
 
 	out := filepath.Join(t.TempDir(), "export.yml")
-	if err := runConfigExport(db, cfgPath, out, true, false); err != nil {
+	if err := runConfigExport(db, cfgPath, out, true, false, false); err != nil {
 		t.Fatalf("runConfigExport: %v", err)
 	}
 
@@ -339,7 +339,7 @@ func TestRunConfigExport_SkipsEmptyValue(t *testing.T) {
 	seedSystemSetting(t, db, "auth.jwt.secret", "", "string")
 
 	out := filepath.Join(t.TempDir(), "export.yml")
-	if err := runConfigExport(db, cfgPath, out, true, false); err != nil {
+	if err := runConfigExport(db, cfgPath, out, true, false, false); err != nil {
 		t.Fatalf("runConfigExport: %v", err)
 	}
 
@@ -379,7 +379,7 @@ func TestRunConfigExport_ExportsPlainSettings(t *testing.T) {
 	seedSystemSetting(t, db, "features.saml_enabled", "true", "bool")
 
 	out := filepath.Join(t.TempDir(), "export.yml")
-	if err := runConfigExport(db, cfgPath, out, true, false); err != nil {
+	if err := runConfigExport(db, cfgPath, out, true, false, false); err != nil {
 		t.Fatalf("runConfigExport: %v", err)
 	}
 
