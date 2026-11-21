@@ -205,29 +205,54 @@ def _dbtool(argv: list[str], cluster: str, *, with_settings_key: bool = False) -
         run_cmd(argv, cwd=str(get_project_root()))
 
 
-def snapshot_key_count(path: Path) -> int:
-    """Number of leaf settings in a snapshot file; 0 for a missing, empty or
-    marker-only file. Unparseable files count as 0 keys but are not "empty" to
-    callers that only compare against an existing good file."""
+SKIPPED_PREFIX = "# skipped-explicit: "  # keep in step with cmd/dbtool skippedExplicitPrefix
+
+
+def snapshot_keys(path: Path) -> set[str] | None:
+    """Dotted leaf keys of a snapshot file (empty set for an empty or
+    marker-only file), or None when it cannot be read or parsed."""
     try:
         doc = yaml.safe_load(path.read_text())
     except (OSError, yaml.YAMLError):
-        return 0
+        return None
+    if doc is None:
+        return set()
+    if not isinstance(doc, dict):
+        return None
 
-    def leaves(node) -> int:
+    def walk(node, prefix):
         if isinstance(node, dict):
-            return sum(leaves(v) for v in node.values())
-        return 1
+            for k, v in node.items():
+                yield from walk(v, f"{prefix}.{k}" if prefix else str(k))
+        else:
+            yield prefix
 
-    return leaves(doc) if isinstance(doc, dict) else 0
+    return set(walk(doc, ""))
+
+
+def snapshot_skipped(path: Path) -> list[str]:
+    """Explicit rows dbtool reported as not exported (header comment), names only."""
+    try:
+        for line in path.read_text().splitlines():
+            if line.startswith(SKIPPED_PREFIX):
+                return [k.strip() for k in line[len(SKIPPED_PREFIX):].split(",") if k.strip()]
+    except OSError:
+        pass
+    return []
 
 
 def _write_private(path: Path, data: bytes) -> None:
-    """Write data to path with mode 0600 from creation (snapshots hold decrypted secrets)."""
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "wb") as fh:
-        fh.write(data)
-    os.chmod(path, 0o600)
+    """Replace path with data, mode 0600 from creation: write a private temp
+    file (mkstemp is O_EXCL, 0600) and rename it over path, so an old
+    world-readable file is never truncated and refilled with secrets."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".tmp-")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 def cmd_snapshot(args: argparse.Namespace) -> None:
@@ -237,18 +262,22 @@ def cmd_snapshot(args: argparse.Namespace) -> None:
 
     # Export to a sibling temp file and only then replace the good snapshot.
     # The snapshot is the only copy of settings that exist nowhere else, so a
-    # failed export, or an export of a database with no explicit rows (a freshly
-    # nuked one whose restore was refused or failed), must not be able to destroy
-    # it or its .prev generation.
+    # failed export, an export of a database with no explicit rows (a freshly
+    # nuked one whose restore was refused or failed), or a PARTIAL export (an
+    # explicit secret that could not be decrypted) must not destroy it or its
+    # .prev generation.
     tmp = out.with_name(out.name + ".new")
-    tmp.unlink(missing_ok=True)
+    for stale in (*out.parent.glob(out.name + ".new*"), *out.parent.glob(out.name + ".prev.tmp-*")):
+        stale.unlink(missing_ok=True)
 
     build_dbtool()
     log_info(f"Exporting explicit settings from the {args.cluster} dev database...")
     try:
         # --allow-skips: an explicit row dbtool cannot export (a secret with no
         # decryptor, an empty value) must not fail the best-effort snapshot that
-        # runs before every teardown; dbtool warns with the key names instead.
+        # runs before every teardown; dbtool names the keys in the file header
+        # and in a warning instead, and the subset check below protects the
+        # existing snapshot.
         _dbtool([
             "./bin/tmi-dbtool", "--export-config", "--explicit-only", "--allow-skips",
             f"--config={args.config}",
@@ -256,16 +285,34 @@ def cmd_snapshot(args: argparse.Namespace) -> None:
             "--output", str(tmp),
         ], cluster=args.cluster, with_settings_key=True)
 
-        new_keys = snapshot_key_count(tmp)
-        if out.exists() and new_keys == 0 and snapshot_key_count(out) > 0:
-            log_warn(
-                f"The database has no explicit settings but {out.relative_to(root)} "
-                "has some: keeping the existing snapshot and its .prev unchanged "
-                "(a wiped database must not overwrite the good copy)."
-            )
-            return
+        new_keys = snapshot_keys(tmp)
+        if new_keys is None:
+            raise RuntimeError(f"dbtool wrote an unparseable snapshot to {tmp}")
+        skipped = snapshot_skipped(tmp)
 
-        if out.exists():
+        rotate = out.exists()
+        if rotate:
+            existing = snapshot_keys(out)
+            if existing is None:
+                # Never let a corrupt file displace the good .prev.
+                corrupt = out.with_suffix(out.suffix + ".corrupt")
+                os.replace(out, corrupt)
+                log_warn(
+                    f"{out.relative_to(root)} is unreadable; moved aside to "
+                    f"{corrupt.relative_to(root)} and left .prev untouched."
+                )
+                rotate = False
+            elif existing and new_keys < existing:
+                missing = ", ".join(sorted(existing - new_keys))
+                log_warn(
+                    f"The new export is missing {len(existing - new_keys)} key(s) the existing "
+                    f"snapshot {out.relative_to(root)} has: {missing}. Keeping the existing "
+                    "snapshot and its .prev unchanged (a wiped database or an undecryptable "
+                    "secret must not overwrite the good copy)."
+                )
+                return
+
+        if rotate:
             # Keep one generation back.
             backup = out.with_suffix(out.suffix + ".prev")
             _write_private(backup, out.read_bytes())
@@ -274,7 +321,9 @@ def cmd_snapshot(args: argparse.Namespace) -> None:
         os.replace(tmp, out)
     finally:
         tmp.unlink(missing_ok=True)
-    log_success(f"Snapshot written: {out.relative_to(root)} ({new_keys} keys)")
+    note = f"; {len(skipped)} explicit rows skipped: {', '.join(skipped)}" if skipped else ""
+    msg = f"Snapshot written: {out.relative_to(root)} ({len(new_keys)} keys{note})"
+    (log_warn if skipped else log_success)(msg)
 
 
 def cmd_restore(args: argparse.Namespace) -> None:

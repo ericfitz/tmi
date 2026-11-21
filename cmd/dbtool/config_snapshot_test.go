@@ -351,3 +351,21 @@ func TestDispatchRejectsAllowSkipsWithoutExplicitOnly(t *testing.T) {
 		t.Errorf("want --allow-skips error, got %v", err)
 	}
 }
+
+func TestRunConfigExport_ExplicitOnlyNotesSkippedKeysInHeader(t *testing.T) {
+	db, cfgPath := newExportTestDB(t)
+	t.Setenv("TMI_SECRET_SETTINGS_ENCRYPTION_KEY", "")
+	seedSettingWithOrigin(t, db, "operator.name", "Eric", "string", models.SystemSettingOriginExplicit)
+	seedSettingWithOrigin(t, db, "auth.jwt.secret", "ENC:v1:1:1700000000:c29tZS1jaXBoZXJ0ZXh0Cg==", "string", models.SystemSettingOriginExplicit)
+	out := filepath.Join(t.TempDir(), "snap.yaml")
+	if err := runConfigExport(db, cfgPath, out, true, true, true); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(out)
+	if !strings.Contains(string(data), skippedExplicitPrefix+"auth.jwt.secret\n") {
+		t.Errorf("header does not name the skipped key:\n%s", data)
+	}
+	if strings.Contains(string(data), "c29tZS1j") {
+		t.Errorf("header leaks a value:\n%s", data)
+	}
+}

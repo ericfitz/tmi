@@ -188,6 +188,58 @@ class TestSnapshotSafety(unittest.TestCase):
             self.assertEqual(out.read_text(), self.EMPTY)
             self.assertFalse((root / "snap.yaml.prev").exists())
 
+    def test_strict_subset_keeps_good_file_and_prev_and_names_missing(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            good = self.GOOD + "auth:\n  jwt:\n    secret: s\n"
+            partial = self.GOOD + "# skipped-explicit: auth.jwt.secret\n"
+            args_warn = []
+            with mock.patch.object(dc, "log_warn", side_effect=args_warn.append):
+                out = self._snap(root, partial, existing=good, prev="older")
+            self.assertEqual(out.read_text(), good)
+            self.assertEqual((root / "snap.yaml.prev").read_text(), "older")
+            self.assertTrue(any("auth.jwt.secret" in m for m in args_warn))
+            self.assertFalse((root / "snap.yaml.new").exists())
+
+    def test_superset_and_different_set_rotate(self):
+        for new in (self.GOOD + "extra: 1\n",
+                    self.EMPTY + "other:\n  key: 1\n"):
+            with tempfile.TemporaryDirectory() as d:
+                root = Path(d)
+                out = self._snap(root, new, existing=self.GOOD, prev="older")
+                self.assertEqual(out.read_text(), new)
+                self.assertEqual((root / "snap.yaml.prev").read_text(), self.GOOD)
+
+    def test_corrupt_existing_moved_aside_prev_untouched(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = self._snap(root, self.GOOD, existing="a: [unclosed\n", prev="good-prev")
+            self.assertEqual(out.read_text(), self.GOOD)
+            self.assertEqual((root / "snap.yaml.prev").read_text(), "good-prev")
+            self.assertEqual((root / "snap.yaml.corrupt").read_text(), "a: [unclosed\n")
+
+    def test_prev_replaced_with_private_mode_even_if_old_was_world_readable(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            prev = root / "snap.yaml.prev"
+            prev.write_text("old")
+            os.chmod(prev, 0o644)
+            self._snap(root, self.GOOD.replace("Eric", "Bob"), existing=self.GOOD)
+            self.assertEqual(stat.S_IMODE(prev.stat().st_mode), 0o600)
+            self.assertEqual(prev.read_text(), self.GOOD)
+            self.assertEqual([p.name for p in root.iterdir() if ".tmp-" in p.name], [])
+
+    def test_stale_temp_files_removed_and_skips_reported(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "snap.yaml.new.tmp-abc").write_text("x")
+            (root / "snap.yaml.prev.tmp-abc").write_text("x")
+            msgs = []
+            with mock.patch.object(dc, "log_warn", side_effect=msgs.append):
+                self._snap(root, self.GOOD + "# skipped-explicit: a.b, c.d\n")
+            self.assertEqual([p.name for p in root.iterdir() if ".tmp-" in p.name], [])
+            self.assertTrue(any("2 explicit rows skipped: a.b, c.d" in m for m in msgs))
+
     def test_failed_export_leaves_good_file_and_cleans_temp(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
