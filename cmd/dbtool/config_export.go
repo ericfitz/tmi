@@ -125,7 +125,7 @@ func writeExportedConfig(rows []exportRow, outputPath string, explicitOnly bool)
 }
 
 // skippedExplicitPrefix starts the snapshot header comment that lists explicit
-// rows the export could not write (names only). scripts/dev-config.py reads it
+// rows the export could not write (YAML paths, names only). scripts/dev-config.py reads it
 // to report skips; keep the two in step.
 const skippedExplicitPrefix = "# skipped-explicit: "
 
@@ -141,7 +141,13 @@ func writeExportedConfigNoting(rows []exportRow, outputPath string, explicitOnly
 			"%s\n",
 			snapshotMarkerLine, time.Now().UTC().Format(time.RFC3339), nonRoundTrippingKeysNote())
 		if len(skippedExplicit) > 0 {
-			header += skippedExplicitPrefix + strings.Join(skippedExplicit, ", ") + "\n"
+			// YAML paths, the same namespace as the file's own keys, so
+			// dev-config.py can match them against the keys a snapshot holds.
+			paths := make([]string, len(skippedExplicit))
+			for i, k := range skippedExplicit {
+				paths[i] = config.YAMLPathForKey(k)
+			}
+			header += skippedExplicitPrefix + strings.Join(paths, ", ") + "\n"
 		}
 	} else {
 		header = fmt.Sprintf("# TMI operational settings exported from database\n"+

@@ -421,9 +421,9 @@ dev-deploy:  ## (Re)apply manifests + rollout without recreating cluster/db
 	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) deploy
 
-dev-config-snapshot:  ## Save the dev DB's explicit (operator-set) settings to .local/dev-config-$(CLUSTER).yaml
+dev-config-snapshot:  ## Save the dev DB's explicit (operator-set) settings to .local/dev-config-$(CLUSTER).yaml (FORCE=1 accepts an export that lost keys)
 	@$(REQUIRE_CLUSTER)
-	@uv run scripts/dev-config.py snapshot --cluster $(CLUSTER)
+	@uv run scripts/dev-config.py snapshot --cluster $(CLUSTER) $(if $(FORCE),--force,)
 
 dev-config-restore:  ## Restore that snapshot into the dev DB (explicit rows kept; seeded rows replaced)
 	@$(REQUIRE_CLUSTER)

@@ -369,3 +369,16 @@ func TestRunConfigExport_ExplicitOnlyNotesSkippedKeysInHeader(t *testing.T) {
 		t.Errorf("header leaks a value:\n%s", data)
 	}
 }
+
+// A snapshot carrying the skipped-explicit header comment restores normally.
+func TestRunSnapshotRestore_AcceptsSkippedExplicitHeader(t *testing.T) {
+	db, _ := newExportTestDB(t)
+	p := writeSnapshotFile(t, skippedExplicitPrefix+"auth.jwt.secret, content_extractors.async_enabled\noperator:\n  name: Eric\n", true)
+	if err := runSnapshotRestore(db, p, false); err != nil {
+		t.Fatal(err)
+	}
+	nm, ok := loadSetting(t, db, "operator.name")
+	if !ok || string(nm.Value) != "Eric" || !nm.IsExplicit() {
+		t.Errorf("operator.name not restored: ok=%v %q", ok, nm.Value)
+	}
+}

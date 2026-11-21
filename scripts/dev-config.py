@@ -83,6 +83,7 @@ import contextlib
 import os
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -255,6 +256,17 @@ def _write_private(path: Path, data: bytes) -> None:
         raise
 
 
+def _loses_to_skips(existing: set[str], new_keys: set[str], skipped: list[str]) -> bool:
+    """True when replacing `existing` with `new_keys` would lose data the export
+    only failed to read: the export is empty while the file has keys, or a key
+    that disappeared is one dbtool reported as skipped (undecryptable, empty).
+    A key that vanished with no skip entry was deleted by an admin, and the
+    snapshot must follow, or deleted rows would resurrect on restore."""
+    if not new_keys:
+        return True
+    return bool((existing - new_keys) & set(skipped))
+
+
 def cmd_snapshot(args: argparse.Namespace) -> None:
     out = Path(args.file) if args.file else snapshot_path(args.cluster)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -295,20 +307,22 @@ def cmd_snapshot(args: argparse.Namespace) -> None:
             existing = snapshot_keys(out)
             if existing is None:
                 # Never let a corrupt file displace the good .prev.
-                corrupt = out.with_suffix(out.suffix + ".corrupt")
+                stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+                corrupt = out.with_suffix(out.suffix + f".corrupt-{stamp}")
                 os.replace(out, corrupt)
                 log_warn(
                     f"{out.relative_to(root)} is unreadable; moved aside to "
                     f"{corrupt.relative_to(root)} and left .prev untouched."
                 )
                 rotate = False
-            elif existing and new_keys < existing:
-                missing = ", ".join(sorted(existing - new_keys))
+            elif not args.force and existing and _loses_to_skips(existing, new_keys, skipped):
+                lost = sorted((existing - new_keys) if new_keys else existing)
                 log_warn(
-                    f"The new export is missing {len(existing - new_keys)} key(s) the existing "
-                    f"snapshot {out.relative_to(root)} has: {missing}. Keeping the existing "
-                    "snapshot and its .prev unchanged (a wiped database or an undecryptable "
-                    "secret must not overwrite the good copy)."
+                    f"The new export lacks {len(lost)} key(s) the existing snapshot "
+                    f"{out.relative_to(root)} has and the loss is not an admin deletion "
+                    f"(empty export or skipped rows): {', '.join(lost)}. Keeping the existing "
+                    "snapshot and its .prev unchanged. Re-run with --force "
+                    "(make dev-config-snapshot FORCE=1) to accept the new export."
                 )
                 return
 
@@ -404,6 +418,11 @@ def parse_args() -> argparse.Namespace:
         description="Snapshot and restore the dev cluster's operational configuration.",
     )
     parser.add_argument("verb", choices=sorted(_DISPATCH), help="operation to perform")
+    parser.add_argument(
+        "--force", action="store_true",
+        help="snapshot: accept an export that lacks keys the existing snapshot has "
+             "(empty export or skipped rows) instead of keeping the existing file",
+    )
     parser.add_argument(
         "--cluster", choices=CLUSTERS, default="docker-desktop",
         help="which dev cluster's snapshot to act on (default: docker-desktop)",

@@ -80,7 +80,8 @@ class TestSnapshotRestoreModes(unittest.TestCase):
 
     def _args(self, root, **kw):
         return argparse.Namespace(
-            cluster="k3s", file=str(root / "snap.yaml"), config="config.yml", **kw)
+            cluster="k3s", file=str(root / "snap.yaml"), config="config.yml",
+            **{"force": False, **kw})
 
     def test_snapshot_uses_explicit_only_export(self):
         with tempfile.TemporaryDirectory() as d:
@@ -137,7 +138,7 @@ class TestSnapshotSafety(unittest.TestCase):
     GOOD = "# tmi-dbtool-snapshot: format=explicit-only/v1\noperator:\n  name: Eric\n"
     EMPTY = "# tmi-dbtool-snapshot: format=explicit-only/v1\n"
 
-    def _snap(self, root, new_content, existing=None, prev=None):
+    def _snap(self, root, new_content, existing=None, prev=None, force=False):
         out = root / "snap.yaml"
         if existing is not None:
             out.write_text(existing)
@@ -148,7 +149,7 @@ class TestSnapshotSafety(unittest.TestCase):
             self.assertIn("--explicit-only", argv)
             Path(argv[argv.index("--output") + 1]).write_text(new_content)
 
-        args = argparse.Namespace(cluster="k3s", file=str(out), config="config.yml")
+        args = argparse.Namespace(cluster="k3s", file=str(out), config="config.yml", force=force)
         with mock.patch.object(dc, "get_project_root", return_value=root), \
                 mock.patch.object(dc, "build_dbtool"), \
                 mock.patch.object(dc, "_dbtool", side_effect=fake_dbtool):
@@ -188,18 +189,39 @@ class TestSnapshotSafety(unittest.TestCase):
             self.assertEqual(out.read_text(), self.EMPTY)
             self.assertFalse((root / "snap.yaml.prev").exists())
 
-    def test_strict_subset_keeps_good_file_and_prev_and_names_missing(self):
+    def test_missing_key_that_was_skipped_blocks_rotation(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             good = self.GOOD + "auth:\n  jwt:\n    secret: s\n"
             partial = self.GOOD + "# skipped-explicit: auth.jwt.secret\n"
-            args_warn = []
-            with mock.patch.object(dc, "log_warn", side_effect=args_warn.append):
+            warns = []
+            with mock.patch.object(dc, "log_warn", side_effect=warns.append):
                 out = self._snap(root, partial, existing=good, prev="older")
             self.assertEqual(out.read_text(), good)
             self.assertEqual((root / "snap.yaml.prev").read_text(), "older")
-            self.assertTrue(any("auth.jwt.secret" in m for m in args_warn))
-            self.assertFalse((root / "snap.yaml.new").exists())
+            self.assertTrue(any("auth.jwt.secret" in m and "--force" in m for m in warns))
+
+    def test_admin_deleted_row_with_no_skip_entry_rotates(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            good = self.GOOD + "auth:\n  jwt:\n    secret: s\n"
+            out = self._snap(root, self.GOOD, existing=good, prev="older")
+            self.assertEqual(out.read_text(), self.GOOD)
+            self.assertEqual((root / "snap.yaml.prev").read_text(), good)
+
+    def test_empty_export_blocks_even_without_skip_entry(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = self._snap(root, self.EMPTY, existing=self.GOOD, prev="older")
+            self.assertEqual(out.read_text(), self.GOOD)
+            self.assertEqual((root / "snap.yaml.prev").read_text(), "older")
+
+    def test_force_bypasses_the_check(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = self._snap(root, self.EMPTY, existing=self.GOOD, prev="older", force=True)
+            self.assertEqual(out.read_text(), self.EMPTY)
+            self.assertEqual((root / "snap.yaml.prev").read_text(), self.GOOD)
 
     def test_superset_and_different_set_rotate(self):
         for new in (self.GOOD + "extra: 1\n",
@@ -216,7 +238,8 @@ class TestSnapshotSafety(unittest.TestCase):
             out = self._snap(root, self.GOOD, existing="a: [unclosed\n", prev="good-prev")
             self.assertEqual(out.read_text(), self.GOOD)
             self.assertEqual((root / "snap.yaml.prev").read_text(), "good-prev")
-            self.assertEqual((root / "snap.yaml.corrupt").read_text(), "a: [unclosed\n")
+            aside = list(root.glob("snap.yaml.corrupt-*"))
+            self.assertEqual([p.read_text() for p in aside], ["a: [unclosed\n"])
 
     def test_prev_replaced_with_private_mode_even_if_old_was_world_readable(self):
         with tempfile.TemporaryDirectory() as d:
@@ -250,7 +273,7 @@ class TestSnapshotSafety(unittest.TestCase):
                 Path(argv[argv.index("--output") + 1]).write_text("partial")
                 raise RuntimeError("export failed")
 
-            args = argparse.Namespace(cluster="k3s", file=str(out), config="config.yml")
+            args = argparse.Namespace(cluster="k3s", file=str(out), config="config.yml", force=False)
             with mock.patch.object(dc, "get_project_root", return_value=root), \
                     mock.patch.object(dc, "build_dbtool"), \
                     mock.patch.object(dc, "_dbtool", side_effect=boom), \
