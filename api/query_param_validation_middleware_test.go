@@ -34,6 +34,12 @@ func TestQueryParameterControlCharMiddleware(t *testing.T) {
 		{"other C0 control (BEL)", "/teams", "/teams?name=a%07b", "invalid_input"},
 		{"control char in later param", "/teams", "/teams?limit=5&name=ok&q=%01", "invalid_input"},
 		{"control char in parameter name", "/teams", "/teams?na%00me=x", "invalid_input"},
+		{"bypass: malformed escape then NUL", "/teams", "/teams?x=%zz&name=a%00b", "invalid_input"},
+		{"bypass: semicolon then NUL", "/teams", "/teams?a=1;b=2&name=%00", "invalid_input"},
+		{"bypass: NUL then malformed escape", "/teams", "/teams?name=a%00b&x=%zz", "invalid_input"},
+		{"invalid UTF-8 value", "/teams", "/teams?name=%ff", "invalid_input"},
+		{"invalid UTF-8 name", "/teams", "/teams?na%ffme=x", "invalid_input"},
+		{"C1 control", "/teams", "/teams?name=%C2%80", "invalid_input"},
 		{"control char in repeated value", "/teams", "/teams?name=ok&name=%00", "invalid_input"},
 	}
 	for _, tc := range rejected {
@@ -54,7 +60,9 @@ func TestQueryParameterControlCharMiddleware(t *testing.T) {
 		{"plain values", "/teams?name=abc&limit=5"},
 		{"encoded tab and newline", "/teams?name=a%09b%0Ac"},
 		{"non-ASCII text", "/teams?name=%C3%A9t%C3%A9"},
-		{"malformed escape left to other layers", "/teams?name=%zz"},
+		{"plus-encoded space", "/teams?name=a+b"},
+		{"clean malformed escape left to other layers", "/teams?name=%zz"},
+		{"clean semicolon left to other layers", "/teams?a=1;b=2"},
 	}
 	for _, tc := range accepted {
 		t.Run("accepts "+tc.name, func(t *testing.T) {

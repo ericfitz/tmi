@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"net/url"
+	"unicode/utf8"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/unicodecheck"
@@ -19,8 +20,9 @@ import (
 // database-independent: Oracle may accept NUL, but a control character is
 // never legitimate filter input, so every backend behaves the same.
 //
-// A query string that does not parse (e.g. a malformed percent escape) is left
-// to the normal request validation. The offending parameter value is never
+// Invalid UTF-8 is rejected too (PostgreSQL also fails it with SQLSTATE 22021).
+// Pairs that do not parse (e.g. a malformed percent escape) are skipped by
+// ParseQuery and left to the normal request validation. The offending parameter value is never
 // logged.
 func QueryParameterControlCharMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -28,15 +30,15 @@ func QueryParameterControlCharMiddleware() gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		params, err := url.ParseQuery(c.Request.URL.RawQuery)
-		if err != nil {
-			c.Next()
-			return
-		}
+		// ParseQuery returns the pairs it could parse even when it also reports
+		// an error (malformed escape, ';'), and Gin's c.Query reads that same
+		// partial map. Scan it regardless, or "?x=%zz&name=a%00b" bypasses the
+		// check. A malformed but otherwise clean query still passes through.
+		params, _ := url.ParseQuery(c.Request.URL.RawQuery)
 		for name, values := range params {
-			bad := unicodecheck.ContainsControlChars(name)
+			bad := unsafeQueryText(name)
 			for _, v := range values {
-				if unicodecheck.ContainsControlChars(v) {
+				if unsafeQueryText(v) {
 					bad = true
 				}
 			}
@@ -52,4 +54,10 @@ func QueryParameterControlCharMiddleware() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// unsafeQueryText reports whether a decoded query name or value contains a
+// control character or is not valid UTF-8.
+func unsafeQueryText(s string) bool {
+	return !utf8.ValidString(s) || unicodecheck.ContainsControlChars(s)
 }
