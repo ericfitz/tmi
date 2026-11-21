@@ -790,11 +790,9 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 
 	s.invalidateProviderCacheIfNeeded(key)
 
-	apiSetting := modelToAPISystemSetting(setting)
-	source := SystemSettingSource("database")
-	apiSetting.Source = &source
-	readOnly := false
-	apiSetting.ReadOnly = &readOnly
+	// dbSettingToAPI masks secret values: the PUT response must not echo the
+	// plaintext an admin just submitted.
+	apiSetting := dbSettingToAPI(setting)
 	logger.Info("Updated system setting: %s", key)
 	c.JSON(http.StatusOK, apiSetting)
 }
