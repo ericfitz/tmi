@@ -16,6 +16,7 @@ import (
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/worker"
+	"github.com/ericfitz/tmi/pkg/jobenvelope"
 )
 
 func main() {
@@ -43,8 +44,13 @@ func run() error {
 		return fmt.Errorf("tmi-chunk-embed: embedding config error: %w", err)
 	}
 
-	embedder, err := newEmbedder(embCfg)
+	embedders, err := newEmbedderPool(embCfg, os.Getenv(allowedHostsEnv), newEmbedder)
 	if err != nil {
+		return fmt.Errorf("tmi-chunk-embed: embedder pool: %w", err)
+	}
+	// Fail at startup, not on the first job, if the env configuration cannot
+	// build an embedder.
+	if _, _, err = embedders.forJob(jobenvelope.Job{}); err != nil {
 		return fmt.Errorf("tmi-chunk-embed: embedder build failed: %w", err)
 	}
 
@@ -54,7 +60,7 @@ func run() error {
 	}
 	defer conn.Close()
 
-	handler := newChunkEmbedHandler(conn, embedder)
+	handler := newChunkEmbedHandler(conn, embedders)
 	instanceID := worker.EnvOr("HOSTNAME", "tmi-chunk-embed-local")
 
 	go worker.RunHeartbeat(ctx, conn, instanceID,

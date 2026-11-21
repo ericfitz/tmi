@@ -72,6 +72,11 @@ func operationalClass(vis Visibility, secret bool, consumers ...Consumer) Config
 }
 
 // sharedEmbeddingClass is the SharedInvariant shape for the embedding profile.
+// Delivery: ExtractionPublisher stamps the effective model, base URL and
+// dimension (timmy.text_embedding_model, timmy.text_embedding_base_url,
+// timmy.embedding_dimension) into jobenvelope.Job.Config.Embedding through
+// api.NewStampedConfigProvider, and tmi-chunk-embed follows them (#1179). The
+// API key is a secret and is never stamped.
 func sharedEmbeddingClass(secret bool) ConfigClass {
 	return ConfigClass{
 		Category:   CategoryOperational,
@@ -318,7 +323,9 @@ var prefixClassifications = []prefixClass{
 	{
 		prefix: "timmy.",
 		// All remaining timmy.* keys (chunk size, top-k, timeouts) are
-		// operational, monolith-relayed to the chunk-embed worker.
+		// declared stamped, but nothing stamps them yet: the worker still
+		// hardcodes its chunk size and overlap. Only the three embedding keys
+		// of sharedEmbeddingClass are stamped today (#1179).
 		class: ConfigClass{
 			Category:   CategoryOperational,
 			ValueKind:  ValueKindInline,

@@ -162,18 +162,18 @@ resource "kubernetes_config_map_v1" "tmi" {
       # These are environment variables because they supply the values
       # (provisioned from Terraform, not entered through the admin API). An
       # admin-set database row for the same setting would override the env
-      # value (#1168), so do not set one. And
-      # TMI_TIMMY_TEXT_EMBEDDING_MODEL must stay in lockstep with
-      # TMI_EMBEDDING_MODEL on the tmi-chunk-embed worker
-      # (deployments/k8s/platform/components/tmi-chunk-embed.yml): the worker
-      # embeds documents at ingest and the server embeds the query, and
-      # vectors of different dimension score 0 against each other — retrieval
-      # fails silently, with no error anywhere.
+      # value (#1168), so do not set one. The monolith stamps the effective
+      # embedding model, base URL and dimension into every job envelope and the
+      # tmi-chunk-embed worker follows them (#1179); the worker's
+      # TMI_EMBEDDING_MODEL / TMI_EMBEDDING_BASE_URL
+      # (deployments/k8s/platform/components/tmi-chunk-embed.yml) are only the
+      # fallback for envelopes without a profile, and a new base URL host must
+      # be in its TMI_EMBEDDING_ALLOWED_HOSTS. The worker's vectors are not yet
+      # ingested (#1186).
       #
       # embedding_dimension is 3072 because that is what text-embedding-3-large
-      # actually returns (measured, not assumed). It must be > 0 or
-      # EmbeddingProfile.Validate rejects every job envelope the monolith
-      # stamps for the workers.
+      # actually returns (measured, not assumed). It feeds the worker's
+      # dimension-mismatch warning; 0 disables that check.
       TMI_TIMMY_ENABLED                 = "true"
       TMI_TIMMY_LLM_PROVIDER            = "openai"
       TMI_TIMMY_LLM_MODEL               = "gpt-5.5"

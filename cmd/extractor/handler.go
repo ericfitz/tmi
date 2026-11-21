@@ -88,14 +88,7 @@ func (h *extractHandler) Handle(ctx context.Context, job jobenvelope.Job) error 
 		return err // transient -> redeliver
 	}
 
-	next := jobenvelope.Job{
-		JobID:       job.JobID,
-		ContentType: job.ContentType,
-		Limits:      job.Limits,
-		Deadline:    job.Deadline,
-		Input:       jobenvelope.Input{ObjectRef: textRef, ByteSize: int64(len(out.Text))},
-		Metadata:    mergeMetadata(job.Metadata, out),
-	}
+	next := buildNextJob(job, textRef, out)
 	b, err := jsonMarshal(next, "job")
 	if err != nil {
 		return err
@@ -105,6 +98,21 @@ func (h *extractHandler) Handle(ctx context.Context, job jobenvelope.Job) error 
 	}
 	logger.Debug("tmi-extractor: job %s extracted, %d bytes -> chunkembed", job.JobID, len(out.Text))
 	return nil
+}
+
+// buildNextJob builds the chunk-embed job from the extract job. Config is
+// forwarded unchanged: the extractor parses hostile documents and must not
+// alter or invent the stamped profile.
+func buildNextJob(job jobenvelope.Job, textRef string, out extract.ExtractedContent) jobenvelope.Job {
+	return jobenvelope.Job{
+		JobID:       job.JobID,
+		ContentType: job.ContentType,
+		Limits:      job.Limits,
+		Deadline:    job.Deadline,
+		Input:       jobenvelope.Input{ObjectRef: textRef, ByteSize: int64(len(out.Text))},
+		Metadata:    mergeMetadata(job.Metadata, out),
+		Config:      job.Config,
+	}
 }
 
 // extract runs the chosen extractor under the wall-clock budget, using the

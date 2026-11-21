@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
-	"github.com/ericfitz/tmi/internal/llm"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/worker"
 	"github.com/ericfitz/tmi/pkg/extract"
@@ -12,7 +12,9 @@ import (
 )
 
 // EmbeddingResult is the chunk-embed stage output blob, written to the
-// Object Store and referenced from the result envelope.
+// Object Store and referenced from the result envelope. The monolith's result
+// consumer does not read it yet: it deletes the blob after recording the
+// result (ingestion is tracked in #1186).
 type EmbeddingResult struct {
 	// Chunks are the text chunks in order.
 	Chunks []string `json:"chunks"`
@@ -31,9 +33,9 @@ func (r EmbeddingResult) validate() error {
 
 // chunkEmbedHandler is the JobHandler for tmi-chunk-embed.
 type chunkEmbedHandler struct {
-	conn     *worker.Conn
-	chunker  *extract.TextChunker
-	embedder llm.Embedder
+	conn      *worker.Conn
+	chunker   *extract.TextChunker
+	embedders *embedderPool
 }
 
 // chunk sizing — characters per chunk and overlap. These mirror the
@@ -47,11 +49,11 @@ const (
 )
 
 // newChunkEmbedHandler builds the handler.
-func newChunkEmbedHandler(conn *worker.Conn, emb llm.Embedder) *chunkEmbedHandler {
+func newChunkEmbedHandler(conn *worker.Conn, embedders *embedderPool) *chunkEmbedHandler {
 	return &chunkEmbedHandler{
-		conn:     conn,
-		chunker:  extract.NewTextChunker(chunkMaxChars, chunkOverlap),
-		embedder: emb,
+		conn:      conn,
+		chunker:   extract.NewTextChunker(chunkMaxChars, chunkOverlap),
+		embedders: embedders,
 	}
 }
 
@@ -60,19 +62,33 @@ func newChunkEmbedHandler(conn *worker.Conn, emb llm.Embedder) *chunkEmbedHandle
 func (h *chunkEmbedHandler) Handle(ctx context.Context, job jobenvelope.Job) error {
 	logger := slogging.Get()
 
+	// Resolve the embedder first: a stamped endpoint that is not allowlisted
+	// fails fast, before any payload is read. The error carries the host but
+	// no credentials.
+	embedder, wantDim, err := h.embedders.forJob(job)
+	if err != nil {
+		if errors.Is(err, errEndpointNotAllowed) {
+			logger.Error("tmi-chunk-embed: job %s rejected: %v", job.JobID, err)
+			return h.publishFailure(ctx, job, reasonEndpointNotAllowed, err.Error())
+		}
+		return err // embedder construction failure: transient, redeliver
+	}
+
 	text, err := h.conn.GetPayload(ctx, job.Input.ObjectRef)
 	if err != nil {
 		return err // transient -> redeliver
 	}
 
 	chunks := h.chunker.Chunk(string(text))
-	vectors, err := embedChunks(ctx, h.embedder, chunks)
+	vectors, err := embedChunks(ctx, embedder, chunks)
 	if err != nil {
 		// An embedding-API failure may be transient (rate limit, 5xx).
 		// Returning the raw error naks for redelivery; JetStream MaxDeliver
 		// bounds the retries.
 		return err
 	}
+
+	checkDimension(job.JobID, wantDim, vectors)
 
 	result := EmbeddingResult{Chunks: chunks, Vectors: vectors}
 	if err := result.validate(); err != nil {

@@ -181,3 +181,74 @@ func TestSanitizeResultCoercesInvalidUTF8(t *testing.T) {
 		t.Fatalf("detail still invalid UTF-8: %q", out.ReasonDetail)
 	}
 }
+
+func TestJobConfigRoundTrip(t *testing.T) {
+	in := Job{
+		JobID: "j1", ContentType: "text/plain",
+		Input: Input{ObjectRef: "b/k"},
+		Config: &Config{Embedding: &EmbeddingProfile{
+			Model: "text-embedding-3-large", Endpoint: "https://api.openai.com/v1", Dimension: 3072,
+		}},
+	}
+	b, err := json.Marshal(in)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"config":{"embedding":{"model":"text-embedding-3-large","endpoint":"https://api.openai.com/v1","dimension":3072}}`) {
+		t.Fatalf("unexpected wire shape: %s", b)
+	}
+	var out Job
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if out.Config == nil || out.Config.Embedding == nil || *out.Config.Embedding != *in.Config.Embedding {
+		t.Fatalf("config round-trip mismatch: %+v", out.Config)
+	}
+	if err := Validate(out); err != nil {
+		t.Fatalf("expected valid, got %v", err)
+	}
+}
+
+func TestJobWithoutConfigDecodesAndOmitsField(t *testing.T) {
+	old := `{"job_id":"j1","content_type":"text/plain","limits":{"max_bytes":0,"wall_clock":"0s"},"input":{"object_ref":"b/k"}}`
+	var j Job
+	if err := json.Unmarshal([]byte(old), &j); err != nil {
+		t.Fatalf("unmarshal old envelope: %v", err)
+	}
+	if j.Config != nil {
+		t.Fatalf("expected nil Config, got %+v", j.Config)
+	}
+	if err := Validate(j); err != nil {
+		t.Fatalf("old envelope must stay valid: %v", err)
+	}
+	b, _ := json.Marshal(j)
+	if strings.Contains(string(b), "config") {
+		t.Fatalf("nil Config must be omitted, got %s", b)
+	}
+}
+
+func TestValidateConfigEmbedding(t *testing.T) {
+	base := Job{JobID: "j1", ContentType: "text/plain", Input: Input{ObjectRef: "b/k"}}
+	cases := []struct {
+		name    string
+		cfg     *Config
+		wantErr bool
+	}{
+		{"nil config", nil, false},
+		{"config without embedding", &Config{}, false},
+		{"zero dimension allowed", &Config{Embedding: &EmbeddingProfile{Model: "m", Endpoint: "https://h/v1"}}, false},
+		{"missing model", &Config{Embedding: &EmbeddingProfile{Endpoint: "https://h/v1"}}, true},
+		{"missing endpoint", &Config{Embedding: &EmbeddingProfile{Model: "m"}}, true},
+		{"negative dimension", &Config{Embedding: &EmbeddingProfile{Model: "m", Endpoint: "https://h/v1", Dimension: -1}}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			j := base
+			j.Config = tc.cfg
+			err := Validate(j)
+			if tc.wantErr != (err != nil) {
+				t.Fatalf("wantErr=%v got %v", tc.wantErr, err)
+			}
+		})
+	}
+}

@@ -30,14 +30,23 @@ spec:
   config:
     TMI_COMPONENT_NAME: tmi-chunk-embed
     TMI_NATS_URL: tls://nats.tmi-platform.svc:4222
-    # MUST match timmy.text_embedding_model in the settings database. The worker
-    # reads this env var directly (cmd/chunkembed/embedder.go MustEnv) rather
-    # than the stamped envelope, so the two are not kept in sync automatically.
-    # A mismatch means chunks are embedded at one dimension and queried at
-    # another: cosineSimilarity hits its len(a) != len(b) guard, every chunk
-    # scores 0, and retrieval silently returns arbitrary rows.
+    # FALLBACK profile. The monolith stamps the effective embedding model, base
+    # URL and dimension (timmy.text_embedding_model, timmy.text_embedding_base_url,
+    # timmy.embedding_dimension, row-wins) into every job envelope, and the worker
+    # follows them (#1179). These two values apply only to jobs whose envelope
+    # carries no profile (published by an older monolith, or with the settings
+    # unset). The API key is never stamped; it always comes from the
+    # tmi-embedding Secret below.
     TMI_EMBEDDING_MODEL: text-embedding-3-large
     TMI_EMBEDDING_BASE_URL: https://api.openai.com/v1
+    # Comma-separated hostnames the worker may send embedding requests (and its
+    # API key) to when an envelope supplies its own base URL. The host of
+    # TMI_EMBEDDING_BASE_URL is always allowed, so an empty value means "only
+    # that host". An envelope URL whose host is not listed fails the job with
+    # reason embedding_endpoint_not_allowed. Add a host here BEFORE an admin
+    # points timmy.text_embedding_base_url at it. This does not open egress: the
+    # allowlist egress policy above is unchanged and must permit the host too.
+    TMI_EMBEDDING_ALLOWED_HOSTS: api.openai.com
     TMI_JOB_ACK_WAIT: 120s
   secretRefs:
     # The embedding API key is mounted from a K8s Secret as the env var

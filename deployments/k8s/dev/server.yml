@@ -122,16 +122,18 @@ spec:
             # exercises this path. Dev/local convenience — default-off in prod.
             - { name: TMI_AUTH_AUTO_PROMOTE_FIRST_USER, value: "true" }
             # ---- Timmy AI assistant -------------------------------------
-            # TMI_TIMMY_TEXT_EMBEDDING_MODEL must stay in lockstep with
-            # TMI_EMBEDDING_MODEL on the tmi-chunk-embed worker
-            # (deployments/k8s/platform/components/tmi-chunk-embed.yml). The
-            # worker embeds documents at ingest, the server embeds the query,
-            # and vectors of different dimension score 0 against each other —
-            # retrieval fails silently with no error anywhere.
+            # The monolith stamps the effective embedding model, base URL and
+            # dimension into every job envelope and the tmi-chunk-embed worker
+            # follows them (#1179), so an admin edit applies to both sides. The
+            # worker's TMI_EMBEDDING_MODEL / TMI_EMBEDDING_BASE_URL
+            # (deployments/k8s/platform/components/tmi-chunk-embed.yml) are only
+            # the fallback for envelopes without a profile. A new base URL host
+            # must also be in the worker's TMI_EMBEDDING_ALLOWED_HOSTS. Note the
+            # worker's vectors are not yet ingested (#1186).
             #
             # Dimension is 3072 because that is what text-embedding-3-large
-            # actually returns (measured). It must be > 0 or
-            # EmbeddingProfile.Validate rejects every job envelope.
+            # actually returns (measured). It feeds the worker's dimension-
+            # mismatch warning; 0 disables that check.
             #
             # These are env vars because they supply the values. An admin-set
             # database row for the same setting would override the env value

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/config"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/worker"
 	"github.com/ericfitz/tmi/pkg/jobenvelope"
 	"github.com/google/uuid"
@@ -34,11 +36,39 @@ type ExtractionRequest struct {
 type ExtractionPublisher struct {
 	bus   extractionBus
 	store queuedInserter
+	// stamped supplies the effective (row-wins) embedding profile stamped into
+	// each job. Nil means nothing is stamped and workers use their env.
+	stamped config.StampedConfigProvider
 }
 
-// NewExtractionPublisher wraps a worker.Conn and the job store.
-func NewExtractionPublisher(conn *worker.Conn, store *ExtractionJobStore) *ExtractionPublisher {
-	return &ExtractionPublisher{bus: &connBusAdapter{conn: conn}, store: store}
+// NewExtractionPublisher wraps a worker.Conn and the job store. stamped may be
+// nil, in which case jobs carry no embedding profile.
+func NewExtractionPublisher(conn *worker.Conn, store *ExtractionJobStore, stamped config.StampedConfigProvider) *ExtractionPublisher {
+	return &ExtractionPublisher{bus: &connBusAdapter{conn: conn}, store: store, stamped: stamped}
+}
+
+// stampConfig returns the envelope config block for a new job, or nil when the
+// effective embedding profile is unavailable or incomplete. A stamping problem
+// never fails the publish: the job goes out unstamped and the worker falls
+// back to its env. Dimension is not required here (it defaults to 0 and only
+// feeds the worker's mismatch warning), unlike EmbeddingProfile.Validate.
+func (p *ExtractionPublisher) stampConfig(ctx context.Context) *jobenvelope.Config {
+	if p.stamped == nil {
+		return nil
+	}
+	sc, err := p.stamped.Get(ctx)
+	if err != nil {
+		slogging.Get().Warn("extraction publisher: embedding profile unavailable, publishing without it: %v", err)
+		return nil
+	}
+	e := sc.Embedding
+	if e.Model == "" || e.Endpoint == "" || e.Dimension < 0 {
+		slogging.Get().Warn("extraction publisher: embedding profile incomplete, publishing without it")
+		return nil
+	}
+	return &jobenvelope.Config{Embedding: &jobenvelope.EmbeddingProfile{
+		Model: e.Model, Endpoint: e.Endpoint, Dimension: e.Dimension,
+	}}
 }
 
 // Publish writes the document bytes to the Object Store, publishes an extract
@@ -55,6 +85,7 @@ func (p *ExtractionPublisher) Publish(ctx context.Context, req ExtractionRequest
 		JobID:       jobID,
 		ContentType: req.ContentType,
 		Input:       jobenvelope.Input{ObjectRef: ref, ByteSize: int64(len(req.Bytes))},
+		Config:      p.stampConfig(ctx),
 	}
 	subject := worker.SubjectExtractPrefix + extractSubjectSuffix(req.ContentType)
 	if err := p.bus.PublishJob(ctx, subject, job); err != nil {

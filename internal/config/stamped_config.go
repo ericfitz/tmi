@@ -46,9 +46,10 @@ func (s StampedConfig) Validate() error {
 }
 
 // StampedConfigProvider is the single read point for stamped configuration.
-// Both the monolith's job-envelope builder and the monolith's own Timmy query
-// path read through this interface, which is what makes the shared-invariant
-// guarantee structural rather than a matter of discipline.
+// Both the monolith's job-envelope builder (ExtractionPublisher, which copies
+// the embedding profile into jobenvelope.Job.Config) and the monolith's own
+// Timmy query path read through this interface, which is what makes the
+// shared-invariant guarantee structural rather than a matter of discipline.
 type StampedConfigProvider interface {
 	Get(ctx context.Context) (StampedConfig, error)
 }

@@ -1100,7 +1100,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	// the ContentSourceHolder rebuild hook below) to each newly-built
 	// AccessPoller so both call sites route through the async worker pipeline
 	// when extraction.async_enabled is on.
-	extractionPublisher := wireExtractionNATS(apiServer, gormDB.DB())
+	extractionPublisher := wireExtractionNATS(apiServer, gormDB.DB(), api.NewStampedConfigProvider(settingsService))
 	if extractionPublisher != nil {
 		apiServer.SetDocumentAsyncExtraction(extractionPublisher, apiServer.UseAsyncExtraction)
 		logger.Info("async extraction publisher wired into document handler")
@@ -1326,7 +1326,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 // Returns a non-nil *api.ExtractionPublisher when NATS is available; the
 // caller should propagate the publisher and the UseAsyncExtraction decider
 // into the DocumentSubResourceHandler and the AccessPoller (Task 8).
-func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) *api.ExtractionPublisher {
+func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB, stamped config.StampedConfigProvider) *api.ExtractionPublisher {
 	logger := slogging.Get()
 	natsURL := os.Getenv("TMI_NATS_URL")
 	if natsURL == "" {
@@ -1364,7 +1364,7 @@ func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) *api.ExtractionP
 	apiServer.SetResultConsumer(rc)
 	logger.Info("result-consumer started")
 
-	pub := api.NewExtractionPublisher(conn, jobStore)
+	pub := api.NewExtractionPublisher(conn, jobStore, stamped)
 	logger.Info("async extraction publisher created")
 	return pub
 }
