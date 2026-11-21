@@ -113,8 +113,8 @@ func TestPoolRejectsNonAllowlistedEndpoint(t *testing.T) {
 		"https://embed.example.org@evil.net/v1", // userinfo trick
 		"https://u:p@embed.example.org/v1",      // credentials on an allowed host
 		"https://embed.example.org@embed.example.org/v1",
-		"ftp://embed.example.org/v1",            // scheme
-		"//embed.example.org/v1",                // no scheme
+		"ftp://embed.example.org/v1", // scheme
+		"//embed.example.org/v1",     // no scheme
 		"not a url",
 		"https:///v1",
 	}
