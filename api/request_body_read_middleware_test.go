@@ -65,3 +65,58 @@ func TestRequestBodyReadMiddleware_CompleteBodyPassesThrough(t *testing.T) {
 	assert.Equal(t, http.StatusOK, code)
 	assert.True(t, reached)
 }
+
+func TestRequestBodyReadMiddleware_PassThroughCases(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	failing := func() io.ReadCloser { return &shortBody{data: strings.NewReader(""), err: io.ErrUnexpectedEOF} }
+	cases := map[string]func() *http.Request{
+		"nil body": func() *http.Request {
+			r := httptest.NewRequest(http.MethodPost, "/x", nil)
+			r.Body = nil
+			return r
+		},
+		"http.NoBody": func() *http.Request {
+			r := httptest.NewRequest(http.MethodPost, "/x", nil)
+			r.Body = http.NoBody
+			return r
+		},
+		"content length zero": func() *http.Request {
+			r := httptest.NewRequest(http.MethodPost, "/x", failing())
+			r.ContentLength = 0
+			return r
+		},
+		"websocket GET": func() *http.Request {
+			r := httptest.NewRequest(http.MethodGet, "/x", failing())
+			r.ContentLength = 10
+			r.Header.Set("Upgrade", "websocket")
+			return r
+		},
+	}
+	for name, mk := range cases {
+		t.Run(name, func(t *testing.T) {
+			reached := false
+			r := gin.New()
+			r.Use(RequestBodyReadMiddleware())
+			h := func(c *gin.Context) { reached = true; c.Status(http.StatusOK) }
+			r.POST("/x", h)
+			r.GET("/x", h)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, mk())
+			assert.Equal(t, http.StatusOK, w.Code)
+			assert.True(t, reached)
+		})
+	}
+}
+
+func TestRequestBodyReadMiddleware_NonGetUpgradeStillBuffered(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(RequestBodyReadMiddleware())
+	r.POST("/x", func(c *gin.Context) { c.Status(http.StatusOK) })
+	req := httptest.NewRequest(http.MethodPost, "/x", &shortBody{data: strings.NewReader("{}"), err: io.ErrUnexpectedEOF})
+	req.ContentLength = 500
+	req.Header.Set("Upgrade", "websocket")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}

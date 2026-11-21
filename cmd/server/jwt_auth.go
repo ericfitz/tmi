@@ -571,12 +571,13 @@ func revocationAuthError(logger slogging.SimpleLogger, err error) *AuthError {
 			StatusCode:  http.StatusUnauthorized,
 		}
 	}
-	// A canceled or expired request context means the client went away (or
-	// stalled mid-body until the server read timeout), not that the revocation
-	// store is down. Answering 503 would blame the service for a client-side
+	// A canceled request context means the client went away (or stalled
+	// mid-body until the server read timeout), not that the revocation store
+	// is down. Answering 503 would blame the service for a client-side
 	// condition (CATS InvalidContentLengthHeaders), so report the documented
-	// 400; the client is usually gone and never sees it.
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+	// 400; the client is usually gone and never sees it. DeadlineExceeded is
+	// the server's own timeout or a hung store, so it stays 503 below.
+	if errors.Is(err, context.Canceled) {
 		if logger != nil {
 			logger.Warn("Token blacklist check abandoned, request context ended: %v", err)
 		}
@@ -693,11 +694,13 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 // authTokenHash and serviceAccountCredentialID context keys, which both the
 // JWT path and the WebSocket ticket path populate (#869).
 func (a *JWTAuthenticator) checkRevocation(c *gin.Context, logger slogging.SimpleLogger) *AuthError {
-	// withCtxErr keeps the context error in the chain even when the store
-	// wrapped the failure without %w, so revocationAuthError can recognize it.
+	// withCtxErr restores context.Canceled to the chain when the request was
+	// canceled and the store flattened the failure to text without %w. A real
+	// store error (e.g. connection refused) is never rewrapped.
 	withCtxErr := func(err error) error {
-		if ctxErr := c.Request.Context().Err(); ctxErr != nil && !errors.Is(err, ctxErr) {
-			return fmt.Errorf("%w: %w", ctxErr, err)
+		if errors.Is(c.Request.Context().Err(), context.Canceled) &&
+			!errors.Is(err, context.Canceled) && strings.Contains(err.Error(), "context canceled") {
+			return fmt.Errorf("%w: %w", context.Canceled, err)
 		}
 		return err
 	}

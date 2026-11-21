@@ -21,12 +21,13 @@ import (
 // the authenticator then reported as a 503 (CATS InvalidContentLengthHeaders).
 // Buffering here also means every later reader sees a complete body.
 //
-// Requests without a body, and protocol upgrades (WebSocket), pass through
+// Requests without a body, and GET protocol upgrades (WebSocket), pass through
 // untouched.
 func RequestBodyReadMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.Body == nil || c.Request.Body == http.NoBody ||
-			c.Request.ContentLength == 0 || c.GetHeader("Upgrade") != "" {
+			c.Request.ContentLength == 0 ||
+			(c.Request.Method == http.MethodGet && c.GetHeader("Upgrade") != "") {
 			c.Next()
 			return
 		}
