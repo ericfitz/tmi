@@ -11358,12 +11358,14 @@
         "properties": {
           "entity_type": {
             "type": "string",
-            "description": "Entity type (e.g., repository, asset)"
+            "description": "Entity type (e.g., repository, asset)",
+            "maxLength": 30
           },
           "entity_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Entity UUID"
+            "description": "Entity UUID",
+            "maxLength": 36
           },
           "chunk_index": {
             "type": "integer",
@@ -11376,11 +11378,13 @@
           },
           "content_hash": {
             "type": "string",
-            "description": "SHA256 hash of the original content"
+            "description": "SHA256 hash of the original content",
+            "maxLength": 64
           },
           "embedding_model": {
             "type": "string",
-            "description": "Model used to generate the embedding"
+            "description": "Model used to generate the embedding",
+            "maxLength": 100
           },
           "embedding_dim": {
             "type": "integer",

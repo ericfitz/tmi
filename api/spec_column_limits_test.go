@@ -82,3 +82,119 @@ func TestValidateSparseAuthorizationEntries_RejectsOverlongSubject(t *testing.T)
 		})
 	}
 }
+
+// TestApplyPatchOperations_EnforcesRequestSchemaLimits guards the JSON Patch
+// bypass of body-schema limits: an over-long or otherwise invalid field must be
+// a 400 for every patchable entity type, and a valid patch must still apply.
+func TestApplyPatchOperations_EnforcesRequestSchemaLimits(t *testing.T) {
+	long := func(n int) string { return strings.Repeat("a", n) }
+	replace := func(path string, v any) []PatchOperation {
+		return []PatchOperation{{Op: "replace", Path: path, Value: v}}
+	}
+	type tc struct {
+		name  string
+		apply func(ops []PatchOperation) error
+		ops   []PatchOperation
+	}
+	apply := func(entity any) func([]PatchOperation) error {
+		return func(ops []PatchOperation) error {
+			var err error
+			switch e := entity.(type) {
+			case ThreatModel:
+				_, err = ApplyPatchOperations(e, ops)
+			case Threat:
+				_, err = ApplyPatchOperations(e, ops)
+			case Asset:
+				_, err = ApplyPatchOperations(e, ops)
+			case Document:
+				_, err = ApplyPatchOperations(e, ops)
+			case Repository:
+				_, err = ApplyPatchOperations(e, ops)
+			case DfdDiagram:
+				_, err = ApplyPatchOperations(e, ops)
+			case Team:
+				_, err = ApplyPatchOperations(e, ops)
+			case Project:
+				_, err = ApplyPatchOperations(e, ops)
+			case Note:
+				_, err = ApplyPatchOperations(e, ops)
+			default:
+				t.Fatalf("unhandled entity type %T", entity)
+			}
+			return err
+		}
+	}
+	bad := []tc{
+		{"threat name", apply(Threat{}), replace("/name", long(257))},
+		{"threat status", apply(Threat{}), replace("/status", long(129))},
+		{"threat severity", apply(Threat{}), replace("/severity", long(51))},
+		{"threat priority", apply(Threat{}), replace("/priority", long(257))},
+		{"threat model name", apply(patchTestThreatModel()), replace("/name", long(257))},
+		{"threat model status", apply(patchTestThreatModel()), replace("/status", long(129))},
+		{"asset name", apply(Asset{}), replace("/name", long(257))},
+		{"asset criticality", apply(Asset{}), replace("/criticality", long(129))},
+		{"document name", apply(Document{}), replace("/name", long(257))},
+		{"repository name", apply(Repository{}), replace("/name", long(257))},
+		{"diagram name", apply(DfdDiagram{}), replace("/name", long(257))},
+		{"team name", apply(Team{}), replace("/name", long(257))},
+		{"project name", apply(Project{}), replace("/name", long(257))},
+		{"note name", apply(Note{}), replace("/name", long(257))},
+	}
+	for _, tt := range bad {
+		t.Run("rejects "+tt.name, func(t *testing.T) {
+			err := tt.apply(tt.ops)
+			var reqErr *RequestError
+			require.ErrorAs(t, err, &reqErr)
+			assert.Equal(t, http.StatusBadRequest, reqErr.Status)
+			assert.NotContains(t, reqErr.Message, long(129), "message must not echo the value")
+		})
+	}
+	good := []tc{
+		{"threat", apply(Threat{}), replace("/status", long(128))},
+		{"threat model", apply(patchTestThreatModel()), replace("/name", "ok")},
+		{"asset", apply(Asset{}), replace("/name", long(256))},
+		{"document", apply(Document{}), replace("/name", "ok")},
+		{"repository", apply(Repository{}), replace("/name", "ok")},
+		{"diagram", apply(DfdDiagram{}), replace("/name", "ok")},
+		{"team", apply(Team{}), replace("/name", "ok")},
+		{"project", apply(Project{}), replace("/name", "ok")},
+		{"note", apply(Note{}), replace("/name", "ok")},
+	}
+	for _, tt := range good {
+		t.Run("accepts "+tt.name, func(t *testing.T) {
+			require.NoError(t, tt.apply(tt.ops))
+		})
+	}
+}
+
+// TestOpenAPIValidation_PinnedColumnLimits pins the spec caps that match
+// column sizes for usability feedback fields.
+func TestOpenAPIValidation_PinnedColumnLimits(t *testing.T) {
+	swagger, err := GetSwagger()
+	require.NoError(t, err)
+	pins := map[string]map[string]uint64{
+		"UsabilityFeedbackInput": {"client_build": 12, "viewport": 11},
+		"AdminUser":              {"provider": 100},
+		"AdminGroup":             {"provider": 100},
+		"ThreatBase":             {"status": 128},
+		"EmbeddingIngestionItem": {"entity_type": 30, "entity_id": 36, "content_hash": 64, "embedding_model": 100},
+	}
+	for schema, props := range pins {
+		for prop, want := range props {
+			p := patchSchemaProperty(swagger.Components.Schemas[schema].Value, prop, 0)
+			require.NotNil(t, p, "%s.%s", schema, prop)
+			require.NotNil(t, p.Value.MaxLength, "%s.%s", schema, prop)
+			assert.Equal(t, want, *p.Value.MaxLength, "%s.%s", schema, prop)
+		}
+	}
+}
+
+func patchTestThreatModel() ThreatModel {
+	return ThreatModel{Owner: User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "tmi",
+		ProviderId:    "owner",
+		DisplayName:   "Owner",
+		Email:         "owner@example.com",
+	}}
+}
