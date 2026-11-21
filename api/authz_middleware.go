@@ -499,6 +499,14 @@ func enforceChildParentage(c *gin.Context) bool {
 		(c.Request.Method == http.MethodGet && strings.HasSuffix(trimmedPath, "/audit_trail"))
 	ok, err := checkChildParentage(c.Request.Context(), family, childID, tmID, includeDeleted)
 	if err != nil {
+		if c.Request.Context().Err() != nil {
+			// Client gone or request deadline hit: not a storage outage.
+			logger.Warn("AuthzMiddleware: parentage check abandoned, request context ended for %s %s: %v",
+				c.Request.Method, path, err)
+			HandleRequestError(c, InvalidInputError("Request was canceled before authorization completed"))
+			c.Abort()
+			return false
+		}
 		logger.Error("AuthzMiddleware: parentage check failed for %s %s: %v",
 			c.Request.Method, path, err)
 		c.Header("Retry-After", "30")

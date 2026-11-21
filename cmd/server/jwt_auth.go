@@ -571,6 +571,21 @@ func revocationAuthError(logger slogging.SimpleLogger, err error) *AuthError {
 			StatusCode:  http.StatusUnauthorized,
 		}
 	}
+	// A canceled or expired request context means the client went away (or
+	// stalled mid-body until the server read timeout), not that the revocation
+	// store is down. Answering 503 would blame the service for a client-side
+	// condition (CATS InvalidContentLengthHeaders), so report the documented
+	// 400; the client is usually gone and never sees it.
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		if logger != nil {
+			logger.Warn("Token blacklist check abandoned, request context ended: %v", err)
+		}
+		return &AuthError{
+			Code:        errcode.InvalidInput,
+			Description: "Request was canceled before authentication completed",
+			StatusCode:  http.StatusBadRequest,
+		}
+	}
 	logger.Error("Failed to check token blacklist: %v", err)
 	return &AuthError{
 		Code:        errcode.ServiceUnavailable,
@@ -678,14 +693,22 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 // authTokenHash and serviceAccountCredentialID context keys, which both the
 // JWT path and the WebSocket ticket path populate (#869).
 func (a *JWTAuthenticator) checkRevocation(c *gin.Context, logger slogging.SimpleLogger) *AuthError {
+	// withCtxErr keeps the context error in the chain even when the store
+	// wrapped the failure without %w, so revocationAuthError can recognize it.
+	withCtxErr := func(err error) error {
+		if ctxErr := c.Request.Context().Err(); ctxErr != nil && !errors.Is(err, ctxErr) {
+			return fmt.Errorf("%w: %w", ctxErr, err)
+		}
+		return err
+	}
 	if err := a.blacklistChecker.CheckBlacklist(c.Request.Context(), c.GetString("authTokenHash")); err != nil {
-		return revocationAuthError(logger, err)
+		return revocationAuthError(logger, withCtxErr(err))
 	}
 	// Service-account tokens are not tracked individually, so a deleted or
 	// deactivated client credential is revoked by ID instead (#862).
 	if credentialID := c.GetString("serviceAccountCredentialID"); credentialID != "" {
 		if err := a.blacklistChecker.CheckCredentialRevoked(c.Request.Context(), credentialID); err != nil {
-			return revocationAuthError(logger, err)
+			return revocationAuthError(logger, withCtxErr(err))
 		}
 	}
 	return nil

@@ -768,6 +768,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	r.Use(api.AcceptHeaderValidation())                                      // Validate Accept header (406 for unsupported types)
 	r.Use(api.HSTSMiddleware(config.Server.TLSEnabled))                      // Add HSTS when TLS is enabled
 	r.Use(api.ContextTimeout(30 * time.Second))
+	r.Use(api.RequestBodyReadMiddleware()) // 400 on an incomplete body, before any middleware inspects it or auth runs
 
 	// Enable 405 Method Not Allowed responses (RFC 9110 §15.5.6).
 	// When a path is registered but the requested HTTP method is not, Gin will
