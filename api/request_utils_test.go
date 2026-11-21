@@ -13,6 +13,7 @@ import (
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -842,6 +843,21 @@ func TestWriteErrorToRequestError(t *testing.T) {
 	transient := fmt.Errorf("transaction failed after 3 attempts: %w", dberrors.ErrTransient)
 	assert.Equal(t, http.StatusServiceUnavailable, WriteErrorToRequestError(transient, "Failed to create thing").Status)
 	assert.Equal(t, http.StatusInternalServerError, WriteErrorToRequestError(errors.New("boom"), "Failed to create thing").Status)
+}
+
+// A classified value-too-long / bad-encoding store error is client input: 400
+// with a fixed message that does not echo the driver text (CATS run 20261121).
+func TestWriteErrorToRequestError_InvalidValue(t *testing.T) {
+	raw := &pgconn.PgError{Code: "22001", Message: "value too long for type character varying(256)", ColumnName: "secret_col"}
+	err := fmt.Errorf("transaction failed: %w", dberrors.Classify(raw))
+	reqErr := WriteErrorToRequestError(err, "Failed to create thing")
+	assert.Equal(t, http.StatusBadRequest, reqErr.Status)
+	assert.NotContains(t, reqErr.Message, "secret_col")
+	assert.NotContains(t, reqErr.Message, "256")
+
+	store := StoreErrorToRequestError(err, "nf", "Failed")
+	assert.Equal(t, http.StatusBadRequest, store.Status)
+	assert.NotContains(t, store.Message, "secret_col")
 }
 
 func TestNewConstructorsUseVocabulary(t *testing.T) {

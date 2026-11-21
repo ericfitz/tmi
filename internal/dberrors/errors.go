@@ -33,6 +33,13 @@ var (
 	ErrDuplicate  = fmt.Errorf("duplicate: %w", ErrConstraint)
 	ErrForeignKey = fmt.Errorf("foreign key: %w", ErrConstraint)
 
+	// ErrInvalidValue fires when the database rejects a value for its shape:
+	// too long for the column (PostgreSQL 22001, Oracle ORA-12899/ORA-01401)
+	// or not representable in the database encoding (PostgreSQL 22021). It is
+	// the client's input, never a server fault, so handlers map it to 400.
+	// Wraps ErrConstraint so callers that only know the broad class still match.
+	ErrInvalidValue = fmt.Errorf("invalid value: %w", ErrConstraint)
+
 	// ErrAppendOnlyViolation fires when the audit_entries / version_snapshots
 	// append-only triggers (T19, #356) reject an UPDATE or DELETE. Distinct
 	// from a generic constraint violation because it indicates a code-correctness

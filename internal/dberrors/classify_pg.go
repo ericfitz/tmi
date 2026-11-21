@@ -39,7 +39,9 @@ func classifyPgError(err error) error {
 	// with ORA-12899 here so cross-DB behavior is consistent.
 	switch code {
 	case "22001": // string_data_right_truncation — analogue of ORA-12899
-		return Wrap(err, ErrConstraint)
+		return Wrap(err, ErrInvalidValue)
+	case "22021": // character_not_in_repertoire — invalid byte sequence for the DB encoding
+		return Wrap(err, ErrInvalidValue)
 	case "22003": // numeric_value_out_of_range — closest analogue for numeric overflow
 		return Wrap(err, ErrConstraint)
 	}

@@ -606,6 +606,9 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 	if errors.Is(err, dberrors.ErrNotFound) {
 		return NotFoundError(notFoundMsg)
 	}
+	if errors.Is(err, dberrors.ErrInvalidValue) {
+		return invalidValueRequestError(err)
+	}
 	if errors.Is(err, dberrors.ErrDuplicate) {
 		return ConflictError("resource already exists")
 	}
@@ -732,10 +735,22 @@ func WriteErrorToRequestError(err error, serverErrorMsg string) *RequestError {
 	if errors.Is(err, ErrInvalidAuthorizationSubject) {
 		return InvalidInputError(invalidAuthorizationSubjectMessage)
 	}
+	if errors.Is(err, dberrors.ErrInvalidValue) {
+		return invalidValueRequestError(err)
+	}
 	if errors.Is(err, dberrors.ErrTransient) {
 		return ServiceUnavailableError("Storage service temporarily unavailable - please retry")
 	}
 	return ServerError(serverErrorMsg)
+}
+
+// invalidValueRequestError is the 400 for a database value-too-long or
+// bad-encoding rejection (backstop behind request validation). The message is
+// fixed so neither the driver text nor column names reach the caller; the
+// error is logged instead.
+func invalidValueRequestError(err error) *RequestError {
+	slogging.Get().Warn("database rejected a client-supplied value, returned as 400: %v", err)
+	return InvalidInputError("a field value is too long or contains characters that cannot be stored")
 }
 
 // NotFoundErrorWithDetails creates a RequestError for resource not found with additional context

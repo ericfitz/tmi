@@ -272,3 +272,13 @@ func TestClassifyOracleCode_InconsistentDatatypesCounter(t *testing.T) {
 
 	assert.Equal(t, before+3, InconsistentDatatypesCount(), "counter should increment exactly once per ORA-00932 occurrence")
 }
+
+// ORA-12899 and ORA-01401 are client-input overflows: ErrInvalidValue, which
+// still satisfies ErrConstraint.
+func TestClassifyOracleCode_InvalidValue(t *testing.T) {
+	for _, code := range []int{12899, 1401} {
+		err := classifyOracleCode(fmt.Errorf("ORA-%05d: value too large for column", code), code)
+		assert.True(t, errors.Is(err, ErrInvalidValue), "ORA-%05d", code)
+		assert.True(t, errors.Is(err, ErrConstraint), "ORA-%05d", code)
+	}
+}
