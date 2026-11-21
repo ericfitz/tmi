@@ -198,3 +198,32 @@ func patchTestThreatModel() ThreatModel {
 		Email:         "owner@example.com",
 	}}
 }
+
+// TestApplyPatchOperations_ValidatesOnlyWrittenFields: legacy stored values
+// that no longer satisfy the schema must not block patches that do not write them.
+func TestApplyPatchOperations_ValidatesOnlyWrittenFields(t *testing.T) {
+	legacy := Threat{Name: strings.Repeat("n", 300)}
+
+	t.Run("replace of a different field", func(t *testing.T) {
+		got, err := ApplyPatchOperations(legacy, []PatchOperation{{Op: "replace", Path: "/status", Value: "open"}})
+		require.NoError(t, err)
+		require.NotNil(t, got.Status)
+		assert.Equal(t, "open", *got.Status)
+	})
+	t.Run("copy from legacy field validates destination only", func(t *testing.T) {
+		_, err := ApplyPatchOperations(legacy, []PatchOperation{{Op: "copy", From: "/name", Path: "/mitigation"}})
+		require.NoError(t, err)
+		// the destination is still validated: a 300-char name copied into status (max 128) is rejected
+		_, err = ApplyPatchOperations(legacy, []PatchOperation{{Op: "copy", From: "/name", Path: "/status"}})
+		var reqErr *RequestError
+		require.ErrorAs(t, err, &reqErr)
+		assert.Equal(t, http.StatusBadRequest, reqErr.Status)
+	})
+	t.Run("test op on legacy field", func(t *testing.T) {
+		_, err := ApplyPatchOperations(legacy, []PatchOperation{
+			{Op: "test", Path: "/name", Value: legacy.Name},
+			{Op: "replace", Path: "/status", Value: "open"},
+		})
+		require.NoError(t, err)
+	})
+}

@@ -53,7 +53,7 @@ func patchSchemaProperty(s *openapi3.Schema, name string, depth int) *openapi3.S
 // enum, pattern, ...) on every top-level field a patch wrote. JSON Patch
 // bypasses the OpenAPI request-body validator, so without this a patch could
 // store a value a PUT would reject with 400 (for example a status longer than
-// its column, a 500 from the database). Only fields the patch touched are
+// its column, a 500 from the database). Only fields the patch writes are
 // checked, so server-managed and legacy stored values are never re-validated.
 // Entity types without a registered input schema are skipped. Errors are 400
 // RequestErrors that name the field but never echo its value.
@@ -86,7 +86,14 @@ func validatePatchedFields[T any](patchedJSON []byte, operations []PatchOperatio
 
 	checked := map[string]bool{}
 	for _, op := range operations {
-		for _, p := range []string{op.Path, op.From} {
+		// Only fields the patch writes: add/replace targets and the destination
+		// of copy/move. Sources (from), test and remove are never validated.
+		switch op.Op {
+		case string(Add), string(Replace), string(Copy), string(Move):
+		default:
+			continue
+		}
+		for _, p := range []string{op.Path} {
 			if p == "" {
 				continue
 			}
