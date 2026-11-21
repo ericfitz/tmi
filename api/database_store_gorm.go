@@ -50,27 +50,44 @@ func (s *GormThreatModelStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifi
 	// identifier that fails to match the uppercase column the Oracle driver
 	// creates. ColumnMap uppercases on Oracle and is a passthrough elsewhere.
 	dialect := tx.Name()
+	// lookup returns (uuid, found, err); only gorm.ErrRecordNotFound counts as
+	// "not found". Any other DB error is classified so a transient fault is
+	// retried or reported as 503/500 rather than mistaken for a missing user.
+	lookup := func(column string) (string, bool, error) {
+		result := tx.Where(ColumnMap(dialect, map[string]any{column: identifier})).First(&user)
+		if result.Error == nil {
+			return string(user.InternalUUID), true, nil
+		}
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return "", false, nil
+		}
+		return "", false, dberrors.Classify(result.Error)
+	}
+
 	// Step 1: Check if it's already a valid internal_uuid
 	if _, err := uuid.Parse(identifier); err == nil {
-		result := tx.Where(ColumnMap(dialect, map[string]any{"internal_uuid": identifier})).First(&user)
-		if result.Error == nil {
-			return string(user.InternalUUID), nil
+		if id, found, err := lookup("internal_uuid"); err != nil || found {
+			return id, err
+		}
+	}
+	// Step 2: Try as provider_user_id; Step 3: Try as email
+	for _, column := range []string{"provider_user_id", "email"} {
+		if id, found, err := lookup(column); err != nil || found {
+			return id, err
 		}
 	}
 
-	// Step 2: Try as provider_user_id
-	result := tx.Where(ColumnMap(dialect, map[string]any{"provider_user_id": identifier})).First(&user)
-	if result.Error == nil {
-		return string(user.InternalUUID), nil
-	}
-
-	// Step 3: Try as email
-	result = tx.Where(ColumnMap(dialect, map[string]any{"email": identifier})).First(&user)
-	if result.Error == nil {
-		return string(user.InternalUUID), nil
-	}
-
 	return "", ErrUserNotFound
+}
+
+// wrapUserReferenceError turns an unresolved client-supplied user reference
+// (owner, created_by, security_reviewer) into ErrInvalidAuthorizationSubject
+// (400) without echoing the identifier; other errors pass through unchanged.
+func wrapUserReferenceError(field string, err error) error {
+	if errors.Is(err, ErrUserNotFound) {
+		return fmt.Errorf("%s: %w", field, ErrInvalidAuthorizationSubject)
+	}
+	return fmt.Errorf("failed to resolve %s: %w", field, err)
 }
 
 // resolveGroupUUID resolves a (group name, provider) pair to a group's
@@ -787,13 +804,13 @@ func (s *GormThreatModelStore) Create(ctx context.Context, item ThreatModel, idS
 		// Resolve owner identifier to internal_uuid
 		ownerUUID, err := s.resolveUserIdentifierToUUID(tx, item.Owner.ProviderId)
 		if err != nil {
-			return fmt.Errorf("failed to resolve owner identifier %s: %w", item.Owner.ProviderId, err)
+			return wrapUserReferenceError("owner", err)
 		}
 
 		// Resolve created_by identifier to internal_uuid
 		createdByUUID, err := s.resolveUserIdentifierToUUID(tx, item.CreatedBy.ProviderId)
 		if err != nil {
-			return fmt.Errorf("failed to resolve created_by identifier %s: %w", item.CreatedBy.ProviderId, err)
+			return wrapUserReferenceError("created_by", err)
 		}
 
 		// Resolve security_reviewer identifier to internal_uuid (if provided)
@@ -801,7 +818,7 @@ func (s *GormThreatModelStore) Create(ctx context.Context, item ThreatModel, idS
 		if item.SecurityReviewer != nil && item.SecurityReviewer.ProviderId != "" {
 			srUUID, err := s.resolveUserIdentifierToUUID(tx, item.SecurityReviewer.ProviderId)
 			if err != nil {
-				return fmt.Errorf("failed to resolve security_reviewer: %w", err)
+				return wrapUserReferenceError("security_reviewer", err)
 			}
 			securityReviewerUUID = &srUUID
 		}
@@ -995,7 +1012,7 @@ func (s *GormThreatModelStore) update(ctx context.Context, id string, item Threa
 		// Resolve owner identifier to internal_uuid
 		ownerUUID, err := s.resolveUserIdentifierToUUID(tx, item.Owner.ProviderId)
 		if err != nil {
-			return fmt.Errorf("failed to resolve owner identifier %s: %w", item.Owner.ProviderId, err)
+			return wrapUserReferenceError("owner", err)
 		}
 
 		// Resolve created_by identifier to internal_uuid
@@ -1003,7 +1020,7 @@ func (s *GormThreatModelStore) update(ctx context.Context, id string, item Threa
 		if item.CreatedBy != nil {
 			createdByUUID, err = s.resolveUserIdentifierToUUID(tx, item.CreatedBy.ProviderId)
 			if err != nil {
-				return fmt.Errorf("failed to resolve created_by identifier %s: %w", item.CreatedBy.ProviderId, err)
+				return wrapUserReferenceError("created_by", err)
 			}
 		} else {
 			createdByUUID = ownerUUID
@@ -1014,7 +1031,7 @@ func (s *GormThreatModelStore) update(ctx context.Context, id string, item Threa
 		if item.SecurityReviewer != nil && item.SecurityReviewer.ProviderId != "" {
 			srUUID, err := s.resolveUserIdentifierToUUID(tx, item.SecurityReviewer.ProviderId)
 			if err != nil {
-				return fmt.Errorf("failed to resolve security_reviewer: %w", err)
+				return wrapUserReferenceError("security_reviewer", err)
 			}
 			securityReviewerUUID = &srUUID
 		}
@@ -1418,9 +1435,14 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 	}
 
 	for i, auth := range authorization {
-		subjectTypeStr := string(AddGroupMemberRequestSubjectTypeUser)
-		if auth.PrincipalType == AuthorizationPrincipalTypeGroup {
+		var subjectTypeStr string
+		switch auth.PrincipalType {
+		case AuthorizationPrincipalTypeUser:
+			subjectTypeStr = string(AddGroupMemberRequestSubjectTypeUser)
+		case AuthorizationPrincipalTypeGroup:
 			subjectTypeStr = string(AddGroupMemberRequestSubjectTypeGroup)
+		default:
+			return fmt.Errorf("authorization subject %d: unsupported principal_type: %w", i, ErrInvalidAuthorizationSubject)
 		}
 
 		var userUUID, groupUUID *string
