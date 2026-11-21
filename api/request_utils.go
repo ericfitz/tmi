@@ -606,6 +606,11 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 	if errors.Is(err, dberrors.ErrNotFound) {
 		return NotFoundError(notFoundMsg)
 	}
+	// A tripped append-only trigger signals a code bug, never client input:
+	// keep it a 500 even though it wraps ErrConstraint.
+	if errors.Is(err, dberrors.ErrAppendOnlyViolation) {
+		return ServerError(serverErrorMsg)
+	}
 	if errors.Is(err, dberrors.ErrInvalidValue) {
 		return invalidValueRequestError(err)
 	}
@@ -735,8 +740,18 @@ func WriteErrorToRequestError(err error, serverErrorMsg string) *RequestError {
 	if errors.Is(err, ErrInvalidAuthorizationSubject) {
 		return InvalidInputError(invalidAuthorizationSubjectMessage)
 	}
+	if errors.Is(err, dberrors.ErrAppendOnlyViolation) {
+		return ServerError(serverErrorMsg)
+	}
 	if errors.Is(err, dberrors.ErrInvalidValue) {
 		return invalidValueRequestError(err)
+	}
+	// Any other classified constraint (NOT NULL, numeric overflow, FK,
+	// duplicate) is the caller's data. 400 is documented on every operation
+	// that uses this mapper; 409 is not, so duplicates are 400 here too.
+	if errors.Is(err, dberrors.ErrConstraint) {
+		slogging.Get().Error("constraint violation returned to client as 400: %v", err)
+		return InvalidInputError("request violates a data constraint")
 	}
 	if errors.Is(err, dberrors.ErrTransient) {
 		return ServiceUnavailableError("Storage service temporarily unavailable - please retry")
