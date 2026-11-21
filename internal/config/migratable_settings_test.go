@@ -188,9 +188,9 @@ func TestDefaultOperationalSettings_OnlyOperational(t *testing.T) {
 // A callback URL supplied via TMI_OAUTH_CALLBACK_URL must be reported as
 // Source "environment" so GetMigratableSettings marks it Explicit.
 //
-// This is load-bearing, not cosmetic. SettingsService.getConfigSetting drops
-// any non-Explicit operational setting, so GetString("auth.oauth_callback_url")
-// falls through to the database. On AWS that meant a stale
+// This is load-bearing, not cosmetic. SettingsService.configOutranksRow lets a
+// seeded row beat any non-Explicit operational setting, so
+// GetString("auth.oauth_callback_url") returns the database row. On AWS that meant a stale
 // http://localhost:8080/oauth2/callback row won over a correctly-set
 // TMI_OAUTH_CALLBACK_URL, and every provider's redirect_uri (Google, GitHub,
 // Microsoft) was advertised as localhost — OAuth sign-in could not complete.

@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -10,6 +12,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/config"
+	"github.com/ericfitz/tmi/internal/dberrors"
 )
 
 // These tests pin the precedence rule for operational settings (#415).
@@ -360,4 +363,61 @@ func TestRowWins1168_GetJSON(t *testing.T) {
 	var got []string
 	require.NoError(t, s.GetJSON(context.Background(), key, &got))
 	require.Equal(t, []string{"row"}, got)
+}
+
+// ---------------------------------------------------------------------------
+// Transient database faults (#1168 review): explicit config used to bypass the
+// database, so a transient fault must still return the config layer's value.
+// ---------------------------------------------------------------------------
+
+// failQueries makes every GORM query fail with a message dberrors classifies as
+// transient (or not, per msg).
+func failQueries(t *testing.T, db *gorm.DB, msg string) {
+	t.Helper()
+	require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:fail", func(tx *gorm.DB) {
+		_ = tx.AddError(errors.New(msg))
+	}))
+}
+
+func TestRowWins1168_TransientDBFaultFallsBackToConfig(t *testing.T) {
+	const key = "upload.max_file_size_mb"
+	for _, explicit := range []bool{true, false} {
+		t.Run(fmt.Sprintf("config explicit=%v", explicit), func(t *testing.T) {
+			db := setupSettingsTestDB(t)
+			failQueries(t, db, "statement is closed")
+			s := NewSettingsService(db, nil)
+			m := operationalSetting(key, "30", "config", explicit)
+			m.Type = "int"
+			s.SetConfigProvider(&stubConfigProvider{settings: []MigratableSetting{m}})
+
+			got, err := s.GetInt(context.Background(), key)
+			require.NoError(t, err)
+			require.Equal(t, 30, got)
+			str, err := s.GetString(context.Background(), key)
+			require.NoError(t, err)
+			require.Equal(t, "30", str)
+		})
+	}
+}
+
+func TestRowWins1168_TransientDBFaultWithoutConfigErrors(t *testing.T) {
+	db := setupSettingsTestDB(t)
+	failQueries(t, db, "statement is closed")
+	s := NewSettingsService(db, nil)
+	s.SetConfigProvider(&stubConfigProvider{})
+
+	_, err := s.GetString(context.Background(), "upload.max_file_size_mb")
+	require.Error(t, err)
+	require.ErrorIs(t, err, dberrors.ErrTransient)
+}
+
+func TestRowWins1168_NonTransientDBFaultStillErrors(t *testing.T) {
+	db := setupSettingsTestDB(t)
+	failQueries(t, db, "some permanent failure")
+	s := NewSettingsService(db, nil)
+	m := operationalSetting("upload.max_file_size_mb", "30", "config", true)
+	s.SetConfigProvider(&stubConfigProvider{settings: []MigratableSetting{m}})
+
+	_, err := s.GetString(context.Background(), "upload.max_file_size_mb")
+	require.Error(t, err)
 }

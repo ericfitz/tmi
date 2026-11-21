@@ -239,7 +239,18 @@ func (s *SettingsService) resolveSetting(ctx context.Context, key string) (value
 
 	row, err := s.getUsableRow(ctx, key)
 	if err != nil {
-		return "", false, false, err
+		// Before #1168 explicit config never touched the database, so a
+		// transient fault (ORA-03113/12537 class) must not make a value the
+		// config layer can answer unreadable: fall back to config, unretried
+		// because /config reads many keys back to back. With nothing in config
+		// the classified error is all there is.
+		classified := dberrors.Classify(err)
+		if errors.Is(classified, dberrors.ErrTransient) && cfgFound {
+			slogging.Get().Warn("Transient database error reading setting %s; using the config layer value", key)
+			row = nil
+		} else {
+			return "", false, false, classified
+		}
 	}
 	if configOutranksRow(cfgFound && cfg.Explicit, row) {
 		if !cfgFound || (cfg.Value == "" && !cfg.Explicit) {

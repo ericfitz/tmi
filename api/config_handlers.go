@@ -1017,9 +1017,9 @@ var providerSubtreePrefixes = []string{
 // the write: the admin-set row it creates outranks config on every read path
 // (#1168), so the write takes effect. The def is consulted rather than the
 // entry's Class because GetMigratableSettings projects Class from the key
-// registry, which lacks the per-def Static overrides. A key with no def but present in GetMigratableSettings (a
-// generated provider-subtree key) is refused. A key with neither is a custom
-// key and is not blocked.
+// registry, which lacks the per-def Static overrides. A key with no def but
+// present in GetMigratableSettings (a generated provider-subtree key) is
+// refused. A key with neither is a custom key and is not blocked.
 func configWriteBlock(provider ConfigProvider, key string) (bool, string) {
 	var entry *MigratableSetting
 	for _, cs := range provider.GetMigratableSettings() {
