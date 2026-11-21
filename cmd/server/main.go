@@ -1159,6 +1159,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	r.Use(api.BodySizeLimitMiddleware())              // 413 for oversized bodies on routes that document it, before any body parsing
 	r.Use(api.AcceptLanguageMiddleware())             // Handle Accept-Language gracefully
 	r.Use(api.UnicodeNormalizationMiddleware())       // Normalize and reject problematic Unicode (security hardening)
+	r.Use(api.QueryParameterControlCharMiddleware())  // Reject control chars (NUL etc.) in query parameters (400, not a DB 500)
 	r.Use(api.StrictJSONValidationMiddleware())       // Reject malformed JSON (trailing garbage, duplicate keys)
 	r.Use(api.BoundaryValueValidationMiddleware())    // Enhanced validation for boundary values
 
