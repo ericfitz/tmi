@@ -2873,10 +2873,17 @@
           },
           "threat_model_framework": {
             "type": "string",
-            "description": "The framework used for this threat model",
-            "pattern": "^[A-Za-z0-9_-]*$",
+            "description": "The framework used for this threat model. One of CIA, STRIDE, LINDDUN, DIE, PLOT4ai; an empty string or omission selects the server default (STRIDE).",
             "maxLength": 30,
-            "nullable": true
+            "nullable": true,
+            "enum": [
+              "CIA",
+              "STRIDE",
+              "LINDDUN",
+              "DIE",
+              "PLOT4ai",
+              ""
+            ]
           },
           "authorization": {
             "type": "array",

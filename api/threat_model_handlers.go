@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/api/validation"
 	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -228,6 +229,10 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	var framework string
 	if request.ThreatModelFramework != nil {
 		framework = *request.ThreatModelFramework
+	}
+	if err := validateThreatModelFrameworkValue(framework); err != nil {
+		HandleRequestError(c, err)
+		return
 	}
 
 	tm := ThreatModel{
@@ -478,9 +483,10 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	}
 
 	// Use framework from request; empty string will be defaulted by store
-	framework := ""
-	if request.ThreatModelFramework != nil {
-		framework = *request.ThreatModelFramework
+	framework, err := frameworkFromRequest(request.ThreatModelFramework)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
 	}
 
 	// Build full threat model from request (PUT = full replacement)
@@ -653,6 +659,16 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	if err != nil {
 		HandleRequestError(c, err)
 		return
+	}
+
+	// JSON Patch bypasses the body schema, so enforce the framework enum here.
+	// Only a changed value is checked: a legacy stored value must not block
+	// unrelated patches.
+	if modifiedTM.ThreatModelFramework != existingTM.ThreatModelFramework {
+		if err := validateThreatModelFrameworkValue(modifiedTM.ThreatModelFramework); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
 	}
 
 	// Sanitize text fields on the patched result (defense-in-depth)
@@ -1252,4 +1268,27 @@ func (h *ThreatModelHandler) applyThreatModelBusinessRules(modifiedTM *ThreatMod
 	}
 
 	return nil
+}
+
+// validateThreatModelFrameworkValue enforces the threat_model_framework enum
+// (ADR 2026-11-21). The empty string means "omitted" and is defaulted by the
+// store. Matching is exact (case-sensitive), like the OpenAPI enum.
+func validateThreatModelFrameworkValue(framework string) error {
+	if framework == "" {
+		return nil
+	}
+	if slices.Contains(validation.ValidThreatModelFrameworks, framework) {
+		return nil
+	}
+	return InvalidInputError(fmt.Sprintf("threat_model_framework: must be one of: %s",
+		strings.Join(validation.ValidThreatModelFrameworks, ", ")))
+}
+
+// frameworkFromRequest returns the validated framework of a write request;
+// nil (omitted) yields "", which the store defaults.
+func frameworkFromRequest(p *string) (string, error) {
+	if p == nil {
+		return "", nil
+	}
+	return *p, validateThreatModelFrameworkValue(*p)
 }
