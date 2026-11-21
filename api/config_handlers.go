@@ -28,6 +28,12 @@ const secretMaskConfigured = "<configured>"
 // secretMaskNotConfigured is the masked value displayed when a secret setting has no value.
 const secretMaskNotConfigured = "<not configured>"
 
+// settingMaskUnreadable is the value reported for a database row whose stored
+// value cannot be decrypted (for example after a key rotation without the
+// previous key). The row is still listed so an operator can find, re-write or
+// delete it (#1169).
+const settingMaskUnreadable = "<unreadable>"
+
 // providerKeyPrefixes are the settings key prefixes for auth providers. Used
 // for provider-registry cache invalidation; API-response masking uses
 // secretMaskKeyPrefixes, a superset.
@@ -444,7 +450,9 @@ func dbSettingToAPI(row models.SystemSetting) SystemSetting {
 	apiSetting.Source = &source
 	readOnly := false
 	apiSetting.ReadOnly = &readOnly
-	if shouldMaskSettingValue(string(row.SettingKey)) {
+	if row.Unreadable {
+		apiSetting.Value = settingMaskUnreadable
+	} else if shouldMaskSettingValue(string(row.SettingKey)) {
 		if apiSetting.Value != "" {
 			apiSetting.Value = secretMaskConfigured
 		} else {
@@ -592,9 +600,14 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 	// for config-supplied keys too, and an ADB connection blip should not turn
 	// a read the config layer could answer into a hard failure.
 	var setting *models.SystemSetting
+	unreadable := false
 	err := db.WithRetryableGormRead(ctx, db.DefaultRetryConfig(), func() error {
 		var readErr error
 		setting, readErr = s.settingsService.Get(ctx, key)
+		if errors.Is(readErr, errSettingUnreadable) {
+			unreadable = true // not a database fault: do not retry
+			return nil
+		}
 		if readErr != nil {
 			return dberrors.Classify(readErr)
 		}
@@ -616,6 +629,21 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 			Code:    errcode.ServerError,
 			Message: "Failed to get setting",
 		})
+		return
+	}
+
+	// An unreadable row is no usable row (#1169): config answers if it can,
+	// otherwise the row is reported masked, as the list endpoint does.
+	if unreadable {
+		logger.Warn("System setting %s is unreadable: stored value could not be decrypted", key)
+		if configEntry != nil {
+			c.JSON(http.StatusOK, configSettingToAPI(*configEntry))
+			return
+		}
+		c.JSON(http.StatusOK, dbSettingToAPI(models.SystemSetting{
+			SettingKey: models.DBVarchar(key),
+			Unreadable: true,
+		}))
 		return
 	}
 
@@ -773,7 +801,13 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 	}
 
 	// Check if setting exists
+	// An unreadable row still exists and must be deletable: deleting it is how
+	// an operator clears it (#1169).
 	setting, err := s.settingsService.Get(ctx, key)
+	if errors.Is(err, errSettingUnreadable) {
+		logger.Warn("Deleting unreadable system setting %s", key)
+		setting, err = &models.SystemSetting{SettingKey: models.DBVarchar(key)}, nil
+	}
 	if err != nil {
 		logger.Error("Failed to check system setting %s: %v", key, err)
 		HandleRequestError(c, &RequestError{

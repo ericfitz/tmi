@@ -228,8 +228,8 @@ func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSe
 	if s.encryptor != nil {
 		decrypted, err := s.encryptor.Decrypt(string(dbSetting.Value))
 		if err != nil {
-			logger.Error("Failed to decrypt setting %s: %v", key, err)
-			return nil, fmt.Errorf("failed to decrypt setting %s: %w", key, err)
+			logger.Warn("Setting %s is unreadable: stored value could not be decrypted", key)
+			return nil, fmt.Errorf("%w: setting %s could not be decrypted: %w", errSettingUnreadable, key, err)
 		}
 		dbSetting.Value = models.DBText(decrypted)
 	}
@@ -238,6 +238,20 @@ func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSe
 	s.setInCache(ctx, &dbSetting)
 
 	return &dbSetting, nil
+}
+
+// getUsableRow is Get with "unreadable row == no usable row" applied (#1169):
+// a row that cannot be decrypted is reported as absent (nil, nil) rather than
+// as an error, so every precedence-resolving reader falls through to the
+// config layer instead of failing. Get has already logged the key. Callers that
+// must distinguish the two (the admin API) call Get and test for
+// errSettingUnreadable.
+func (s *SettingsService) getUsableRow(ctx context.Context, key string) (*models.SystemSetting, error) {
+	row, err := s.Get(ctx, key)
+	if errors.Is(err, errSettingUnreadable) {
+		return nil, nil
+	}
+	return row, err
 }
 
 // GetString retrieves a string setting value.
@@ -249,7 +263,7 @@ func (s *SettingsService) GetString(ctx context.Context, key string) (string, er
 	}
 
 	// Fall back to database
-	setting, err := s.Get(ctx, key)
+	setting, err := s.getUsableRow(ctx, key)
 	if err != nil {
 		return "", err
 	}
@@ -310,7 +324,7 @@ func (s *SettingsService) GetResolvedString(ctx context.Context, key string) (st
 	var row *models.SystemSetting
 	err := db.WithRetryableGormRead(ctx, db.DefaultRetryConfig(), func() error {
 		var readErr error
-		row, readErr = s.Get(ctx, key)
+		row, readErr = s.getUsableRow(ctx, key)
 		if readErr != nil {
 			return dberrors.Classify(readErr)
 		}
@@ -334,12 +348,13 @@ func (s *SettingsService) GetResolvedString(ctx context.Context, key string) (st
 // nil (no row).
 func configOutranksRow(cfgExplicit bool, row *models.SystemSetting) bool {
 	switch {
-	case row == nil || string(row.Value) == "":
+	case row == nil || row.Unreadable || string(row.Value) == "":
 		// Nothing usable in the database — the config layer is all there is,
 		// explicit or not. An empty row value is treated as absent: on Oracle
 		// '' binds as NULL, so an empty-but-present row is indistinguishable
 		// from a missing one anyway — collapsing them keeps the rule
-		// engine-independent (oracle-db-admin review of #767, note 3).
+		// engine-independent (oracle-db-admin review of #767, note 3). A row
+		// that could not be decrypted is likewise no usable row (#1169).
 		return true
 	case row.IsExplicit():
 		// An operator deliberately set this row, via the admin API or a
@@ -367,7 +382,7 @@ func (s *SettingsService) GetInt(ctx context.Context, key string) (int, error) {
 	}
 
 	// Fall back to database
-	setting, err := s.Get(ctx, key)
+	setting, err := s.getUsableRow(ctx, key)
 	if err != nil {
 		return 0, err
 	}
@@ -394,7 +409,7 @@ func (s *SettingsService) GetBool(ctx context.Context, key string) (bool, error)
 	}
 
 	// Fall back to database
-	setting, err := s.Get(ctx, key)
+	setting, err := s.getUsableRow(ctx, key)
 	if err != nil {
 		return false, err
 	}
@@ -420,7 +435,7 @@ func (s *SettingsService) GetJSON(ctx context.Context, key string, target any) e
 	}
 
 	// Fall back to database
-	setting, err := s.Get(ctx, key)
+	setting, err := s.getUsableRow(ctx, key)
 	if err != nil {
 		return err
 	}
@@ -433,7 +448,8 @@ func (s *SettingsService) GetJSON(ctx context.Context, key string, target any) e
 	return nil
 }
 
-// List retrieves all settings
+// List retrieves all settings. A row whose value cannot be decrypted is still
+// returned, with Unreadable set and Value empty.
 func (s *SettingsService) List(ctx context.Context) ([]models.SystemSetting, error) {
 	logger := slogging.Get()
 
@@ -447,8 +463,12 @@ func (s *SettingsService) List(ctx context.Context) ([]models.SystemSetting, err
 		for i := range settings {
 			decrypted, err := s.encryptor.Decrypt(string(settings[i].Value))
 			if err != nil {
-				logger.Error("Failed to decrypt setting %s: %v", settings[i].SettingKey, err)
-				return nil, fmt.Errorf("failed to decrypt setting %s: %w", settings[i].SettingKey, err)
+				// One unreadable row must not fail the whole list (#1169):
+				// flag it, drop the ciphertext, and let callers mask it.
+				logger.Warn("Setting %s is unreadable: stored value could not be decrypted", settings[i].SettingKey)
+				settings[i].Value = ""
+				settings[i].Unreadable = true
+				continue
 			}
 			settings[i].Value = models.DBText(decrypted)
 		}

@@ -57,6 +57,11 @@ type SystemSetting struct {
 	// ReadOnly indicates whether this setting can be modified via the API.
 	// True when source is not "database". Computed at response time.
 	ReadOnly bool `gorm:"-" json:"read_only"`
+	// Unreadable is set by SettingsService.List when the stored value could not
+	// be decrypted (for example after a key rotation without the previous
+	// key). Value is then empty and the row must be treated as unusable (#1169).
+	// Never persisted and never cached, so "-" is safe here.
+	Unreadable bool `gorm:"-" json:"-"`
 }
 
 // TableName specifies the table name for SystemSetting
