@@ -58,13 +58,13 @@ spec:
             # identity that must match the cluster's own hostname. Mirrors the
             # AWS overlay, which carries the same keys in the same Secret.
             #
-            # Since the #415 config split, these are operational settings: the
-            # mounted config.yml is bootstrap-only and CANNOT carry them, and the
-            # database copy is destroyed by `make dev-nuke` (which deletes the
-            # namespace, and with it the Postgres PVC). Delivering them as env
-            # vars from a Secret that deploy.py recreates from the gitignored
-            # .local/oauth-providers.env on every dev-up/dev-restart makes the
-            # config self-healing: a nuke no longer silently leaves the server
+            # The provider settings are operational, and the database copy is
+            # destroyed by `make dev-nuke` (which deletes the namespace, and with
+            # it the Postgres PVC). The callback URL (auth.oauth_callback_url) is
+            # a bootstrap, startup-only key (#1167): config or env is its only
+            # source. Delivering them as env vars from a Secret that deploy.py
+            # recreates from the gitignored .local/oauth-providers.env on every
+            # dev-up/dev-restart makes the config self-healing: a nuke no longer silently leaves the server
             # advertising nothing but the built-in "tmi" provider (#791).
             #
             # optional: a developer with no .local/oauth-providers.env still gets

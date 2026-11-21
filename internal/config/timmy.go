@@ -107,7 +107,7 @@ func (tc TimmyConfig) ValidateLLMProvider() error {
 	if tc.LLMProvider == "" || validLLMProviders[tc.LLMProvider] {
 		return nil
 	}
-	return fmt.Errorf("timmy.llm_provider %q is not a recognized provider (must be one of: openai, anthropic)", tc.LLMProvider)
+	return fmt.Errorf("timmy.llm_provider is not a recognized provider (must be one of: openai, anthropic)")
 }
 
 // ValidateLLMMaxTokens reports whether LLMMaxTokens is a valid value. Zero

@@ -255,7 +255,8 @@ func validateTimmyAtStartup(source string, timmyCfg config.TimmyConfig, buildMod
 }
 
 // validateEffectiveTimmyAtStartup runs validateTimmyAtStartup on the Timmy
-// config resolved through the settings service (config-first, then DB).
+// config resolved through the settings service: an admin-set database row wins
+// over config, and explicit config wins over a seeded row (#1168).
 func validateEffectiveTimmyAtStartup(ctx context.Context, settings api.SettingsServiceInterface, buildMode string) error {
 	return validateTimmyAtStartup("settings", api.NewTimmyConfigProvider(settings).Current(ctx), buildMode)
 }

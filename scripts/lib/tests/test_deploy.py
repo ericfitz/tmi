@@ -701,7 +701,7 @@ class TestReusePreinstalledPlatform(unittest.TestCase):
              mock.patch.object(deploy, "_reloader_exists", return_value=reloader), \
              mock.patch.object(deploy, "_apply_with_retry"), \
              mock.patch.object(deploy, "kubectl") as k:
-            deploy.apply_platform_base()
+            deploy.apply_platform_base("docker-desktop")
         return [c[0][0] for c in k.call_args_list]
 
     def test_helm_install_skips_vendored_applies(self):
@@ -720,7 +720,7 @@ class TestReusePreinstalledPlatform(unittest.TestCase):
              mock.patch.object(deploy, "_find_cert_manager_webhook", return_value=("kube-system", "wh")), \
              mock.patch.object(deploy, "kubectl") as k, \
              self.assertRaises(SystemExit):
-            deploy.apply_platform_base()
+            deploy.apply_platform_base("docker-desktop")
         k.assert_not_called()
 
 

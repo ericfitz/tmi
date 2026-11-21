@@ -161,6 +161,11 @@ func TestUpdateSystemSetting_ExplicitnessGuard(t *testing.T) {
 
 func putSetting(t *testing.T, server *Server, key, value string) *httptest.ResponseRecorder {
 	t.Helper()
+	return putSettingTyped(t, server, key, value, "string")
+}
+
+func putSettingTyped(t *testing.T, server *Server, key, value, settingType string) *httptest.ResponseRecorder {
+	t.Helper()
 	originalAdminStore := GlobalGroupMemberRepository
 	t.Cleanup(func() { restoreConfigStores(originalAdminStore) })
 	GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
@@ -176,7 +181,7 @@ func putSetting(t *testing.T, server *Server, key, value string) *httptest.Respo
 	r.PUT("/admin/settings/:key", func(c *gin.Context) {
 		server.UpdateSystemSetting(c, c.Param("key"))
 	})
-	req, _ := http.NewRequest("PUT", "/admin/settings/"+key, strings.NewReader(`{"value": "`+value+`", "type": "string"}`))
+	req, _ := http.NewRequest("PUT", "/admin/settings/"+key, strings.NewReader(`{"value": "`+value+`", "type": "`+settingType+`"}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)

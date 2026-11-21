@@ -220,7 +220,7 @@ func (s *Server) startupBool(key string) bool {
 // "false": GetBool returns (false, nil) for both, which would silently flip a
 // default-true flag off when the key is simply unset. By reading the raw string
 // value first (which is "" only when the key resolves to nothing through the
-// config-provider-then-database cascade) we keep the caller's default intact
+// settings service's row-wins resolution, #1168) we keep the caller's default intact
 // for absent keys.
 func (s *Server) boolSettingIfPresent(ctx context.Context, key string) (value bool, present bool) {
 	if s.settingsService == nil {
@@ -430,10 +430,11 @@ func filterByVisibility(settings []MigratableSetting, level config.Visibility) [
 	return out
 }
 
-// configSettingToAPI converts a MigratableSetting to an API SystemSetting with source/read_only.
-func configSettingToAPI(cs MigratableSetting) SystemSetting {
+// configSettingToAPI converts a MigratableSetting to an API SystemSetting with
+// source and read_only. readOnly is whether PUT on the key would be refused
+// (see settingReadOnly).
+func configSettingToAPI(cs MigratableSetting, readOnly bool) SystemSetting {
 	source := SystemSettingSource(cs.Source)
-	readOnly := true
 
 	value := cs.Value
 	if cs.Secret {
@@ -458,12 +459,12 @@ func configSettingToAPI(cs MigratableSetting) SystemSetting {
 }
 
 // dbSettingToAPI converts a database row to an API SystemSetting reported as
-// database-sourced and writable, masking secret values.
-func dbSettingToAPI(row models.SystemSetting) SystemSetting {
+// database-sourced, masking secret values. readOnly is whether PUT on the key
+// would be refused (see settingReadOnly).
+func dbSettingToAPI(row models.SystemSetting, readOnly bool) SystemSetting {
 	apiSetting := modelToAPISystemSetting(row)
 	source := SystemSettingSource("database")
 	apiSetting.Source = &source
-	readOnly := false
 	apiSetting.ReadOnly = &readOnly
 	if row.Unreadable {
 		apiSetting.Value = settingMaskUnreadable
@@ -484,11 +485,17 @@ func dbSettingToAPI(row models.SystemSetting) SystemSetting {
 // server-internal settings that must never appear in any API response.
 func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []SystemSetting {
 	configMap := make(map[string]MigratableSetting)
+	// allConfig holds every config entry, including the internal ones the
+	// visibility filter drops, because configWriteBlock sees them too.
+	allConfig := make(map[string]*MigratableSetting)
 	if s.configProvider != nil {
 		// Filter out VisibilityInternal settings before building the config map so
 		// that bootstrap keys (server.port, database.url, auth.jwt.secret, etc.)
 		// are never returned by the admin /admin/settings endpoint.
 		allConfigSettings := s.configProvider.GetMigratableSettings()
+		for i := range allConfigSettings {
+			allConfig[allConfigSettings[i].Key] = &allConfigSettings[i]
+		}
 		visible := filterByVisibility(allConfigSettings, config.VisibilityAdminOnly)
 		for _, cs := range visible {
 			configMap[cs.Key] = cs
@@ -508,6 +515,9 @@ func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []Sy
 		allKeys[k] = true
 	}
 
+	// readOnly mirrors configWriteBlock, the single decision PUT makes.
+	readOnly := func(key string) bool { return s.settingReadOnly(allConfig[key], key) }
+
 	result := make([]SystemSetting, 0, len(allKeys))
 	for key := range allKeys {
 		configSetting, inConfig := configMap[key]
@@ -520,11 +530,11 @@ func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []Sy
 
 		switch {
 		case inConfig && (bootstrap || !inDB || configOutranksRow(configSetting.Explicit, &row)):
-			result = append(result, configSettingToAPI(configSetting))
+			result = append(result, configSettingToAPI(configSetting, readOnly(key)))
 		case inDB && bootstrap:
 			// no config value to report and no usable row
 		case inDB:
-			result = append(result, dbSettingToAPI(row))
+			result = append(result, dbSettingToAPI(row, readOnly(key)))
 		}
 	}
 
@@ -611,6 +621,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 			}
 		}
 	}
+	readOnly := s.settingReadOnly(configEntry, key)
 	// Bootstrap keys are never database-backed (SettingsService.Get refuses
 	// them), so config is their only source, as in GetResolvedString.
 	if config.ClassificationCategoryFor(key) == config.CategoryBootstrap {
@@ -624,7 +635,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 			})
 			return
 		}
-		c.JSON(http.StatusOK, configSettingToAPI(*configEntry))
+		c.JSON(http.StatusOK, configSettingToAPI(*configEntry, readOnly))
 		return
 	}
 
@@ -669,7 +680,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 	if unreadable {
 		logger.Warn("System setting %s is unreadable: stored value could not be decrypted", key)
 		if configEntry != nil {
-			c.JSON(http.StatusOK, configSettingToAPI(*configEntry))
+			c.JSON(http.StatusOK, configSettingToAPI(*configEntry, readOnly))
 			return
 		}
 		row := models.SystemSetting{SettingKey: models.DBVarchar(key), SettingType: models.SystemSettingTypeString}
@@ -677,14 +688,14 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 			row = *setting // real metadata: type, origin, timestamps
 		}
 		row.Unreadable = true
-		c.JSON(http.StatusOK, dbSettingToAPI(row))
+		c.JSON(http.StatusOK, dbSettingToAPI(row, readOnly))
 		return
 	}
 
 	// Report the value in effect: the same rule as the runtime read path and
 	// the list endpoint (#1161).
 	if configEntry != nil && configOutranksRow(configEntry.Explicit, setting) {
-		c.JSON(http.StatusOK, configSettingToAPI(*configEntry))
+		c.JSON(http.StatusOK, configSettingToAPI(*configEntry, readOnly))
 		return
 	}
 
@@ -699,7 +710,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 	}
 
 	logger.Debug("Retrieved system setting: %s", key)
-	c.JSON(http.StatusOK, dbSettingToAPI(*setting))
+	c.JSON(http.StatusOK, dbSettingToAPI(*setting, readOnly))
 }
 
 // UpdateSystemSetting creates or updates a system setting (admin only)
@@ -792,7 +803,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 
 	// dbSettingToAPI masks secret values: the PUT response must not echo the
 	// plaintext an admin just submitted.
-	apiSetting := dbSettingToAPI(setting)
+	apiSetting := dbSettingToAPI(setting, false) // the PUT just succeeded, so the key is writable
 	logger.Info("Updated system setting: %s", key)
 	c.JSON(http.StatusOK, apiSetting)
 }
@@ -1079,6 +1090,23 @@ func configWriteBlock(provider ConfigProvider, key string) (bool, string) {
 			break
 		}
 	}
+	return configWriteBlockFor(entry, key)
+}
+
+// settingReadOnly is the read_only flag for key: true exactly when PUT would
+// be refused with 409. entry is the key's config entry, or nil. With no config
+// provider PUT is never refused, so the flag is false.
+func (s *Server) settingReadOnly(entry *MigratableSetting, key string) bool {
+	if s.configProvider == nil {
+		return false
+	}
+	blocked, _ := configWriteBlockFor(entry, key)
+	return blocked
+}
+
+// configWriteBlockFor is configWriteBlock for a caller that already holds the
+// key's config entry (nil when config has none).
+func configWriteBlockFor(entry *MigratableSetting, key string) (bool, string) {
 	source := "server configuration"
 	if entry != nil && entry.Source != "" {
 		source = entry.Source

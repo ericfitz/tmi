@@ -80,13 +80,13 @@ func TestAdminSettingsReads_FollowRuntimePrecedence(t *testing.T) {
 		rowOrigin   string // "" leaves Origin NULL (pre-#794 row: not explicit)
 		wantValue   string
 		wantSource  string
-		wantRO      bool
+		wantRO      bool // key is Static, so PUT is refused and read_only is true whatever the source
 	}{
-		{"default config, seeded row", false, "100", models.SystemSettingOriginSeeded, "100", "database", false},
-		{"default config, NULL-origin row", false, "100", "", "100", "database", false},
-		{"default config, admin-set row", false, "100", models.SystemSettingOriginExplicit, "100", "database", false},
+		{"default config, seeded row", false, "100", models.SystemSettingOriginSeeded, "100", "database", true},
+		{"default config, NULL-origin row", false, "100", "", "100", "database", true},
+		{"default config, admin-set row", false, "100", models.SystemSettingOriginExplicit, "100", "database", true},
 		{"explicit config, seeded row", true, "100", models.SystemSettingOriginSeeded, "200", "config", true},
-		{"explicit config, admin-set row", true, "100", models.SystemSettingOriginExplicit, "100", "database", false},
+		{"explicit config, admin-set row", true, "100", models.SystemSettingOriginExplicit, "100", "database", true},
 		{"default config, empty row", false, "", models.SystemSettingOriginExplicit, "200", "config", true},
 	}
 	for _, tc := range cases {

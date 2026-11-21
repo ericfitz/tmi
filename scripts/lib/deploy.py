@@ -450,7 +450,7 @@ RELOADER_SELECTOR = "app.kubernetes.io/name=reloader,app.kubernetes.io/managed-b
 CERT_MANAGER_DEPLOYMENTS = ("cert-manager", "cert-manager-cainjector", "cert-manager-webhook")
 
 
-def apply_platform_base(cluster_target: str = "docker-desktop") -> None:
+def apply_platform_base(cluster_target: str) -> None:
     """Apply the cluster-wide platform in dependency order: cert-manager and
     Reloader, the internal PKI, then NATS (apply_nats), KEDA and the
     TMIComponent CRD.

@@ -6920,7 +6920,7 @@
           },
           "read_only": {
             "type": "boolean",
-            "description": "Whether this setting can be modified via the API. True when source is not database.",
+            "description": "Whether this setting can be modified via the API: true exactly when PUT /admin/settings/{key} would be refused with 409 (the setting is startup-only, static, bootstrap, or a config-defined provider setting), false when a PUT would be accepted. It does not depend on the source: an environment- or file-supplied hot setting is writable, because an admin-set database row outranks config.",
             "readOnly": true
           },
           "origin": {

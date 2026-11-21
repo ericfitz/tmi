@@ -84,8 +84,10 @@ func NewSettingsService(gormDB *gorm.DB, redisDB *db.RedisDB) *SettingsService {
 	}
 }
 
-// SetConfigProvider sets the config provider for environment/config file priority lookups.
-// When set, GetWithPriority will check config values before database values.
+// SetConfigProvider sets the config provider consulted when resolving a setting
+// (environment and config-file values). Resolution follows the row-wins rule
+// (#1168): an admin-set database row outranks config, and config outranks a
+// seeded row only when it is explicit. Bootstrap keys never read the database.
 func (s *SettingsService) SetConfigProvider(provider ConfigProvider) {
 	s.configSettingsCacheMu.Lock()
 	defer s.configSettingsCacheMu.Unlock()
@@ -372,6 +374,17 @@ func settingLayer(fromConfig bool) string {
 	return "setting"
 }
 
+// parseCause strips the offending input from a strconv error: *strconv.NumError
+// formats as `strconv.Atoi: parsing "<input>": ...`, which would put a stored
+// (possibly secret) setting value in the error and the log lines built from it.
+func parseCause(err error) error {
+	var numErr *strconv.NumError
+	if errors.As(err, &numErr) {
+		return numErr.Err
+	}
+	return err
+}
+
 // GetInt retrieves an integer setting value.
 // Priority: see the SettingsService documentation (admin-set row wins).
 func (s *SettingsService) GetInt(ctx context.Context, key string) (int, error) {
@@ -381,7 +394,7 @@ func (s *SettingsService) GetInt(ctx context.Context, key string) (int, error) {
 	}
 	val, err := strconv.Atoi(raw)
 	if err != nil {
-		return 0, fmt.Errorf("%s %s is not a valid integer: %w", settingLayer(fromConfig), key, err)
+		return 0, fmt.Errorf("%s %s is not a valid integer: %w", settingLayer(fromConfig), key, parseCause(err))
 	}
 	return val, nil
 }
@@ -395,7 +408,7 @@ func (s *SettingsService) GetBool(ctx context.Context, key string) (bool, error)
 	}
 	val, err := strconv.ParseBool(raw)
 	if err != nil {
-		return false, fmt.Errorf("%s %s is not a valid boolean: %w", settingLayer(fromConfig), key, err)
+		return false, fmt.Errorf("%s %s is not a valid boolean: %w", settingLayer(fromConfig), key, parseCause(err))
 	}
 	return val, nil
 }
@@ -872,20 +885,20 @@ func (s *SettingsService) validateValue(setting *models.SystemSetting) error {
 	switch setting.SettingType {
 	case models.SystemSettingTypeInt:
 		if _, err := strconv.Atoi(string(setting.Value)); err != nil {
-			return fmt.Errorf("value '%s' is not a valid integer", setting.Value)
+			return fmt.Errorf("value is not a valid integer")
 		}
 	case models.SystemSettingTypeBool:
 		if _, err := strconv.ParseBool(string(setting.Value)); err != nil {
-			return fmt.Errorf("value '%s' is not a valid boolean", setting.Value)
+			return fmt.Errorf("value is not a valid boolean")
 		}
 	case models.SystemSettingTypeFloat:
 		if _, err := strconv.ParseFloat(string(setting.Value), 64); err != nil {
-			return fmt.Errorf("value '%s' is not a valid number", setting.Value)
+			return fmt.Errorf("value is not a valid number")
 		}
 	case models.SystemSettingTypeJSON:
 		var js json.RawMessage
 		if err := json.Unmarshal([]byte(string(setting.Value)), &js); err != nil {
-			return fmt.Errorf("value '%s' is not valid JSON", setting.Value)
+			return fmt.Errorf("value is not valid JSON")
 		}
 	case models.SystemSettingTypeString:
 		// Empty string is not allowed for string settings.
