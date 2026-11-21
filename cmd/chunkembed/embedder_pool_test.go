@@ -111,6 +111,8 @@ func TestPoolRejectsNonAllowlistedEndpoint(t *testing.T) {
 		"https://embed.example.org.evil.net/v1", // suffix trick
 		"https://evil.net/v1?h=embed.example.org",
 		"https://embed.example.org@evil.net/v1", // userinfo trick
+		"https://u:p@embed.example.org/v1",      // credentials on an allowed host
+		"https://embed.example.org@embed.example.org/v1",
 		"ftp://embed.example.org/v1",            // scheme
 		"//embed.example.org/v1",                // no scheme
 		"not a url",
@@ -257,5 +259,21 @@ func TestPoolCacheKeyNormalized(t *testing.T) {
 	}
 	if len(*built) != 1 {
 		t.Fatalf("equivalent endpoints must share one embedder, built %d", len(*built))
+	}
+}
+
+func TestPoolCacheKeyIncludesQuery(t *testing.T) {
+	p, built := newTestPool(t, "embed.example.org")
+	for _, ep := range []string{"https://embed.example.org/v1?api-version=A", "https://embed.example.org/v1?api-version=B",
+		"https://embed.example.org/v1?api-version=A", "https://embed.example.org/v1"} {
+		if _, _, err := p.forJob(jobWithProfile("m", ep, 1)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(*built) != 3 {
+		t.Fatalf("want 3 distinct embedders (A, B, none), built %d", len(*built))
+	}
+	if (*built)[0].BaseURL != "https://embed.example.org/v1?api-version=A" || (*built)[1].BaseURL != "https://embed.example.org/v1?api-version=B" {
+		t.Fatalf("embedders built from wrong URLs: %+v", *built)
 	}
 }

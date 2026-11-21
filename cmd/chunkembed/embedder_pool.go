@@ -78,7 +78,10 @@ type endpoint struct {
 	scheme string
 	host   string // lowercase hostname, no port, no trailing dot
 	port   string
-	key    string // normalized scheme://host[:port]/path, no trailing slash
+	key    string // normalized scheme://host[:port]/path[?rawquery], no trailing slash
+	// hasUserinfo reports credentials embedded in the URL; never valid in a
+	// stamped endpoint.
+	hasUserinfo bool
 }
 
 // parseEndpoint parses an http(s) URL. Errors never echo the URL, which may
@@ -103,10 +106,11 @@ func parseEndpoint(raw string) (endpoint, error) {
 	if u.Port() != "" {
 		hostport += ":" + u.Port()
 	}
-	return endpoint{
-		scheme: scheme, host: h, port: u.Port(),
-		key: scheme + "://" + hostport + strings.TrimRight(u.EscapedPath(), "/"),
-	}, nil
+	key := scheme + "://" + hostport + strings.TrimRight(u.EscapedPath(), "/")
+	if u.RawQuery != "" {
+		key += "?" + u.RawQuery // part of the URL the embedder is built from
+	}
+	return endpoint{scheme: scheme, host: h, port: u.Port(), key: key, hasUserinfo: u.User != nil}, nil
 }
 
 // forJob returns the embedder for the job and the stamped dimension (0 when
@@ -125,6 +129,9 @@ func (p *embedderPool) forJob(job jobenvelope.Job) (llm.Embedder, int, error) {
 	ep, err := parseEndpoint(prof.Endpoint)
 	if err != nil {
 		return nil, 0, fmt.Errorf("%w: %s", errEndpointNotAllowed, err.Error())
+	}
+	if ep.hasUserinfo {
+		return nil, 0, fmt.Errorf("%w: host %q: credentials in URL", errEndpointNotAllowed, ep.host)
 	}
 	// The allowlist matches hostnames only: a port that differs from the env
 	// URL's is accepted for an allowlisted host (a host is a trust decision,
