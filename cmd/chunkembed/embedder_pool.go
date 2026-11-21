@@ -133,17 +133,23 @@ func (p *embedderPool) forJob(job jobenvelope.Job) (llm.Embedder, int, error) {
 	if ep.hasUserinfo {
 		return nil, 0, fmt.Errorf("%w: host %q: credentials in URL", errEndpointNotAllowed, ep.host)
 	}
-	// The allowlist matches hostnames only: a port that differs from the env
-	// URL's is accepted for an allowlisted host (a host is a trust decision,
-	// and the egress policy is what pins ports). Scheme is stricter: the key
-	// would travel in cleartext over http, so http is followed only for the
-	// env base URL's own scheme, host and port (keeps a dev http URL working).
+	// The allowlist matches hostnames. An endpoint that is not the env base
+	// URL itself (same scheme, host and port) must be https on port 443: the
+	// key would travel in cleartext over http, and pinning 443 in code keeps
+	// the key off other services on a trusted host even where the egress
+	// NetworkPolicy is not enforced. The env URL may be http or another port
+	// (keeps a dev URL working).
 	if _, ok := p.allowed[ep.host]; !ok {
 		return nil, 0, fmt.Errorf("%w: host %q", errEndpointNotAllowed, ep.host)
 	}
 	isEnvEndpoint := ep.scheme == p.envEP.scheme && ep.host == p.envEP.host && ep.port == p.envEP.port
-	if ep.scheme != "https" && !isEnvEndpoint {
-		return nil, 0, fmt.Errorf("%w: host %q requires https", errEndpointNotAllowed, ep.host)
+	if !isEnvEndpoint {
+		if ep.scheme != "https" {
+			return nil, 0, fmt.Errorf("%w: host %q requires https", errEndpointNotAllowed, ep.host)
+		}
+		if ep.port != "" && ep.port != "443" {
+			return nil, 0, fmt.Errorf("%w: host %q requires port 443", errEndpointNotAllowed, ep.host)
+		}
 	}
 	emb, err := p.get(prof.Model, ep.key, prof.Endpoint)
 	return emb, prof.Dimension, err

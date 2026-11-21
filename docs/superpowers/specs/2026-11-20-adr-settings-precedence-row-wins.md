@@ -29,9 +29,10 @@
 8. **#1180: the dev settings snapshot holds explicit rows only.** Export writes only explicit (admin-set) rows, with a format marker. Restore writes exactly those keys as explicit, replaces seeded rows, skips existing explicit rows, and refuses unmarked (old) snapshots. Existing stray explicit rows created by old restores are cleaned up once per cluster. Eric chose this over restoring as seeded and over a deny-list of pinned keys.
 9. **#1181: an invalid row is unusable.** A row that fails semantic validation is treated like an unreadable row (#1169): no usable row, so the config layer wins, with a Warn naming the key only. Decision 1 therefore reads "a usable explicit row wins". The boot check no longer exits for an invalid row; an invalid env/YAML value still exits. Eric chose this over leaving the bad row in effect and over adding an API marker for ignored rows.
 
-## Implementation choices (made during review, not human decisions; pending Eric's acknowledgment)
+## Implementation choices (proposed during review; ratified by Eric 2026-11-21, human decision)
 
-- Decision 7 is implemented more strictly than stated. An envelope embedding endpoint must use https unless it exactly matches the worker's env base URL (scheme, host and port). Endpoints containing URL credentials (userinfo) are rejected. The allowlist matches hostnames only, so any port is accepted; the worker's egress policy pins port 443. Rejections use reason `embedding_endpoint_not_allowed`.
+- Decision 7 is implemented more strictly than stated. An envelope embedding endpoint must use https on port 443 unless it exactly matches the worker's env base URL (scheme, host and port). Endpoints containing URL credentials (userinfo) are rejected. Rejections use reason `embedding_endpoint_not_allowed`.
+  - Port (human decision, Eric 2026-11-21): review first proposed accepting any port on an allowlisted host and relying on the egress NetworkPolicy (`ports: [443]`) to pin it. Eric chose to pin 443 in code instead, so the API key cannot reach another service on a trusted host where NetworkPolicy is not enforced. A provider on another port must be configured as the env base URL.
 - #1180 also fixed #1182: export nests keys by YAML path, so the three keys whose path differs from their setting key round-trip.
 
 ## Consequences

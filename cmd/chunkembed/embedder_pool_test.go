@@ -196,7 +196,7 @@ func TestPoolHTTPOnlyForEnvEndpoint(t *testing.T) {
 			t.Errorf("%q should be allowed: %v", ep, err)
 		}
 	}
-	bad := []string{"http://dev.local:9999/v1", "http://dev.local/v1", "http://embed.example.org/v1"}
+	bad := []string{"http://dev.local:9999/v1", "http://dev.local/v1", "http://embed.example.org/v1", "https://dev.local:8443/v1"}
 	for _, ep := range bad {
 		if _, _, err := p.forJob(jobWithProfile("m", ep, 1)); !errors.Is(err, errEndpointNotAllowed) {
 			t.Errorf("%q should be rejected, got %v", ep, err)
@@ -233,11 +233,17 @@ func TestParseEndpoint(t *testing.T) {
 
 func TestPoolAllowlistEdgeCases(t *testing.T) {
 	p, built := newTestPool(t, "allowed.example.org,10.0.0.5")
-	// Allowed variants: uppercase, trailing dot, other port, IP literal.
+	// Allowed variants: uppercase, trailing dot, explicit 443, IP literal.
 	for _, ep := range []string{"https://ALLOWED.example.org/v1", "https://allowed.example.org./v1",
-		"https://allowed.example.org:8443/v1", "https://10.0.0.5/v1"} {
+		"https://allowed.example.org:443/v1", "https://10.0.0.5/v1"} {
 		if _, _, err := p.forJob(jobWithProfile("m", ep, 1)); err != nil {
 			t.Errorf("%q should be allowed: %v", ep, err)
+		}
+	}
+	// A non-443 port on an allowlisted host is rejected.
+	for _, ep := range []string{"https://allowed.example.org:8443/v1", "https://10.0.0.5:8080/v1"} {
+		if _, _, err := p.forJob(jobWithProfile("m", ep, 1)); !errors.Is(err, errEndpointNotAllowed) {
+			t.Errorf("%q should be rejected, got %v", ep, err)
 		}
 	}
 	// userinfo naming an allowed host does not make evil.net allowed.

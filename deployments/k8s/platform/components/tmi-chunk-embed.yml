@@ -43,9 +43,9 @@ spec:
     # API key) to when an envelope supplies its own base URL. The host of
     # TMI_EMBEDDING_BASE_URL is always allowed, so an empty value means "only
     # that host". An envelope URL whose host is not listed fails the job with
-    # reason embedding_endpoint_not_allowed. An envelope URL must use https,
-    # except the env TMI_EMBEDDING_BASE_URL itself (scheme, host and port), which
-    # may be http; hosts match by name, any port. Add a host here BEFORE an admin
+    # reason embedding_endpoint_not_allowed. An envelope URL must use https on
+    # port 443, except the env TMI_EMBEDDING_BASE_URL itself (scheme, host and
+    # port), which may be http or another port; hosts match by name. Add a host here BEFORE an admin
     # points timmy.text_embedding_base_url at it. This does not open egress: the
     # allowlist egress policy above is unchanged and must permit the host too.
     TMI_EMBEDDING_ALLOWED_HOSTS: api.openai.com
