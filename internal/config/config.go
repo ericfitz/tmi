@@ -354,6 +354,24 @@ func LoadSettingsSource(configFile string) (*Config, error) {
 	return loadConfig(configFile, false)
 }
 
+// LoadSettingsFileOnly is LoadSettingsSource without the environment: struct
+// defaults overlaid by exactly the file, with no TMI_* override and no
+// administrator-from-env. The dev snapshot restore uses it so the values it
+// writes are the snapshot's, never the host shell's. Do NOT use this to
+// configure a running server.
+func LoadSettingsFileOnly(configFile string) (*Config, error) {
+	config := getDefaultConfig()
+	if err := loadFromYAML(config, configFile); err != nil {
+		return nil, fmt.Errorf("failed to load config from YAML: %w", err)
+	}
+	keys, err := KeysInFile(configFile)
+	if err != nil {
+		return nil, err
+	}
+	config.explicitFileKeys = keys
+	return config, nil
+}
+
 func loadConfig(configFile string, validateBootstrap bool) (*Config, error) {
 	config := getDefaultConfig()
 

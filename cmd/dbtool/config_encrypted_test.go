@@ -48,7 +48,7 @@ func TestRunConfigExport_DecryptsNonSecretTypedValues_RoundTrip(t *testing.T) {
 	seedSystemSetting(t, db, "websocket.inactivity_timeout_seconds", encInt, "int")
 
 	out := filepath.Join(t.TempDir(), "export.yml")
-	if err := runConfigExport(db, cfgPath, out, true); err != nil {
+	if err := runConfigExport(db, cfgPath, out, true, false); err != nil {
 		t.Fatalf("runConfigExport: %v", err)
 	}
 	data, err := os.ReadFile(out)
@@ -62,9 +62,15 @@ func TestRunConfigExport_DecryptsNonSecretTypedValues_RoundTrip(t *testing.T) {
 	if err := yaml.Unmarshal(data, &parsed); err != nil {
 		t.Fatalf("output not valid YAML: %v", err)
 	}
-	feat, ok := parsed["features"].(map[string]any)
-	if !ok || feat["saml_enabled"] != true {
-		t.Errorf("features.saml_enabled not typed plaintext: %#v", parsed)
+	// features.saml_enabled nests at its YAML path auth.saml.enabled (#1182).
+	var samlEnabled any
+	if auth, ok := parsed["auth"].(map[string]any); ok {
+		if saml, ok := auth["saml"].(map[string]any); ok {
+			samlEnabled = saml["enabled"]
+		}
+	}
+	if samlEnabled != true {
+		t.Errorf("features.saml_enabled not typed plaintext at auth.saml.enabled: %#v", parsed)
 	}
 	ws, ok := parsed["websocket"].(map[string]any)
 	if !ok || ws["inactivity_timeout_seconds"] != 300 {
@@ -92,7 +98,7 @@ func TestRunConfigExport_SkipsEncryptedNonSecretWhenNoEncryptor(t *testing.T) {
 	seedSystemSetting(t, db, "operator.name", "Eric", "string")
 
 	out := filepath.Join(t.TempDir(), "export.yml")
-	if err := runConfigExport(db, cfgPath, out, true); err != nil {
+	if err := runConfigExport(db, cfgPath, out, true, false); err != nil {
 		t.Fatalf("runConfigExport: %v", err)
 	}
 	data, err := os.ReadFile(out)

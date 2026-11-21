@@ -64,7 +64,8 @@ func TestBuildNestedConfig(t *testing.T) {
 	if op["name"] != "Eric" {
 		t.Errorf("operator.name = %v", op["name"])
 	}
-	ex := root["extraction"].(map[string]any)
+	// Nested by YAML path (#1182), not by setting key.
+	ex := root["content_extractors"].(map[string]any)
 	if ex["async_enabled"] != true {
 		t.Errorf("bool not coerced: %v", ex["async_enabled"])
 	}
@@ -79,7 +80,7 @@ func TestWriteExportedConfig(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "export.yml")
 	rows := []exportRow{{Key: "operator.name", Value: "Eric", Type: "string"}}
-	if err := writeExportedConfig(rows, out); err != nil {
+	if err := writeExportedConfig(rows, out, false); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(out)
@@ -142,7 +143,7 @@ func TestWriteExportedConfig_JSONRoundTrip(t *testing.T) {
 	rows := []exportRow{
 		{Key: "administrators", Value: `[{"provider":"tmi","provider_id":"alice","subject_type":"user"}]`, Type: "json"},
 	}
-	if err := writeExportedConfig(rows, out); err != nil {
+	if err := writeExportedConfig(rows, out, false); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(out)
@@ -170,7 +171,7 @@ func TestWriteExportedConfig_HeaderDocumentsNonRoundTrippingKeys(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "export.yml")
 	rows := []exportRow{{Key: "operator.name", Value: "Eric", Type: "string"}}
-	if err := writeExportedConfig(rows, out); err != nil {
+	if err := writeExportedConfig(rows, out, false); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(out)
@@ -261,7 +262,7 @@ func TestRunConfigExport_DecryptsSecretWhenEncryptorAvailable(t *testing.T) {
 	seedSystemSetting(t, db, "auth.jwt.secret", encrypted, "string")
 
 	out := filepath.Join(t.TempDir(), "export.yml")
-	if err := runConfigExport(db, cfgPath, out, true); err != nil {
+	if err := runConfigExport(db, cfgPath, out, true, false); err != nil {
 		t.Fatalf("runConfigExport: %v", err)
 	}
 
@@ -300,7 +301,7 @@ func TestRunConfigExport_SkipsSecretWhenNoEncryptor(t *testing.T) {
 	seedSystemSetting(t, db, "operator.name", "Eric", "string")
 
 	out := filepath.Join(t.TempDir(), "export.yml")
-	if err := runConfigExport(db, cfgPath, out, true); err != nil {
+	if err := runConfigExport(db, cfgPath, out, true, false); err != nil {
 		t.Fatalf("runConfigExport: %v", err)
 	}
 
@@ -338,7 +339,7 @@ func TestRunConfigExport_SkipsEmptyValue(t *testing.T) {
 	seedSystemSetting(t, db, "auth.jwt.secret", "", "string")
 
 	out := filepath.Join(t.TempDir(), "export.yml")
-	if err := runConfigExport(db, cfgPath, out, true); err != nil {
+	if err := runConfigExport(db, cfgPath, out, true, false); err != nil {
 		t.Fatalf("runConfigExport: %v", err)
 	}
 
@@ -356,11 +357,15 @@ func TestRunConfigExport_SkipsEmptyValue(t *testing.T) {
 	if _, ok := parsed["operator"]; ok {
 		t.Errorf("empty-valued setting should have been skipped, but output contains it:\n%s", data)
 	}
-	if _, ok := parsed["auth"]; ok {
-		t.Errorf("empty-valued secret setting should have been skipped, but output contains it:\n%s", data)
+	// auth now exists (features.saml_enabled nests at auth.saml.enabled, #1182);
+	// the skipped empty secret would be auth.jwt.secret.
+	if auth, ok := parsed["auth"].(map[string]any); ok {
+		if _, hasJWT := auth["jwt"]; hasJWT {
+			t.Errorf("empty-valued secret setting should have been skipped, but output contains it:\n%s", data)
+		}
 	}
-	feat, ok := parsed["features"].(map[string]any)
-	if !ok || feat["saml_enabled"] != true {
+	// features.saml_enabled nests at its YAML path, auth.saml.enabled (#1182).
+	if got := samlEnabledAt(parsed); got != true {
 		t.Errorf("non-empty setting missing or wrong: %#v", parsed)
 	}
 }
@@ -374,7 +379,7 @@ func TestRunConfigExport_ExportsPlainSettings(t *testing.T) {
 	seedSystemSetting(t, db, "features.saml_enabled", "true", "bool")
 
 	out := filepath.Join(t.TempDir(), "export.yml")
-	if err := runConfigExport(db, cfgPath, out, true); err != nil {
+	if err := runConfigExport(db, cfgPath, out, true, false); err != nil {
 		t.Fatalf("runConfigExport: %v", err)
 	}
 
@@ -395,8 +400,14 @@ func TestRunConfigExport_ExportsPlainSettings(t *testing.T) {
 	if !ok || ws["inactivity_timeout_seconds"] != 300 {
 		t.Errorf("websocket.inactivity_timeout_seconds missing or wrong: %#v", parsed)
 	}
-	feat, ok := parsed["features"].(map[string]any)
-	if !ok || feat["saml_enabled"] != true {
-		t.Errorf("features.saml_enabled missing or wrong: %#v", parsed)
+	if got := samlEnabledAt(parsed); got != true {
+		t.Errorf("features.saml_enabled missing or wrong at auth.saml.enabled: %#v", parsed)
 	}
+}
+
+// samlEnabledAt reads auth.saml.enabled, where features.saml_enabled is exported.
+func samlEnabledAt(parsed map[string]any) any {
+	auth, _ := parsed["auth"].(map[string]any)
+	saml, _ := auth["saml"].(map[string]any)
+	return saml["enabled"]
 }

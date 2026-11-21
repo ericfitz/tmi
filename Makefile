@@ -421,13 +421,13 @@ dev-deploy:  ## (Re)apply manifests + rollout without recreating cluster/db
 	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) deploy
 
-dev-config-snapshot:  ## Save the dev DB's operational settings to .local/dev-config-$(CLUSTER).yaml
+dev-config-snapshot:  ## Save the dev DB's explicit (operator-set) settings to .local/dev-config-$(CLUSTER).yaml
 	@$(REQUIRE_CLUSTER)
 	@uv run scripts/dev-config.py snapshot --cluster $(CLUSTER)
 
-dev-config-restore:  ## Restore that snapshot into the dev DB (missing keys only; OVERWRITE=1 to force)
+dev-config-restore:  ## Restore that snapshot into the dev DB (explicit rows kept; seeded rows replaced)
 	@$(REQUIRE_CLUSTER)
-	@uv run scripts/dev-config.py restore --cluster $(CLUSTER) $(if $(OVERWRITE),--overwrite,)
+	@uv run scripts/dev-config.py restore --cluster $(CLUSTER)
 
 dev-config-status:  ## Show whether the dev config snapshot and the OAuth env file exist
 	@$(REQUIRE_CLUSTER)

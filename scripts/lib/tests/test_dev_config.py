@@ -1,8 +1,10 @@
+import argparse
 import base64
 import importlib.util
 import os
 import stat
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -71,6 +73,59 @@ class TestDbtoolEnv(unittest.TestCase):
             self.assertEqual(run.call_args.kwargs["env"]["TMI_SECRETS_PROVIDER"], "file")
             dc._dbtool(["x"], "k3s")
             self.assertNotIn("env", run.call_args.kwargs)
+
+
+class TestSnapshotRestoreModes(unittest.TestCase):
+    """#1180: snapshot exports explicit rows only; restore uses the restore mode."""
+
+    def _args(self, root, **kw):
+        return argparse.Namespace(
+            cluster="k3s", file=str(root / "snap.yaml"), config="config.yml", **kw)
+
+    def test_snapshot_uses_explicit_only_export(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            args = self._args(root)
+            (root / "snap.yaml").write_text("x")  # makes chmod/relative_to succeed
+
+            with mock.patch.object(dc, "get_project_root", return_value=root), \
+                    mock.patch.object(dc, "build_dbtool"), \
+                    mock.patch.object(dc, "_dbtool") as run:
+                dc.cmd_snapshot(args)
+            argv = run.call_args.args[0]
+            self.assertIn("--export-config", argv)
+            self.assertIn("--explicit-only", argv)
+            self.assertTrue(run.call_args.kwargs["with_settings_key"])
+
+    def test_restore_uses_restore_snapshot_not_import_config(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            args = self._args(root)
+            (root / "snap.yaml").write_text("x")
+            with mock.patch.object(dc, "build_dbtool"), \
+                    mock.patch.object(dc, "_dbtool") as run:
+                dc.cmd_restore(args)
+            argv = run.call_args.args[0]
+            self.assertIn("--restore-snapshot", argv)
+            self.assertNotIn("--import-config", argv)
+            self.assertNotIn("--overwrite", argv)
+            self.assertEqual(argv[argv.index("-f") + 1], str(root / "snap.yaml"))
+
+    def test_restore_without_snapshot_exits(self):
+        with tempfile.TemporaryDirectory() as d:
+            args = self._args(Path(d))
+            with mock.patch.object(dc, "build_dbtool") as build, \
+                    mock.patch.object(dc, "_dbtool") as run, \
+                    mock.patch.object(dc, "log_error"), \
+                    self.assertRaises(SystemExit):
+                dc.cmd_restore(args)
+            build.assert_not_called()
+            run.assert_not_called()
+
+    def test_overwrite_flag_is_gone(self):
+        with mock.patch("sys.argv", ["dev-config.py", "restore", "--overwrite"]), \
+                mock.patch("sys.stderr"), self.assertRaises(SystemExit):
+            dc.parse_args()
 
 
 if __name__ == "__main__":

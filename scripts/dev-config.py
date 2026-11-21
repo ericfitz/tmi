@@ -20,40 +20,51 @@ TMI's configuration lives in three places, and only one of them is durable:
 (3) is how a dev cluster silently loses every OAuth provider and
 feature flag that was ever configured through the admin API (#791). This script
 is the missing durable copy for that third bucket: `snapshot` writes the
-database's settings to a gitignored file under .local/, and `restore` puts them
-back.
+database's explicit settings to a gitignored file under .local/, and `restore`
+puts them back.
 
 The safety net is automatic, not a discipline you have to remember:
 scripts/lib/deploy.py snapshots before every teardown (including the namespace
 delete that dev-nuke performs) and restores after every start. So the sequence
 that used to destroy the configuration now round-trips it.
 
-RESTORE SEMANTICS
+SNAPSHOT FORMAT AND RESTORE SEMANTICS (#1180)
 
-`restore` runs `tmi-dbtool --import-config`, which by default only writes keys
-that are MISSING from the database and leaves existing rows alone. That is what
-makes the automatic restore on dev-up safe to run unconditionally: on a freshly
-nuked database it repopulates everything, and on a database you have since
-edited it will not revert your edits. Pass --overwrite to force the snapshot to
-win for every key.
+`snapshot` runs `tmi-dbtool --export-config --explicit-only`: it writes only the
+rows an operator deliberately set (origin "explicit") and puts a format marker on
+the first line. Seeded rows are not snapshotted; the server re-seeds registry
+defaults on every start.
 
-COVERAGE — WHAT RESTORE DOES NOT COVER
+`restore` runs `tmi-dbtool --restore-snapshot`, in one transaction:
 
-`--import-config` writes the keys that `Config.GetMigratableSettings()` knows
-about. A handful of keys live in the classification registry (so the server
-seeds them) without a matching Config struct field, so `--export-config` writes
-them out but `--import-config` silently drops them:
+  - writes exactly the keys in the file, each as an explicit row (struct
+    defaults and the host environment never contribute a row or a value);
+  - replaces an existing seeded row (so an admin edit to a key that has a
+    registry default survives a nuke);
+  - skips an existing explicit row, so restore never reverts an edit made
+    since the snapshot, and a second run is a no-op;
+  - refuses a file without the marker (a snapshot taken before this format
+    holds every row and would stamp seeded defaults explicit). The deploy
+    treats the refusal as a warning; re-take the snapshot with
+    `make dev-config-snapshot CLUSTER=<cluster>`;
+  - treats an empty snapshot (a database with no explicit rows) as nothing to do.
+
+A manifest pin (TMI_* in the deployment) therefore loses only to a real admin
+edit, which is what the settings-precedence ADR specifies.
+
+COVERAGE: WHAT RESTORE DOES NOT COVER
+
+Restore writes the keys that `Config.GetMigratableSettings()` knows about. A
+handful of keys live in the classification registry (so the server seeds them)
+without a matching Config struct field, so `--export-config` writes them out but
+restore ignores them (it logs their names):
 
     features.webhooks_enabled       upload.max_file_size_mb
     features.websocket_enabled      websocket.max_participants
     session.timeout_minutes         ui.default_theme
 
-The server re-seeds all of them at their DEFAULTS on startup, so they always
-come back — what does not survive is a CUSTOMIZED value for one of them. That
-is a much smaller hole than "restore does not work", but it is a real one; see
-the follow-up issue linked from #791. Everything with a struct field — every
-OAuth/SAML provider key, the callback allowlist, all the timmy and
-content_extractors tuning, the JWT and cookie settings — round-trips.
+What does not survive a nuke is a CUSTOMIZED value for one of them; see the
+follow-up issue linked from #791. Everything with a struct field round-trips.
 
 USAGE
 
@@ -207,7 +218,7 @@ def cmd_snapshot(args: argparse.Namespace) -> None:
     build_dbtool()
     log_info(f"Exporting operational settings from the {args.cluster} dev database...")
     _dbtool([
-        "./bin/tmi-dbtool", "--export-config",
+        "./bin/tmi-dbtool", "--export-config", "--explicit-only",
         f"--config={args.config}",
         "-f", args.config,
         "--output", str(out),
@@ -226,25 +237,15 @@ def cmd_restore(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     build_dbtool()
-    mode = "overwriting existing keys" if args.overwrite else "filling in missing keys only"
-    log_info(f"Restoring operational settings into the {args.cluster} dev database ({mode})...")
-
-    # --output redirects the *-migrated.yml byproduct that --import-config
-    # otherwise drops next to the input file; we delete it afterwards rather
-    # than leaving litter in .local/.
-    byproduct = src.with_suffix(src.suffix + ".migrated")
-    argv = [
-        "./bin/tmi-dbtool", "--import-config",
+    log_info(
+        f"Restoring operational settings into the {args.cluster} dev database "
+        "(snapshot keys as explicit; existing explicit rows kept)..."
+    )
+    _dbtool([
+        "./bin/tmi-dbtool", "--restore-snapshot",
         f"--config={args.config}",
         "-f", str(src),
-        "--output", str(byproduct),
-    ]
-    if args.overwrite:
-        argv.append("--overwrite")
-    try:
-        _dbtool(argv, cluster=args.cluster)
-    finally:
-        byproduct.unlink(missing_ok=True)
+    ], cluster=args.cluster)
     log_success("Settings restored. Roll the server to pick up startup-read values:")
     log_success("    kubectl -n tmi-platform rollout restart deploy/tmi-server")
 
@@ -311,10 +312,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--file", metavar="FILE", default="",
         help=f"override the snapshot path (default: {SNAPSHOT_DIR}/dev-config-<cluster>.yaml)",
-    )
-    parser.add_argument(
-        "--overwrite", action="store_true",
-        help="restore: let the snapshot win for keys already present in the database",
     )
     add_config_arg(parser)
     add_verbosity_args(parser)

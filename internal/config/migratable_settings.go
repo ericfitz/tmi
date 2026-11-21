@@ -184,6 +184,13 @@ func yamlPathFor(key string) string {
 	return key
 }
 
+// YAMLPathForKey returns the dotted YAML path a setting key is read from and
+// written to in a config file (see yamlPathFor). Exporters must nest by this
+// path, not by the key, for the file to round-trip (#1182).
+func YAMLPathForKey(key string) string {
+	return yamlPathFor(key)
+}
+
 // getMigratableOAuthSettings returns settings generated per configured OAuth
 // provider (auth.oauth.providers.*). auth.oauth_callback_url and
 // auth.oauth.client_callback_allowlist are now projected from the registry

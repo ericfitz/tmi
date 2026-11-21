@@ -1317,7 +1317,7 @@ def dev_config_snapshot_path(cluster_target: str) -> Path:
 
 
 def snapshot_dev_config(cluster_target: str) -> None:
-    """Best-effort snapshot of the dev database's operational settings.
+    """Best-effort snapshot of the dev database's explicit (operator-set) settings.
 
     Called before every teardown, because the settings in system_settings —
     OAuth providers, callback URLs, feature flags, everything configured
@@ -1350,9 +1350,12 @@ def snapshot_dev_config(cluster_target: str) -> None:
 def restore_dev_config(cluster_target: str) -> None:
     """Restore the snapshot into a freshly started dev database, if one exists.
 
-    Safe to run unconditionally: `tmi-dbtool --import-config` without
-    --overwrite writes only keys the database is MISSING, so this repopulates a
-    nuked database without reverting edits made since the snapshot was taken.
+    Safe to run unconditionally: `tmi-dbtool --restore-snapshot` writes the
+    snapshot's keys as explicit rows, replaces seeded rows, and skips existing
+    explicit rows, so it repopulates a nuked database without reverting edits
+    made since the snapshot was taken. A snapshot in the pre-#1180 format (no
+    marker) is refused, which lands in the warning below; re-take it with
+    `make dev-config-snapshot CLUSTER=<cluster>`.
     """
     snap = dev_config_snapshot_path(cluster_target)
     if not snap.is_file():
