@@ -229,7 +229,12 @@ func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSe
 		decrypted, err := s.encryptor.Decrypt(string(dbSetting.Value))
 		if err != nil {
 			logger.Warn("Setting %s is unreadable: stored value could not be decrypted", key)
-			return nil, fmt.Errorf("%w: setting %s could not be decrypted: %w", errSettingUnreadable, key, err)
+			// Return the row's non-secret metadata (type, origin, timestamps)
+			// with the error so the admin API can describe it; Value is
+			// cleared so ciphertext never leaks. Callers must check err first.
+			dbSetting.Value = ""
+			dbSetting.Unreadable = true
+			return &dbSetting, fmt.Errorf("%w: setting %s could not be decrypted: %w", errSettingUnreadable, key, err)
 		}
 		dbSetting.Value = models.DBText(decrypted)
 	}

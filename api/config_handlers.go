@@ -640,10 +640,12 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 			c.JSON(http.StatusOK, configSettingToAPI(*configEntry))
 			return
 		}
-		c.JSON(http.StatusOK, dbSettingToAPI(models.SystemSetting{
-			SettingKey: models.DBVarchar(key),
-			Unreadable: true,
-		}))
+		row := models.SystemSetting{SettingKey: models.DBVarchar(key), SettingType: models.SystemSettingTypeString}
+		if setting != nil {
+			row = *setting // real metadata: type, origin, timestamps
+		}
+		row.Unreadable = true
+		c.JSON(http.StatusOK, dbSettingToAPI(row))
 		return
 	}
 

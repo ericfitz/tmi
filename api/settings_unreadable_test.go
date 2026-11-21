@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -180,13 +181,48 @@ func TestGetSystemSetting_UnreadableRowUsesConfigValue(t *testing.T) {
 }
 
 func TestGetSystemSetting_UnreadableRowNoConfigIsMasked(t *testing.T) {
-	s, _ := seedUnreadableRow(t, unreadableTestKey, "999")
+	s, db := seedUnreadableRow(t, unreadableTestKey, "999")
 	r := unreadableRouter(t, s, nil)
 
 	code, one, _ := doJSON(t, r, http.MethodGet, "/admin/settings/"+unreadableTestKey)
 	require.Equal(t, http.StatusOK, code)
 	assert.Equal(t, "<unreadable>", one["value"])
 	assert.Equal(t, "database", one["source"])
+	// Metadata comes from the real row: valid type enum, origin, modified_at.
+	assert.Equal(t, "string", one["type"])
+	assert.Equal(t, "explicit", one["origin"])
+	var row models.SystemSetting
+	require.NoError(t, db.First(&row, "setting_key = ?", unreadableTestKey).Error)
+	ma, err := time.Parse(time.RFC3339Nano, one["modified_at"].(string))
+	require.NoError(t, err)
+	assert.True(t, row.ModifiedAt.Equal(ma), "modified_at must match the stored row")
+}
+
+func TestGetters_UnreadableRowNoConfigYieldZeroValue(t *testing.T) {
+	s, _ := seedUnreadableRow(t, unreadableTestKey, "999")
+	ctx := context.Background()
+	str, err := s.GetString(ctx, unreadableTestKey)
+	require.NoError(t, err)
+	assert.Empty(t, str)
+	n, err := s.GetInt(ctx, unreadableTestKey)
+	require.NoError(t, err)
+	assert.Zero(t, n)
+	b, err := s.GetBool(ctx, unreadableTestKey)
+	require.NoError(t, err)
+	assert.False(t, b)
+	var v map[string]any
+	require.NoError(t, s.GetJSON(ctx, unreadableTestKey, &v))
+	assert.Nil(t, v)
+}
+
+func TestConfigOutranksRow_UnreadableRow(t *testing.T) {
+	row := &models.SystemSetting{
+		Value:      "x",
+		Origin:     models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true},
+		Unreadable: true,
+	}
+	assert.True(t, configOutranksRow(false, row))
+	assert.True(t, configOutranksRow(true, row))
 }
 
 // An operator must be able to delete the unreadable row to repair it.
