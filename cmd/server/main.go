@@ -927,8 +927,8 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	warnIfConfigDatabaseDiverges(context.Background(), settingsService, config, logger)
 
 	// Set config provider for settings migration endpoint and priority lookups
-	// Configuration priority: environment > config file > database
-	// The config provider (environment/config file values) takes precedence over database values
+	// Configuration priority: an admin-set database row wins; a seeded row yields
+	// to explicit environment/config file values; otherwise config is used (#1168).
 	configProvider := api.NewConfigProviderAdapter(config)
 	apiServer.SetConfigProvider(configProvider)
 	settingsService.SetConfigProvider(configProvider)

@@ -12,8 +12,9 @@ import (
 )
 
 // TimmyConfigProvider assembles a live config.TimmyConfig from the settings
-// service. Reads honor config-first precedence (env/config file > database),
-// which SettingsServiceInterface.GetString/GetBool/GetInt already implement.
+// service. Reads honor the single settings precedence rule (an admin-set row
+// wins; see SettingsService), which SettingsServiceInterface.GetString/GetBool/
+// GetInt already implement.
 type TimmyConfigProvider struct {
 	settings SettingsServiceInterface
 }

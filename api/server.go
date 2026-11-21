@@ -17,6 +17,9 @@ import (
 
 // SettingsServiceInterface defines the operations needed by handlers on settings.
 type SettingsServiceInterface interface {
+	// Get returns a non-nil row (Value blanked, Unreadable set) together with
+	// an error wrapping errSettingUnreadable when a stored value cannot be
+	// decrypted; callers must check err first.
 	Get(ctx context.Context, key string) (*models.SystemSetting, error)
 	GetString(ctx context.Context, key string) (string, error)
 	// GetResolvedString applies the single converged precedence rule across

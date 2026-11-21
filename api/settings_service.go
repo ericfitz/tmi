@@ -25,19 +25,17 @@ import (
 // SettingsService provides access to system settings with caching.
 //
 // Configuration Priority:
-// When a ConfigProvider is set, the service implements a three-tier configuration
-// priority system: environment variables > config file > database.
+// Every read path (GetString, GetInt, GetBool, GetJSON, GetResolvedString and
+// the admin settings reads) applies one rule, implemented by configOutranksRow:
+// an explicit (admin-set or dbtool-imported) database row wins over config,
+// explicit or not; a seeded default row yields to explicit config (an env var
+// or a key written in the config file); with no usable row (missing, empty or
+// unreadable) the config layer's value, explicit or default, is used.
+// Bootstrap settings are never database-backed, so config is their only source.
 //
-// The ConfigProvider (via GetMigratableSettings) already merges environment variables
-// with config file values (environment takes precedence). When retrieving a setting,
-// if a value exists in the ConfigProvider, it is returned. Otherwise, the database
-// value is used. This allows operators to:
-//   - Override any setting via environment variables (highest priority)
-//   - Set defaults in config files (medium priority)
-//   - Store runtime-configurable values in the database (lowest priority)
-//
-// The database serves as the persistent store for settings that can be modified
-// at runtime via the admin API, while environment/config values always win.
+// The ConfigProvider (via GetMigratableSettings) already merges environment
+// variables with config file values (environment takes precedence). The
+// database holds runtime-editable values set through the admin API (#1168).
 type SettingsService struct {
 	gormDB  *gorm.DB
 	redis   *db.RedisDB
@@ -49,7 +47,7 @@ type SettingsService struct {
 	memCacheTTL time.Duration
 	useMemCache bool
 
-	// Config provider for environment/config file values (takes priority over database)
+	// Config provider for environment/config file values (see the precedence rule above)
 	configProvider ConfigProvider
 	// Cached config settings map for fast lookups
 	configSettingsCache    map[string]MigratableSetting
@@ -108,7 +106,8 @@ func (s *SettingsService) SetEncryptor(enc *crypto.SettingsEncryptor) {
 // falls back to the TMI_BUILD_MODE environment variable, the existing idiom in
 // this package (see auth_flow_rate_limiter.go).
 func (s *SettingsService) isProductionMode() bool {
-	if ms, ok := s.getConfigSetting("auth.build_mode"); ok {
+	// auth.build_mode is a bootstrap key: config is its only source.
+	if ms, ok := s.getConfigSettingRaw("auth.build_mode"); ok {
 		return ms.Value == "production"
 	}
 	return os.Getenv("TMI_BUILD_MODE") == "production"
@@ -118,10 +117,9 @@ func (s *SettingsService) isProductionMode() bool {
 // without applying any precedence rule, building the cache lazily. The caller
 // decides what to do with Class.Category and Explicit.
 //
-// getConfigSetting swallows non-explicit operational settings, which is right
-// for its callers but wrong for GetResolvedString: the converged precedence
-// rule needs to know both what the config layer holds AND whether an operator
-// supplied it, and those are two different questions (#794).
+// The precedence rule needs to know both what the config layer holds AND
+// whether an operator supplied it, and those are two different questions
+// (#794); see resolveSetting.
 func (s *SettingsService) getConfigSettingRaw(key string) (MigratableSetting, bool) {
 	if s.configProvider == nil {
 		return MigratableSetting{}, false
@@ -150,40 +148,6 @@ func (s *SettingsService) getConfigSettingRaw(key string) (MigratableSetting, bo
 
 	setting, found := s.configSettingsCache[key]
 	if !found {
-		return MigratableSetting{}, false
-	}
-	return setting, true
-}
-
-// getConfigSetting retrieves a setting from the config provider, applying the
-// #415 rule that a bare struct default must not shadow the database.
-// Returns the setting and true when the config layer is authoritative.
-func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool) {
-	setting, found := s.getConfigSettingRaw(key)
-	if !found {
-		return MigratableSetting{}, false
-	}
-
-	// Bootstrap settings (database URL, JWT secret, listen port) are never
-	// database-backed, so the config layer is their only source.
-	if setting.Class.Category == config.CategoryBootstrap {
-		return setting, true
-	}
-
-	// Operational settings are database-backed (#415). The config layer wins
-	// only when an operator actually supplied the value — env var set, or the
-	// key written in the YAML file.
-	//
-	// Without the Explicit check this returns the struct default for every
-	// operational key, since GetMigratableSettings emits all of them. That
-	// made the settings database unreachable: timmy.enabled was true in the
-	// table while the server reported Timmy disabled, because the default
-	// false shadowed it. Yielding here is what lets a database value apply,
-	// and keeping the Explicit escape hatch is what stops it silently
-	// discarding live configuration — on AWS every ConfigMap key arrives as
-	// an env var via envFrom, and config-development.yml sets
-	// server.disable_rate_limiting=true, which the database has as false.
-	if !setting.Explicit {
 		return MigratableSetting{}, false
 	}
 	return setting, true
@@ -259,23 +223,38 @@ func (s *SettingsService) getUsableRow(ctx context.Context, key string) (*models
 	return row, err
 }
 
-// GetString retrieves a string setting value.
-// Priority: environment/config file > database (see SettingsService documentation).
-func (s *SettingsService) GetString(ctx context.Context, key string) (string, error) {
-	// Check config provider first (environment > config file)
-	if configSetting, found := s.getConfigSetting(key); found {
-		return configSetting.Value, nil
+// resolveSetting applies the single precedence rule (configOutranksRow) to a
+// scalar setting and returns the winning raw string. found is false when no
+// layer supplies a usable value. fromConfig reports which layer won, so callers
+// can name it in parse errors. A non-explicit config default that is empty is
+// treated as unset, so typed getters return the zero value rather than a parse
+// error. Bootstrap keys resolve from config only and never touch the database.
+func (s *SettingsService) resolveSetting(ctx context.Context, key string) (value string, found, fromConfig bool, err error) {
+	cfg, cfgFound := s.getConfigSettingRaw(key)
+
+	if config.ClassificationCategoryFor(key) == config.CategoryBootstrap ||
+		(cfgFound && cfg.Class.Category == config.CategoryBootstrap) {
+		return cfg.Value, cfgFound, true, nil
 	}
 
-	// Fall back to database
-	setting, err := s.getUsableRow(ctx, key)
+	row, err := s.getUsableRow(ctx, key)
 	if err != nil {
-		return "", err
+		return "", false, false, err
 	}
-	if setting == nil {
-		return "", nil
+	if configOutranksRow(cfgFound && cfg.Explicit, row) {
+		if !cfgFound || (cfg.Value == "" && !cfg.Explicit) {
+			return "", false, true, nil
+		}
+		return cfg.Value, true, true, nil
 	}
-	return string(setting.Value), nil
+	return string(row.Value), true, false, nil
+}
+
+// GetString retrieves a string setting value.
+// Priority: see the SettingsService documentation (admin-set row wins).
+func (s *SettingsService) GetString(ctx context.Context, key string) (string, error) {
+	v, _, _, err := s.resolveSetting(ctx, key)
+	return v, err
 }
 
 // GetResolvedString retrieves a string setting by applying the single
@@ -374,81 +353,51 @@ func configOutranksRow(cfgExplicit bool, row *models.SystemSetting) bool {
 	}
 }
 
-// GetInt retrieves an integer setting value.
-// Priority: environment/config file > database (see SettingsService documentation).
-func (s *SettingsService) GetInt(ctx context.Context, key string) (int, error) {
-	// Check config provider first (environment > config file)
-	if configSetting, found := s.getConfigSetting(key); found {
-		val, err := strconv.Atoi(configSetting.Value)
-		if err != nil {
-			return 0, fmt.Errorf("config setting %s is not a valid integer: %w", key, err)
-		}
-		return val, nil
+// settingLayer names the winning layer for parse-error messages.
+func settingLayer(fromConfig bool) string {
+	if fromConfig {
+		return "config setting"
 	}
+	return "setting"
+}
 
-	// Fall back to database
-	setting, err := s.getUsableRow(ctx, key)
-	if err != nil {
+// GetInt retrieves an integer setting value.
+// Priority: see the SettingsService documentation (admin-set row wins).
+func (s *SettingsService) GetInt(ctx context.Context, key string) (int, error) {
+	raw, found, fromConfig, err := s.resolveSetting(ctx, key)
+	if err != nil || !found {
 		return 0, err
 	}
-	if setting == nil {
-		return 0, nil
-	}
-	val, err := strconv.Atoi(string(setting.Value))
+	val, err := strconv.Atoi(raw)
 	if err != nil {
-		return 0, fmt.Errorf("setting %s is not a valid integer: %w", key, err)
+		return 0, fmt.Errorf("%s %s is not a valid integer: %w", settingLayer(fromConfig), key, err)
 	}
 	return val, nil
 }
 
 // GetBool retrieves a boolean setting value.
-// Priority: environment/config file > database (see SettingsService documentation).
+// Priority: see the SettingsService documentation (admin-set row wins).
 func (s *SettingsService) GetBool(ctx context.Context, key string) (bool, error) {
-	// Check config provider first (environment > config file)
-	if configSetting, found := s.getConfigSetting(key); found {
-		val, err := strconv.ParseBool(configSetting.Value)
-		if err != nil {
-			return false, fmt.Errorf("config setting %s is not a valid boolean: %w", key, err)
-		}
-		return val, nil
-	}
-
-	// Fall back to database
-	setting, err := s.getUsableRow(ctx, key)
-	if err != nil {
+	raw, found, fromConfig, err := s.resolveSetting(ctx, key)
+	if err != nil || !found {
 		return false, err
 	}
-	if setting == nil {
-		return false, nil
-	}
-	val, err := strconv.ParseBool(string(setting.Value))
+	val, err := strconv.ParseBool(raw)
 	if err != nil {
-		return false, fmt.Errorf("setting %s is not a valid boolean: %w", key, err)
+		return false, fmt.Errorf("%s %s is not a valid boolean: %w", settingLayer(fromConfig), key, err)
 	}
 	return val, nil
 }
 
 // GetJSON retrieves a JSON setting value and unmarshals it into the target.
-// Priority: environment/config file > database (see SettingsService documentation).
+// Priority: see the SettingsService documentation (admin-set row wins).
 func (s *SettingsService) GetJSON(ctx context.Context, key string, target any) error {
-	// Check config provider first (environment > config file)
-	if configSetting, found := s.getConfigSetting(key); found {
-		if err := json.Unmarshal([]byte(configSetting.Value), target); err != nil {
-			return fmt.Errorf("config setting %s is not valid JSON: %w", key, err)
-		}
-		return nil
-	}
-
-	// Fall back to database
-	setting, err := s.getUsableRow(ctx, key)
-	if err != nil {
+	raw, found, fromConfig, err := s.resolveSetting(ctx, key)
+	if err != nil || !found {
 		return err
 	}
-	if setting == nil {
-		return nil
-	}
-	if err := json.Unmarshal([]byte(string(setting.Value)), target); err != nil {
-		return fmt.Errorf("setting %s is not valid JSON: %w", key, err)
+	if err := json.Unmarshal([]byte(raw), target); err != nil {
+		return fmt.Errorf("%s %s is not valid JSON: %w", settingLayer(fromConfig), key, err)
 	}
 	return nil
 }

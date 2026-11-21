@@ -33,9 +33,10 @@ func unsetSettingEnvVars(t *testing.T) {
 
 // TestUpdateSystemSetting_ExplicitnessGuard pins #1160: for a key the config
 // layer knows, PUT /admin/settings/{key} is allowed only when the setting is
-// Hot, Operational and not explicitly set by the config file or environment.
-// Static, bootstrap, explicit and provider-subtree keys keep 409; keys unknown
-// to config are unaffected.
+// Hot and Operational. An explicit config-file or environment value no longer
+// blocks it (#1168: the admin-set row wins on every read path). Static,
+// bootstrap and provider-subtree keys keep 409; keys unknown to config are
+// unaffected.
 func TestUpdateSystemSetting_ExplicitnessGuard(t *testing.T) {
 	hot := config.ConfigClass{Category: config.CategoryOperational, Mutability: config.MutabilityHot}
 	static := config.ConfigClass{Category: config.CategoryOperational, Mutability: config.MutabilityStatic}
@@ -60,15 +61,27 @@ func TestUpdateSystemSetting_ExplicitnessGuard(t *testing.T) {
 			wantStatus: http.StatusConflict,
 		},
 		{
-			name:       "explicit hot via config file is rejected",
+			name:       "explicit hot via config file is writable",
 			settings:   []MigratableSetting{{Key: "timmy.enabled", Value: "false", Type: "bool", Source: "config", Explicit: true, Class: hot}},
 			key:        "timmy.enabled",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "explicit hot via environment is writable",
+			settings:   []MigratableSetting{{Key: "timmy.enabled", Value: "false", Type: "bool", Source: "environment", Explicit: true, Class: hot}},
+			key:        "timmy.enabled",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "explicit static is still rejected",
+			settings:   []MigratableSetting{{Key: "websocket.inactivity_timeout_seconds", Value: "60", Type: "int", Source: "environment", Explicit: true, Class: static}},
+			key:        "websocket.inactivity_timeout_seconds",
 			wantStatus: http.StatusConflict,
 		},
 		{
-			name:       "explicit hot via environment is rejected",
-			settings:   []MigratableSetting{{Key: "timmy.enabled", Value: "false", Type: "bool", Source: "environment", Explicit: true, Class: hot}},
-			key:        "timmy.enabled",
+			name:       "explicit provider subtree key is still rejected",
+			settings:   []MigratableSetting{{Key: "auth.oauth.providers.google.client_id", Value: "x", Type: "string", Source: "environment", Explicit: true, Class: hot}},
+			key:        "auth.oauth.providers.google.client_id",
 			wantStatus: http.StatusConflict,
 		},
 		{
@@ -210,7 +223,7 @@ func TestUpdateSystemSetting_RealConfigProvider(t *testing.T) {
 }
 
 // TestRuntimeWritableConfigSettings_ExactSet pins the set of config-known keys
-// the PUT guard lets through when nothing is explicit. A change to a def's
+// the PUT guard lets through (explicitness no longer matters, #1168). A change to a def's
 // Category or Mutability, or a new Hot operational def, must update this list
 // deliberately.
 func TestRuntimeWritableConfigSettings_ExactSet(t *testing.T) {

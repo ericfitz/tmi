@@ -273,7 +273,7 @@ func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientCo
 		timmyEnabled = tc.Enabled && tc.IsConfigured()
 	}
 
-	// Operator info from settings service (config file/env > database).
+	// Operator info from settings service (admin-set row > explicit config > seeded row > config default).
 	var operatorName, operatorContact, operatorJurisdiction *string
 	if s.settingsService != nil {
 		if val, err := s.settingsService.GetString(ctx, "operator.name"); err == nil && val != "" {
@@ -1012,12 +1012,12 @@ var providerSubtreePrefixes = []string{
 // in the error.
 //
 // The rule is def-based, not presence-based. If the key has a SettingDef
-// (config.DefFor) it is writable only when the def is Operational and Hot, the
-// key is not in a provider subtree, and the matching GetMigratableSettings
-// entry (if any; keys omitted when empty have none) is not Explicit. The def
-// is consulted rather than the entry's Class because GetMigratableSettings
-// projects Class from the key registry, which lacks the per-def Static
-// overrides. A key with no def but present in GetMigratableSettings (a
+// (config.DefFor) it is writable only when the def is Operational and Hot and
+// the key is not in a provider subtree. An explicit config value does not block
+// the write: the admin-set row it creates outranks config on every read path
+// (#1168), so the write takes effect. The def is consulted rather than the
+// entry's Class because GetMigratableSettings projects Class from the key
+// registry, which lacks the per-def Static overrides. A key with no def but present in GetMigratableSettings (a
 // generated provider-subtree key) is refused. A key with neither is a custom
 // key and is not blocked.
 func configWriteBlock(provider ConfigProvider, key string) (bool, string) {
@@ -1037,9 +1037,6 @@ func configWriteBlock(provider ConfigProvider, key string) (bool, string) {
 	def, hasDef := config.DefFor(key)
 	if !hasDef {
 		return entry != nil, source
-	}
-	if entry != nil && entry.Explicit {
-		return true, source
 	}
 	// Defensive: no SettingDef exists under the provider prefixes today, so
 	// generated provider keys take the !hasDef branch above. This keeps a
