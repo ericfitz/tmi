@@ -106,6 +106,7 @@ func TestPoolEnvHostAllowedByDefault(t *testing.T) {
 func TestPoolRejectsNonAllowlistedEndpoint(t *testing.T) {
 	p, built := newTestPool(t, "embed.example.org")
 	bad := []string{
+		"http://embed.example.org/v1", // scheme downgrade on an allowlisted host
 		"https://evil.example.net/v1",
 		"https://embed.example.org.evil.net/v1", // suffix trick
 		"https://evil.net/v1?h=embed.example.org",
@@ -175,5 +176,86 @@ func TestParseAllowedHosts(t *testing.T) {
 	}
 	if _, ok := got["a.example.com"]; !ok {
 		t.Fatalf("expected lowercase trimmed entry: %v", got)
+	}
+}
+
+func TestPoolHTTPOnlyForEnvEndpoint(t *testing.T) {
+	var built []embedConfig
+	p, err := newEmbedderPool(
+		embedConfig{Model: "m", BaseURL: "http://dev.local:8443/v1", APIKey: "k"},
+		"embed.example.org,dev.local",
+		func(c embedConfig) (llm.Embedder, error) { built = append(built, c); return &stubEmbedder{}, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	ok := []string{"http://dev.local:8443/other", "HTTP://DEV.LOCAL:8443/v1", "https://dev.local/v1", "https://embed.example.org/v1"}
+	for _, ep := range ok {
+		if _, _, err := p.forJob(jobWithProfile("m", ep, 1)); err != nil {
+			t.Errorf("%q should be allowed: %v", ep, err)
+		}
+	}
+	bad := []string{"http://dev.local:9999/v1", "http://dev.local/v1", "http://embed.example.org/v1"}
+	for _, ep := range bad {
+		if _, _, err := p.forJob(jobWithProfile("m", ep, 1)); !errors.Is(err, errEndpointNotAllowed) {
+			t.Errorf("%q should be rejected, got %v", ep, err)
+		}
+	}
+}
+
+func TestParseEndpoint(t *testing.T) {
+	cases := []struct {
+		in, host, key string
+		wantErr       bool
+	}{
+		{"https://Embed.Example.ORG/v1/", "embed.example.org", "https://embed.example.org/v1", false},
+		{"https://embed.example.org./v1", "embed.example.org", "https://embed.example.org/v1", false},
+		{"https://embed.example.org:8443/v1", "embed.example.org", "https://embed.example.org:8443/v1", false},
+		{"https://10.0.0.5/v1", "10.0.0.5", "https://10.0.0.5/v1", false},
+		{"https://[::1]:8443/v1", "::1", "https://[::1]:8443/v1", false},
+		{"https://allowed@evil.net/v1", "evil.net", "https://evil.net/v1", false}, // userinfo is not the host
+		{"https://embed.example.org", "embed.example.org", "https://embed.example.org", false},
+		{"file:///etc/passwd", "", "", true},
+		{"https:///v1", "", "", true},
+	}
+	for _, c := range cases {
+		ep, err := parseEndpoint(c.in)
+		if (err != nil) != c.wantErr {
+			t.Errorf("%q: err=%v", c.in, err)
+			continue
+		}
+		if err == nil && (ep.host != c.host || ep.key != c.key) {
+			t.Errorf("%q: host=%q key=%q, want %q %q", c.in, ep.host, ep.key, c.host, c.key)
+		}
+	}
+}
+
+func TestPoolAllowlistEdgeCases(t *testing.T) {
+	p, built := newTestPool(t, "allowed.example.org,10.0.0.5")
+	// Allowed variants: uppercase, trailing dot, other port, IP literal.
+	for _, ep := range []string{"https://ALLOWED.example.org/v1", "https://allowed.example.org./v1",
+		"https://allowed.example.org:8443/v1", "https://10.0.0.5/v1"} {
+		if _, _, err := p.forJob(jobWithProfile("m", ep, 1)); err != nil {
+			t.Errorf("%q should be allowed: %v", ep, err)
+		}
+	}
+	// userinfo naming an allowed host does not make evil.net allowed.
+	if _, _, err := p.forJob(jobWithProfile("m", "https://allowed.example.org@evil.net/v1", 1)); !errors.Is(err, errEndpointNotAllowed) {
+		t.Errorf("userinfo trick accepted: %v", err)
+	}
+	if _, _, err := p.forJob(jobWithProfile("m", "https://10.0.0.6/v1", 1)); !errors.Is(err, errEndpointNotAllowed) {
+		t.Errorf("other IP accepted: %v", err)
+	}
+	_ = built
+}
+
+func TestPoolCacheKeyNormalized(t *testing.T) {
+	p, built := newTestPool(t, "embed.example.org")
+	for _, ep := range []string{"https://embed.example.org/v1", "https://EMBED.example.org/v1/", "https://embed.example.org./v1"} {
+		if _, _, err := p.forJob(jobWithProfile("m", ep, 1)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(*built) != 1 {
+		t.Fatalf("equivalent endpoints must share one embedder, built %d", len(*built))
 	}
 }

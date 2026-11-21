@@ -31,9 +31,18 @@ func (r EmbeddingResult) validate() error {
 	return nil
 }
 
+// jobConn is the subset of *worker.Conn the handler uses; narrowed so the
+// failure paths are unit-testable.
+type jobConn interface {
+	GetPayload(ctx context.Context, ref string) ([]byte, error)
+	PutPayload(ctx context.Context, name string, data []byte) (string, error)
+	Publish(ctx context.Context, subject string, data []byte) error
+	PublishFailureResult(ctx context.Context, jobID, reasonCode, detail string) error
+}
+
 // chunkEmbedHandler is the JobHandler for tmi-chunk-embed.
 type chunkEmbedHandler struct {
-	conn      *worker.Conn
+	conn      jobConn
 	chunker   *extract.TextChunker
 	embedders *embedderPool
 }
@@ -49,7 +58,7 @@ const (
 )
 
 // newChunkEmbedHandler builds the handler.
-func newChunkEmbedHandler(conn *worker.Conn, embedders *embedderPool) *chunkEmbedHandler {
+func newChunkEmbedHandler(conn jobConn, embedders *embedderPool) *chunkEmbedHandler {
 	return &chunkEmbedHandler{
 		conn:      conn,
 		chunker:   extract.NewTextChunker(chunkMaxChars, chunkOverlap),

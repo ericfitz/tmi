@@ -33,6 +33,7 @@ var errEndpointNotAllowed = errors.New("embedding endpoint host not allowed")
 // from the envelope.
 type embedderPool struct {
 	env     embedConfig
+	envEP   endpoint // parsed env base URL: the only http endpoint ever followed
 	allowed map[string]struct{}
 	build   func(embedConfig) (llm.Embedder, error)
 
@@ -46,14 +47,15 @@ type embedderKey struct{ model, baseURL string }
 // allowlist (may be empty). The env base URL must itself parse to a host.
 func newEmbedderPool(env embedConfig, allowedHosts string,
 	build func(embedConfig) (llm.Embedder, error)) (*embedderPool, error) {
-	envHost, err := hostOf(env.BaseURL)
+	envEP, err := parseEndpoint(env.BaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("chunkembed: TMI_EMBEDDING_BASE_URL: %w", err)
 	}
 	allowed := parseAllowedHosts(allowedHosts)
-	allowed[envHost] = struct{}{}
+	allowed[envEP.host] = struct{}{}
 	return &embedderPool{
 		env:     env,
+		envEP:   envEP,
 		allowed: allowed,
 		build:   build,
 		cache:   make(map[embedderKey]llm.Embedder),
@@ -71,21 +73,40 @@ func parseAllowedHosts(csv string) map[string]struct{} {
 	return out
 }
 
-// hostOf returns the lowercase hostname of an http(s) URL. Errors never echo
-// the URL, which may carry credentials.
-func hostOf(raw string) (string, error) {
+// endpoint is a parsed, normalized http(s) base URL.
+type endpoint struct {
+	scheme string
+	host   string // lowercase hostname, no port, no trailing dot
+	port   string
+	key    string // normalized scheme://host[:port]/path, no trailing slash
+}
+
+// parseEndpoint parses an http(s) URL. Errors never echo the URL, which may
+// carry credentials.
+func parseEndpoint(raw string) (endpoint, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return "", errors.New("unparseable URL")
+		return endpoint{}, errors.New("unparseable URL")
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return "", errors.New("URL scheme must be http or https")
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return endpoint{}, errors.New("URL scheme must be http or https")
 	}
-	h := strings.ToLower(u.Hostname())
+	h := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
 	if h == "" {
-		return "", errors.New("URL has no host")
+		return endpoint{}, errors.New("URL has no host")
 	}
-	return h, nil
+	hostport := h
+	if strings.Contains(h, ":") {
+		hostport = "[" + h + "]" // IPv6 literal
+	}
+	if u.Port() != "" {
+		hostport += ":" + u.Port()
+	}
+	return endpoint{
+		scheme: scheme, host: h, port: u.Port(),
+		key: scheme + "://" + hostport + strings.TrimRight(u.EscapedPath(), "/"),
+	}, nil
 }
 
 // forJob returns the embedder for the job and the stamped dimension (0 when
@@ -98,22 +119,33 @@ func (p *embedderPool) forJob(job jobenvelope.Job) (llm.Embedder, int, error) {
 		prof = job.Config.Embedding
 	}
 	if prof == nil {
-		emb, err := p.get(p.env.Model, p.env.BaseURL)
+		emb, err := p.get(p.env.Model, p.envEP.key, p.env.BaseURL)
 		return emb, 0, err
 	}
-	host, err := hostOf(prof.Endpoint)
+	ep, err := parseEndpoint(prof.Endpoint)
 	if err != nil {
 		return nil, 0, fmt.Errorf("%w: %s", errEndpointNotAllowed, err.Error())
 	}
-	if _, ok := p.allowed[host]; !ok {
-		return nil, 0, fmt.Errorf("%w: host %q", errEndpointNotAllowed, host)
+	// The allowlist matches hostnames only: a port that differs from the env
+	// URL's is accepted for an allowlisted host (a host is a trust decision,
+	// and the egress policy is what pins ports). Scheme is stricter: the key
+	// would travel in cleartext over http, so http is followed only for the
+	// env base URL's own scheme, host and port (keeps a dev http URL working).
+	if _, ok := p.allowed[ep.host]; !ok {
+		return nil, 0, fmt.Errorf("%w: host %q", errEndpointNotAllowed, ep.host)
 	}
-	emb, err := p.get(prof.Model, prof.Endpoint)
+	isEnvEndpoint := ep.scheme == p.envEP.scheme && ep.host == p.envEP.host && ep.port == p.envEP.port
+	if ep.scheme != "https" && !isEnvEndpoint {
+		return nil, 0, fmt.Errorf("%w: host %q requires https", errEndpointNotAllowed, ep.host)
+	}
+	emb, err := p.get(prof.Model, ep.key, prof.Endpoint)
 	return emb, prof.Dimension, err
 }
 
-func (p *embedderPool) get(model, baseURL string) (llm.Embedder, error) {
-	key := embedderKey{model: model, baseURL: baseURL}
+// get returns the cached embedder for (model, normalized key), building it
+// from baseURL on a miss.
+func (p *embedderPool) get(model, normKey, baseURL string) (llm.Embedder, error) {
+	key := embedderKey{model: model, baseURL: normKey}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if emb, ok := p.cache[key]; ok {
