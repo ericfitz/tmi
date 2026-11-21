@@ -348,8 +348,14 @@ func (s *SettingsService) GetResolvedString(ctx context.Context, key string) (st
 // admin API reports the value the server actually uses (#1161). row may be
 // nil (no row).
 func configOutranksRow(cfgExplicit bool, row *models.SystemSetting, productionMode bool) bool {
+	return outranksRow(cfgExplicit, row, row != nil && rowFailsSemantics(row, productionMode))
+}
+
+// outranksRow is configOutranksRow with the row's semantic verdict supplied,
+// so the service wrapper can log on it without validating twice.
+func outranksRow(cfgExplicit bool, row *models.SystemSetting, invalid bool) bool {
 	switch {
-	case row == nil || row.Unreadable || string(row.Value) == "" || rowFailsSemantics(row, productionMode):
+	case row == nil || row.Unreadable || string(row.Value) == "" || invalid:
 		// Nothing usable in the database — the config layer is all there is,
 		// explicit or not. An empty row value is treated as absent: on Oracle
 		// '' binds as NULL, so an empty-but-present row is indistinguishable
@@ -386,13 +392,14 @@ func rowFailsSemantics(row *models.SystemSetting, productionMode bool) bool {
 // per process, since resolution runs on every read) so the ignored row is
 // visible. Values are never logged.
 func (s *SettingsService) configOutranksRow(key string, cfgExplicit bool, row *models.SystemSetting) bool {
-	prod := s.isProductionMode()
-	if row != nil && !row.Unreadable && string(row.Value) != "" && rowFailsSemantics(row, prod) {
+	invalid := row != nil && !row.Unreadable && string(row.Value) != "" &&
+		rowFailsSemantics(row, s.isProductionMode())
+	if invalid {
 		if _, seen := s.warnedInvalidRows.LoadOrStore(key, struct{}{}); !seen {
 			slogging.Get().Warn("System setting %s has a stored value that fails validation; ignoring the row and using the config layer value", key)
 		}
 	}
-	return configOutranksRow(cfgExplicit, row, prod)
+	return outranksRow(cfgExplicit, row, invalid)
 }
 
 // settingLayer names the winning layer for parse-error messages.
@@ -516,8 +523,9 @@ func (s *SettingsService) ListByPrefix(ctx context.Context, prefix string) ([]mo
 // so semantic checks on specific settings are enforced for every writer that
 // goes through Set (the admin API) rather than per handler. Writers that
 // bypass Set (raw DB writes) are not covered here; a stored value that fails
-// its validator is ignored at read time instead (#1181). dbtool reuses this map through
-// ValidateSettingSemantics so its direct writes obey the same rules (#1108).
+// its validator is ignored at read time instead (#1181). dbtool reuses this
+// map through ValidateSettingSemantics so its direct writes obey the same
+// rules (#1108).
 // The validators mirror the startup checks in config.ValidateTimmyConfig (#1102).
 var settingSemanticValidators = map[string]func(value string, productionMode bool) error{
 	"timmy.dump_extracted_text_to_note": func(value string, productionMode bool) error {

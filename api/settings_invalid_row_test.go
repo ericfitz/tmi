@@ -165,3 +165,43 @@ func TestTimmyConfigProvider_InvalidExplicitRowYieldsValidEffectiveConfig(t *tes
 	assert.False(t, cfg.DumpExtractedTextToNote)
 	require.NoError(t, config.ValidateTimmyConfig(cfg, "production"))
 }
+
+// With no config entry to fall back to, an invalid row is unusable at runtime,
+// so the admin reads must not present it as the value in effect (#1181). A
+// test-only validator key stands in for a validated key without a config entry.
+func TestAdminReads_InvalidExplicitRowWithoutConfigEntryIsAbsent(t *testing.T) {
+	const key = "test.invalid_row_no_config"
+	settingSemanticValidators[key] = func(value string, _ bool) error {
+		if value != "ok" {
+			return assert.AnError
+		}
+		return nil
+	}
+	t.Cleanup(func() { delete(settingSemanticValidators, key) })
+
+	db := setupSettingsTestDB(t)
+	seedExplicitRow(t, db, key, "bad")
+	s := NewSettingsService(db, nil)
+	r := unreadableRouter(t, s, nil)
+
+	_, exists, err := s.GetResolvedString(context.Background(), key)
+	require.NoError(t, err)
+	assert.False(t, exists, "runtime sees the key as absent")
+
+	code, _, _ := doJSON(t, r, http.MethodGet, "/admin/settings/"+key)
+	assert.Equal(t, http.StatusNotFound, code)
+
+	code, _, all := doJSON(t, r, http.MethodGet, "/admin/settings")
+	require.Equal(t, http.StatusOK, code)
+	for _, e := range all {
+		assert.NotEqual(t, key, e["key"], "invalid row must not be listed")
+	}
+
+	// A valid row for the same key is still shown.
+	require.NoError(t, db.Model(&models.SystemSetting{}).Where("setting_key = ?", key).Update("value", "ok").Error)
+	s2 := NewSettingsService(db, nil)
+	r2 := unreadableRouter(t, s2, nil)
+	code, one, _ := doJSON(t, r2, http.MethodGet, "/admin/settings/"+key)
+	require.Equal(t, http.StatusOK, code)
+	assert.Equal(t, "ok", one["value"])
+}

@@ -934,7 +934,8 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	settingsService.SetConfigProvider(configProvider)
 	logger.Info("Config provider set for settings migration and priority lookups")
 
-	// Log (never exit on) an invalid effective Timmy config: invalid database rows are ignored (#1181); invalid env/YAML already exited above.
+	// Log, never exit on, an invalid effective Timmy config: invalid database
+	// rows are ignored (#1181); invalid env/YAML already exited above.
 	_ = logInvalidEffectiveTimmy(context.Background(), settingsService, config.Auth.BuildMode)
 
 	// Wire optimistic-locking enforcement flag (T14 / #385). When false, missing

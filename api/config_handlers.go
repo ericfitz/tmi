@@ -550,6 +550,9 @@ func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []Sy
 			result = append(result, configSettingToAPI(configSetting, readOnly(key)))
 		case inDB && bootstrap:
 			// no config value to report and no usable row
+		case inDB && !row.Unreadable && string(row.Value) != "" && rowFailsSemantics(&row, prodMode):
+			// A row failing its validator is no usable row (#1181), and with
+			// no config entry nothing is in effect, as at runtime.
 		case inDB:
 			result = append(result, dbSettingToAPI(row, readOnly(key)))
 		}
@@ -715,6 +718,13 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 	if configEntry != nil && configOutranksRow(configEntry.Explicit, setting, s.isProductionMode()) {
 		c.JSON(http.StatusOK, configSettingToAPI(*configEntry, readOnly))
 		return
+	}
+
+	// No config entry to fall back to: a row failing its validator is unusable
+	// at runtime (#1181), so it is not found here either.
+	if setting != nil && !setting.Unreadable && string(setting.Value) != "" &&
+		rowFailsSemantics(setting, s.isProductionMode()) {
+		setting = nil
 	}
 
 	if setting == nil {
