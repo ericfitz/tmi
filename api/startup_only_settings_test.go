@@ -7,8 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -127,4 +129,48 @@ func TestAdminSettingsReads_StartupOnlyKeyWithoutConfigIsHidden(t *testing.T) {
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin/settings/auth.oauth_callback_url", nil))
 	assert.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
+}
+
+// DELETE on a bootstrap key must not go through the guarded SettingsService.Get
+// (which errors for bootstrap keys and used to surface as a 500). A stale row is
+// deleted directly (the repair path for rows made inert by #1167); no row is a
+// 404. Uses the real SettingsService so the real Get guard is exercised.
+func TestDeleteSystemSetting_BootstrapKeys(t *testing.T) {
+	keys := []string{"auth.oauth_callback_url", "features.saml_enabled", "server.base_url"}
+
+	del := func(t *testing.T, svc *SettingsService, key string) int {
+		t.Helper()
+		original := GlobalGroupMemberRepository
+		t.Cleanup(func() { restoreConfigStores(original) })
+		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+		gin.SetMode(gin.TestMode)
+		server := &Server{settingsService: svc}
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			c.Set("userEmail", "admin@example.com")
+			c.Set("userInternalUUID", uuid.New().String())
+			c.Set("userProvider", "test")
+			c.Next()
+		})
+		r.DELETE("/admin/settings/:key", func(c *gin.Context) { server.DeleteSystemSetting(c, c.Param("key")) })
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/admin/settings/"+key, nil))
+		return w.Code
+	}
+
+	for _, key := range keys {
+		t.Run(key+" stale row is deleted", func(t *testing.T) {
+			db := setupSettingsTestDB(t)
+			seedRow(t, db, key, "stale", models.SystemSettingOriginExplicit)
+			svc := NewSettingsService(db, nil)
+			assert.Equal(t, http.StatusNoContent, del(t, svc, key))
+			var n int64
+			require.NoError(t, db.Model(&models.SystemSetting{}).Where("setting_key = ?", key).Count(&n).Error)
+			assert.Zero(t, n, "row must be gone")
+		})
+		t.Run(key+" no row is 404", func(t *testing.T) {
+			svc := NewSettingsService(setupSettingsTestDB(t), nil)
+			assert.Equal(t, http.StatusNotFound, del(t, svc, key))
+		})
+	}
 }

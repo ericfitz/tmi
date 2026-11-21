@@ -34,6 +34,10 @@ type SettingsServiceInterface interface {
 	ListByPrefix(ctx context.Context, prefix string) ([]models.SystemSetting, error)
 	Set(ctx context.Context, setting *models.SystemSetting) error
 	Delete(ctx context.Context, key string) error
+	// HasRow reports whether a system_settings row exists for key, without the
+	// bootstrap guard, decryption or caching of Get. The admin DELETE uses it
+	// for bootstrap keys, whose stale rows are inert but still deletable.
+	HasRow(ctx context.Context, key string) (bool, error)
 	SeedDefaults(ctx context.Context) error
 	ReEncryptAll(ctx context.Context) (int, []SettingError, error)
 	CountValuesWithContextID(ctx context.Context, id int) (int64, error)

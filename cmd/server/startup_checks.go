@@ -125,9 +125,10 @@ func warnIfPlaintextSecretsAtRest(
 //
 // This is the check that would have caught the 2026-08-20 outage: an operator had
 // TMI_OAUTH_CALLBACK_URL set correctly the whole time, but a seeded default row in
-// the database silently outranked it, so OAuth redirected to localhost and every
-// provider rejected the login. A second regression in the same deploy left SAML
-// silently disabled for the same reason. Nothing warned. This does.
+// the database silently outranked it, so OAuth redirected to localhost. Nothing
+// warned. (That key and features.saml_enabled are now startup-only bootstrap
+// settings, #1167, so they can no longer diverge; the check still covers every
+// remaining operational key, where an explicit admin-set row outranks config.)
 //
 // A config value only counts if MigratableSetting.Explicit is true (an operator
 // actually set it, not just the struct default), because a default disagreeing with

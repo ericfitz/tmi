@@ -834,10 +834,30 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		return
 	}
 
-	// Check if setting exists
-	// An unreadable row still exists and must be deletable: deleting it is how
-	// an operator clears it (#1169).
-	setting, err := s.settingsService.Get(ctx, key)
+	// Bootstrap keys are never database-backed, so SettingsService.Get refuses
+	// them. A leftover row (inert since #1167) is still deletable: that is the
+	// repair path. Check for it directly; no row is a 404, never a 500.
+	var setting *models.SystemSetting
+	var err error
+	if config.ClassificationCategoryFor(key) == config.CategoryBootstrap {
+		has, hasErr := s.settingsService.HasRow(ctx, key)
+		if hasErr != nil {
+			logger.Error("Failed to check system setting %s: %v", key, hasErr)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusInternalServerError,
+				Code:    errcode.ServerError,
+				Message: "Failed to check setting",
+			})
+			return
+		}
+		if has {
+			setting = &models.SystemSetting{SettingKey: models.DBVarchar(key)}
+		}
+	} else {
+		// An unreadable row still exists and must be deletable: deleting it is
+		// how an operator clears it (#1169).
+		setting, err = s.settingsService.Get(ctx, key)
+	}
 	if errors.Is(err, errSettingUnreadable) {
 		logger.Warn("Deleting unreadable system setting %s", key)
 		setting, err = &models.SystemSetting{SettingKey: models.DBVarchar(key)}, nil

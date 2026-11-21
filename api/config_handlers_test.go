@@ -106,6 +106,11 @@ func (m *MockSettingsService) ListByPrefix(ctx context.Context, prefix string) (
 	return result, nil
 }
 
+func (m *MockSettingsService) HasRow(ctx context.Context, key string) (bool, error) {
+	_, ok := m.settings[key]
+	return ok, nil
+}
+
 func (m *MockSettingsService) SeedDefaults(ctx context.Context) error {
 	return nil
 }

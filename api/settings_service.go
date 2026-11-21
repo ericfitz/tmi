@@ -615,6 +615,17 @@ func (s *SettingsService) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
+// HasRow reports whether a row exists for key. It reads the database directly:
+// no bootstrap guard, no decryption and no cache, so it works for bootstrap
+// keys and for rows that cannot be decrypted.
+func (s *SettingsService) HasRow(ctx context.Context, key string) (bool, error) {
+	var n int64
+	if err := s.gormDB.WithContext(ctx).Model(&models.SystemSetting{}).Where("setting_key = ?", key).Count(&n).Error; err != nil {
+		return false, fmt.Errorf("failed to check setting %s: %w", key, err)
+	}
+	return n > 0, nil
+}
+
 // SeedDefaults seeds the default settings if they don't exist
 func (s *SettingsService) SeedDefaults(ctx context.Context) error {
 	logger := slogging.Get()

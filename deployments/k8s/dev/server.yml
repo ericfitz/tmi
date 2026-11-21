@@ -133,9 +133,9 @@ spec:
             # actually returns (measured). It must be > 0 or
             # EmbeddingProfile.Validate rejects every job envelope.
             #
-            # These are env vars, not database settings: the config layer only
-            # defers to the database for values nobody configured (#415), so a
-            # database row alone does not switch Timmy on.
+            # These are env vars because they supply the values. An admin-set
+            # database row for the same setting would override the env value
+            # (#1168), so do not set one.
             - { name: TMI_TIMMY_ENABLED, value: "true" }
             - { name: TMI_TIMMY_LLM_PROVIDER, value: "openai" }
             - { name: TMI_TIMMY_LLM_MODEL, value: "gpt-5.5" }
