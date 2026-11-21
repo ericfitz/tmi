@@ -2999,7 +2999,7 @@
           "status": {
             "type": "string",
             "description": "Current status of the threat",
-            "maxLength": 256,
+            "maxLength": 128,
             "pattern": "^[^\\x00-\\x1F]*$",
             "nullable": true
           },
@@ -5084,7 +5084,7 @@
           "provider": {
             "type": "string",
             "description": "OAuth/SAML provider identifier",
-            "maxLength": 256
+            "maxLength": 100
           },
           "provider_user_id": {
             "type": "string",
@@ -5272,7 +5272,7 @@
           "provider": {
             "type": "string",
             "description": "OAuth/SAML provider identifier, or \"tmi\" for TMI built-in groups",
-            "maxLength": 256
+            "maxLength": 100
           },
           "group_name": {
             "type": "string",
@@ -11900,7 +11900,8 @@
           "client_build": {
             "type": "string",
             "pattern": "^[0-9a-f]{7,12}$",
-            "description": "Short commit hash of the client build"
+            "description": "Short commit hash of the client build",
+            "maxLength": 12
           },
           "user_agent": {
             "type": "string",
@@ -11915,7 +11916,8 @@
           "viewport": {
             "type": "string",
             "pattern": "^\\d{1,5}x\\d{1,5}$",
-            "description": "Viewport dimensions, e.g. '1280x1024'"
+            "description": "Viewport dimensions, e.g. '1280x1024'",
+            "maxLength": 11
           },
           "screenshot": {
             "type": "string",
