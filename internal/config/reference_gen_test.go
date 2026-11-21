@@ -87,11 +87,40 @@ func TestGenerateReferenceMarkdown_PrecedenceColumnByCategory(t *testing.T) {
 		t.Errorf("bootstrap key server.port: want precedence cell %q, got row %q", "config/env only", bootstrapLine)
 	}
 
-	// auth.auto_promote_first_user is operational: DB wins unless config is explicit.
-	operationalLine := findRowContaining(t, s, "`auth.auto_promote_first_user`")
-	if !strings.Contains(operationalLine, "db unless config explicit") {
-		t.Errorf("operational key auth.auto_promote_first_user: want precedence cell %q, got row %q",
-			"db unless config explicit", operationalLine)
+	// auth.auto_promote_first_user is operational and static: PUT is refused.
+	staticLine := findRowContaining(t, s, "`auth.auto_promote_first_user`")
+	if !strings.Contains(staticLine, "explicit row, else config; PUT 409") || !strings.Contains(staticLine, "| static |") {
+		t.Errorf("static key auth.auto_promote_first_user: want static + PUT 409 cell, got row %q", staticLine)
+	}
+
+	// auth.everyone_is_a_reviewer is operational and hot: PUT is allowed.
+	hotLine := findRowContaining(t, s, "`auth.everyone_is_a_reviewer`")
+	if !strings.Contains(hotLine, "| hot |") || !strings.Contains(hotLine, "explicit row, else config |") ||
+		strings.Contains(hotLine, "PUT 409") {
+		t.Errorf("hot key auth.everyone_is_a_reviewer: want hot + writable cell, got row %q", hotLine)
+	}
+
+	// Startup-only keys are bootstrap, not operational (#1167).
+	for _, k := range []string{"| `auth.oauth_callback_url` |", "| `features.saml_enabled` |"} {
+		if line := findRowContaining(t, s, k); !strings.Contains(line, "config/env only") {
+			t.Errorf("startup-only key %s: want config/env only, got row %q", k, line)
+		}
+	}
+}
+
+func TestGenerateReferenceMarkdown_PrecedenceProseMatchesADR(t *testing.T) {
+	out, err := GenerateReferenceMarkdown()
+	if err != nil {
+		t.Fatalf("GenerateReferenceMarkdown: %v", err)
+	}
+	s := string(out)
+	for _, want := range []string{"usable, explicit", "seeded default", "unreadable or invalid", "even when config sets the key explicitly", "`read_only`"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("precedence prose missing %q", want)
+		}
+	}
+	if strings.Contains(s, "db unless config explicit") {
+		t.Error("stale precedence cell \"db unless config explicit\" still present")
 	}
 }
 
