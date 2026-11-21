@@ -49,6 +49,12 @@ func bootstrapClass(required bool, vis Visibility, secret bool) ConfigClass {
 	}
 }
 
+// withConsumers returns a copy of c with its Consumers replaced.
+func withConsumers(c ConfigClass, consumers ...Consumer) ConfigClass {
+	c.Consumers = consumers
+	return c
+}
+
 // operationalClass is a helper for the common monolith-only operational shape.
 func operationalClass(vis Visibility, secret bool, consumers ...Consumer) ConfigClass {
 	if len(consumers) == 0 {
@@ -120,6 +126,15 @@ var exactClassifications = map[string]ConfigClass{
 	"auth.jwt.secret":         bootstrapClass(true, VisibilityInternal, true),
 	"auth.jwt.signing_method": bootstrapClass(false, VisibilityInternal, false),
 
+	// --- Bootstrap: startup-only auth settings (#1167) ---
+	// Both are read from the config struct once, by the auth service, and come
+	// from config/env only; a database row could never take effect, so they are
+	// bootstrap (file/env only, never database-backed), not operational.
+	// features.saml_enabled stays Public and tmi-ux-consumed because the public
+	// client config reports it.
+	"auth.oauth_callback_url": bootstrapClass(false, VisibilityAdminOnly, false),
+	"features.saml_enabled":   withConsumers(bootstrapClass(false, VisibilityPublic, false), ConsumerMonolith, ConsumerTMIUX),
+
 	// --- Operational: auth (runtime-tunable auth knobs) ---
 	"auth.auto_promote_first_user":   operationalClass(VisibilityAdminOnly, false),
 	"auth.everyone_is_a_reviewer":    operationalClass(VisibilityAdminOnly, false),
@@ -130,14 +145,12 @@ var exactClassifications = map[string]ConfigClass{
 	"auth.cookie.enabled":            operationalClass(VisibilityAdminOnly, false),
 	"auth.cookie.domain":             operationalClass(VisibilityAdminOnly, false),
 	"auth.cookie.secure":             operationalClass(VisibilityAdminOnly, false),
-	"auth.oauth_callback_url":        operationalClass(VisibilityAdminOnly, false),
 	// Read at request time by the auth handler to validate the
 	// client_callback query parameter. Operational so an operator can rotate
 	// it without a restart; not a secret (a public allowlist).
 	"auth.oauth.client_callback_allowlist": operationalClass(VisibilityAdminOnly, false),
 
 	// --- Operational: feature flags, runtime, operator ---
-	"features.saml_enabled":                operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),
 	"websocket.inactivity_timeout_seconds": operationalClass(VisibilityAdminOnly, false),
 	"session.timeout_minutes":              operationalClass(VisibilityAdminOnly, false),
 	"operator.name":                        operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),

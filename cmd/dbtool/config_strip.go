@@ -82,7 +82,8 @@ func pruneOperationalFromMapping(m *yaml.Node, prefix string) {
 			}
 			kept = append(kept, key, val)
 		default:
-			if config.ClassificationCategoryFor(dotted) == config.CategoryOperational {
+			// Classify by setting key: three keys differ from their YAML path.
+			if config.ClassificationCategoryFor(config.SettingKeyForYAMLPath(dotted)) == config.CategoryOperational {
 				continue
 			}
 			kept = append(kept, key, val)

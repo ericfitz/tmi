@@ -105,7 +105,7 @@ func seedRow(t *testing.T, db *gorm.DB, key, value, origin string) {
 }
 
 func TestGetResolvedString_PrecedenceTable(t *testing.T) {
-	const key = "auth.oauth_callback_url"
+	const key = "operator.contact"
 	const cfgValue = "https://api.tmi.dev/oauth2/callback"
 	const dbValue = "http://localhost:8080/oauth2/callback"
 
@@ -203,7 +203,7 @@ func TestGetResolvedString_NoDatabaseRowFallsBackToConfig(t *testing.T) {
 // empty-but-present row is indistinguishable from a missing one; the rule must
 // not depend on which engine is underneath.
 func TestGetResolvedString_EmptyRowTreatedAsAbsent(t *testing.T) {
-	const key = "auth.oauth_callback_url"
+	const key = "operator.contact"
 	db := setupSettingsTestDB(t)
 	seedRow(t, db, key, "", models.SystemSettingOriginExplicit)
 

@@ -92,7 +92,6 @@ func TestClassificationFor_TimmyAPIKeysAreOperationalSecrets(t *testing.T) {
 // /admin/settings/{key} 404 even though the LIST endpoint shows them.
 func TestClassificationFor_ClientConfigKeysArePublic(t *testing.T) {
 	keys := []string{
-		"features.saml_enabled",
 		"features.webhooks_enabled",
 		"features.websocket_enabled",
 		"websocket.max_participants",

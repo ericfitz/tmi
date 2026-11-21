@@ -17,7 +17,7 @@ TMI's configuration lives in three places, and only one of them is durable:
                            with it the Postgres PVC, and the next `dev-up`
                            re-seeds only classification-registry defaults.
 
-(3) is how a dev cluster silently loses every OAuth provider, callback URL and
+(3) is how a dev cluster silently loses every OAuth provider and
 feature flag that was ever configured through the admin API (#791). This script
 is the missing durable copy for that third bucket: `snapshot` writes the
 database's settings to a gitignored file under .local/, and `restore` puts them
@@ -44,10 +44,9 @@ about. A handful of keys live in the classification registry (so the server
 seeds them) without a matching Config struct field, so `--export-config` writes
 them out but `--import-config` silently drops them:
 
-    features.saml_enabled           ui.default_theme
     features.webhooks_enabled       upload.max_file_size_mb
     features.websocket_enabled      websocket.max_participants
-    session.timeout_minutes
+    session.timeout_minutes         ui.default_theme
 
 The server re-seeds all of them at their DEFAULTS on startup, so they always
 come back — what does not survive is a CUSTOMIZED value for one of them. That
@@ -86,10 +85,9 @@ from tmi_common import (  # noqa: E402
 )
 
 # Per-cluster because the two dev clusters legitimately disagree on
-# host-dependent values -- auth.oauth_callback_url is
-# http://localhost:8080/oauth2/callback on docker-desktop but
-# https://<your-ingress-host>/api/oauth2/callback on k3s -- and a single shared file
-# would push the wrong callback to whichever cluster it was not taken from.
+# host-dependent database values, and a single shared file would push the
+# wrong one to whichever cluster it was not taken from. (The OAuth callback URL
+# is no longer one of them: it is startup-only, set by TMI_OAUTH_CALLBACK_URL.)
 SNAPSHOT_DIR = ".local"
 CLUSTERS = ("k3s", "docker-desktop")
 

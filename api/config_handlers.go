@@ -200,6 +200,21 @@ func isReservedSettingKey(key string) (bool, string) {
 	return false, ""
 }
 
+// startupBool returns the startup config value of a boolean setting, or false
+// when no config provider is wired or the setting is absent or not a bool.
+func (s *Server) startupBool(key string) bool {
+	if s.configProvider == nil {
+		return false
+	}
+	for _, cs := range s.configProvider.GetMigratableSettings() {
+		if cs.Key == key {
+			v, err := strconv.ParseBool(cs.Value)
+			return err == nil && v
+		}
+	}
+	return false
+}
+
 // boolSettingIfPresent resolves a boolean setting and reports whether the key
 // was actually present. It distinguishes a missing key from a key set to
 // "false": GetBool returns (false, nil) for both, which would silently flip a
@@ -249,13 +264,13 @@ func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientCo
 	// keeps the code default rather than collapsing to GetBool's (false, nil)
 	// for "not found" — which would silently flip a default-true flag off.
 	websocketEnabled := true
-	samlEnabled := false
 	webhooksEnabled := true
 
+	// features.saml_enabled is startup-only (#1167): SAML wiring is built once
+	// at boot from config, so report that value, never a database row.
+	samlEnabled := s.startupBool("features.saml_enabled")
+
 	if s.settingsService != nil {
-		if val, ok := s.boolSettingIfPresent(ctx, "features.saml_enabled"); ok {
-			samlEnabled = val
-		}
 		if val, ok := s.boolSettingIfPresent(ctx, "features.webhooks_enabled"); ok {
 			webhooksEnabled = val
 		}
@@ -498,9 +513,16 @@ func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []Sy
 		configSetting, inConfig := configMap[key]
 		row, inDB := dbMap[key]
 
+		// Bootstrap keys (startup-only, e.g. auth.oauth_callback_url) are never
+		// database-backed: config is the only source, and a stale row for one
+		// is inert, so it is neither reported nor listed.
+		bootstrap := config.ClassificationCategoryFor(key) == config.CategoryBootstrap
+
 		switch {
-		case inConfig && (!inDB || configOutranksRow(configSetting.Explicit, &row)):
+		case inConfig && (bootstrap || !inDB || configOutranksRow(configSetting.Explicit, &row)):
 			result = append(result, configSettingToAPI(configSetting))
+		case inDB && bootstrap:
+			// no config value to report and no usable row
 		case inDB:
 			result = append(result, dbSettingToAPI(row))
 		}
@@ -591,7 +613,17 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 	}
 	// Bootstrap keys are never database-backed (SettingsService.Get refuses
 	// them), so config is their only source, as in GetResolvedString.
-	if configEntry != nil && config.ClassificationCategoryFor(key) == config.CategoryBootstrap {
+	if config.ClassificationCategoryFor(key) == config.CategoryBootstrap {
+		if configEntry == nil {
+			// Config has no value to report (e.g. an omitted-when-empty key)
+			// and there is no database fallback to read: not found, not 500.
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusNotFound,
+				Code:    errcode.NotFound,
+				Message: "Setting not found",
+			})
+			return
+		}
 		c.JSON(http.StatusOK, configSettingToAPI(*configEntry))
 		return
 	}

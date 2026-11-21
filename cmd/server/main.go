@@ -1020,9 +1020,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		logger.Info("Provider registry wired into auth handlers for unified provider lookup")
 
 		// Wire DB-backed runtime config reader so request-time reads of
-		// operational config (client_callback_allowlist, saml_enabled,
-		// oauth_callback_url) come from system_settings rather than the
-		// YAML snapshot loaded at boot. #419.
+		// operational config (client_callback_allowlist,
+		// everyone_is_a_reviewer) come from system_settings rather than the
+		// YAML snapshot loaded at boot. #419. saml_enabled and
+		// oauth_callback_url are startup-only (#1167) and read from config.
 		// The JWT authenticator reads the same reader back off authHandlers for
 		// auth.everyone_is_a_reviewer, which until #794 was read straight off
 		// the boot-time config struct and so ignored its database row entirely.

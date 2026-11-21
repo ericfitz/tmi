@@ -13,7 +13,6 @@ func TestOperationalDefs_KnownKeysAreDeclaredOperational(t *testing.T) {
 	for _, key := range []string{
 		"auth.everyone_is_a_reviewer",
 		"auth.oauth.client_callback_allowlist",
-		"features.saml_enabled",
 		"websocket.inactivity_timeout_seconds",
 		"operator.name",
 		"administrators",
@@ -49,11 +48,12 @@ func TestOperationalDefs_AreTransitionalWhileConfigDelivered(t *testing.T) {
 }
 
 func TestOperationalDefs_DeclareMutability(t *testing.T) {
-	// features.saml_enabled gates SAML manager construction at startup, so a
-	// database edit cannot take effect without a restart. The spec makes
-	// Mutability load-bearing; this pins the known case.
-	d, ok := DefFor("features.saml_enabled")
+	// administrators is read once at startup, so a database edit cannot take
+	// effect without a restart. The spec makes Mutability load-bearing; this
+	// pins the known case. (features.saml_enabled, formerly the example here,
+	// is now bootstrap: see startup_only_settings_test.go.)
+	d, ok := DefFor("administrators")
 	require.True(t, ok)
 	assert.Equal(t, MutabilityStatic, d.Class.Mutability,
-		"features.saml_enabled gates startup wiring and is restart-required")
+		"administrators is read once at startup and is restart-required")
 }

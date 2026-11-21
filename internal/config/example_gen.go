@@ -36,7 +36,10 @@ func GenerateExampleConfig() ([]byte, error) {
 		} else {
 			value = coerceSettingValue(s)
 		}
-		setNested(root, strings.Split(s.Key, "."), value)
+		// Place by YAML path, not setting key: a few keys differ from their path
+		// (auth.oauth_callback_url, features.saml_enabled), and the file must
+		// use the path config.Load reads (#1167).
+		setNested(root, strings.Split(yamlPathFor(s.Key), "."), value)
 	}
 
 	header := fmt.Sprintf(

@@ -13,18 +13,14 @@ import (
 // fakeSettingsService is a minimal SettingsServiceInterface stub for adapter
 // tests. Only the methods the adapter actually calls are exercised.
 // db simulates resolved rows (GetResolvedString); strings simulates the
-// config layer (GetString reads ONLY this map — the maps are deliberately
-// disjoint so the config-fallback tests fail if the adapter's explicit
-// fallback read is ever removed). errs fails both reads for a key; dbErrs
+// config layer (GetString reads ONLY this map; the maps are deliberately
+// disjoint so a test can tell which layer answered). errs fails both reads for a key; dbErrs
 // fails only the DB read (wrap dberrors.ErrTransient to simulate an ADB blip).
 type fakeSettingsService struct {
 	db      map[string]string
 	strings map[string]string
 	errs    map[string]error
 	dbErrs  map[string]error
-	// getStringCalls counts GetString fallbacks, each of which is a second
-	// DB read on the real service (#770).
-	getStringCalls int
 }
 
 func newFakeSettingsService() *fakeSettingsService {
@@ -41,7 +37,6 @@ func (f *fakeSettingsService) Get(ctx context.Context, key string) (*models.Syst
 }
 
 func (f *fakeSettingsService) GetString(ctx context.Context, key string) (string, error) {
-	f.getStringCalls++
 	if err, ok := f.errs[key]; ok {
 		return "", err
 	}
@@ -181,110 +176,6 @@ func TestRuntimeConfigReaderAdapter_GetClientCallbackAllowList(t *testing.T) {
 	})
 }
 
-func TestRuntimeConfigReaderAdapter_IsSAMLEnabled(t *testing.T) {
-	ctx := context.Background()
-
-	t.Run("true", func(t *testing.T) {
-		f := newFakeSettingsService()
-		f.db["features.saml_enabled"] = "true"
-		a := NewRuntimeConfigReaderAdapter(f)
-		if !a.IsSAMLEnabled(ctx) {
-			t.Error("want true, got false")
-		}
-	})
-
-	t.Run("false", func(t *testing.T) {
-		f := newFakeSettingsService()
-		f.db["features.saml_enabled"] = "false"
-		a := NewRuntimeConfigReaderAdapter(f)
-		if a.IsSAMLEnabled(ctx) {
-			t.Error("want false, got true")
-		}
-	})
-
-	t.Run("missing row defaults false (fail-closed)", func(t *testing.T) {
-		a := NewRuntimeConfigReaderAdapter(newFakeSettingsService())
-		if a.IsSAMLEnabled(ctx) {
-			t.Error("want false on missing row, got true")
-		}
-	})
-
-	t.Run("garbage value defaults false", func(t *testing.T) {
-		f := newFakeSettingsService()
-		f.db["features.saml_enabled"] = "yes-please"
-		a := NewRuntimeConfigReaderAdapter(f)
-		if a.IsSAMLEnabled(ctx) {
-			t.Error("want false on garbage value, got true")
-		}
-	})
-
-	// #767: DB row wins over config; config is used only when no row exists.
-	t.Run("DB row wins over config value (#767)", func(t *testing.T) {
-		f := newFakeSettingsService()
-		f.strings["features.saml_enabled"] = "false"
-		f.db["features.saml_enabled"] = "true"
-		a := NewRuntimeConfigReaderAdapter(f)
-		if !a.IsSAMLEnabled(ctx) {
-			t.Error("want true from DB row, got false (config shadowed it)")
-		}
-	})
-
-	// #770: GetResolvedString already consulted the config layer, so a
-	// missing value must not trigger a second (GetString -> DB) read.
-	t.Run("no DB row: single read, no GetString fallback", func(t *testing.T) {
-		f := newFakeSettingsService()
-		f.strings["features.saml_enabled"] = "true"
-		a := NewRuntimeConfigReaderAdapter(f)
-		if a.IsSAMLEnabled(ctx) {
-			t.Error("want false: GetResolvedString reported nothing configured")
-		}
-		if f.getStringCalls != 0 {
-			t.Errorf("GetString called %d times, want 0", f.getStringCalls)
-		}
-	})
-}
-
-func TestRuntimeConfigReaderAdapter_GetOAuthCallbackURL(t *testing.T) {
-	ctx := context.Background()
-
-	t.Run("returns configured value", func(t *testing.T) {
-		f := newFakeSettingsService()
-		f.db["auth.oauth_callback_url"] = "http://x/oauth/callback"
-		a := NewRuntimeConfigReaderAdapter(f)
-		if got := a.GetOAuthCallbackURL(ctx); got != "http://x/oauth/callback" {
-			t.Errorf("got %q, want http://x/oauth/callback", got)
-		}
-	})
-
-	t.Run("missing row returns empty (caller falls back to YAML)", func(t *testing.T) {
-		a := NewRuntimeConfigReaderAdapter(newFakeSettingsService())
-		if got := a.GetOAuthCallbackURL(ctx); got != "" {
-			t.Errorf("got %q, want empty", got)
-		}
-	})
-
-	// #767: DB row wins over config; a config value without a row yields
-	// empty so the caller's YAML snapshot is the single fallback path.
-	t.Run("DB row wins over config value (#767)", func(t *testing.T) {
-		f := newFakeSettingsService()
-		f.strings["auth.oauth_callback_url"] = "http://yaml/cb"
-		f.db["auth.oauth_callback_url"] = "http://db/cb"
-		a := NewRuntimeConfigReaderAdapter(f)
-		if got := a.GetOAuthCallbackURL(ctx); got != "http://db/cb" {
-			t.Errorf("got %q, want the DB value http://db/cb", got)
-		}
-	})
-
-	t.Run("config value alone yields empty (caller falls back to YAML)", func(t *testing.T) {
-		f := newFakeSettingsService()
-		f.strings["auth.oauth_callback_url"] = "http://yaml/cb"
-		a := NewRuntimeConfigReaderAdapter(f)
-		if got := a.GetOAuthCallbackURL(ctx); got != "" {
-			t.Errorf("got %q, want empty", got)
-		}
-	})
-}
-
 // Transient-DB-fault fallback (#767 oracle-db-admin review, blocking item):
 // an ADB blip (ORA-02396/03113/12537 class) must NOT fail closed — the
 // operator's YAML snapshot answers instead. Only non-transient errors keep
@@ -319,38 +210,6 @@ func TestRuntimeConfigReaderAdapter_TransientDBFaultFallsBackToYAML(t *testing.T
 		}
 		if !exists {
 			t.Error("non-transient fault must keep exists=true so the caller fails closed")
-		}
-	})
-
-	t.Run("saml: transient DB error falls through to the config layer", func(t *testing.T) {
-		f := newFakeSettingsService()
-		f.dbErrs["features.saml_enabled"] = transient
-		f.strings["features.saml_enabled"] = "true"
-		a := NewRuntimeConfigReaderAdapter(f)
-		if !a.IsSAMLEnabled(ctx) {
-			t.Error("transient DB fault must fall back to the YAML value (true), got false")
-		}
-		if f.getStringCalls != 1 {
-			t.Errorf("GetString called %d times, want 1 (transient fallback only)", f.getStringCalls)
-		}
-	})
-
-	t.Run("saml: non-transient error stays fail-closed", func(t *testing.T) {
-		f := newFakeSettingsService()
-		f.dbErrs["features.saml_enabled"] = errors.New("decrypt failure")
-		f.strings["features.saml_enabled"] = "true"
-		a := NewRuntimeConfigReaderAdapter(f)
-		if a.IsSAMLEnabled(ctx) {
-			t.Error("non-transient fault must report SAML disabled (fail-closed), even with a YAML value present")
-		}
-	})
-
-	t.Run("callback URL: empty-but-present row collapses to empty (Oracle ''-is-NULL symmetry)", func(t *testing.T) {
-		f := newFakeSettingsService()
-		f.db["auth.oauth_callback_url"] = ""
-		a := NewRuntimeConfigReaderAdapter(f)
-		if got := a.GetOAuthCallbackURL(ctx); got != "" {
-			t.Errorf("got %q, want empty", got)
 		}
 	})
 }

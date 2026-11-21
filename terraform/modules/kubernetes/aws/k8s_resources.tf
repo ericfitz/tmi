@@ -159,10 +159,10 @@ resource "kubernetes_config_map_v1" "tmi" {
       # server-config.yaml patch — they are deliberately not here, so the
       # provider credential never lands in Terraform state.
       #
-      # These are environment variables rather than database settings for two
-      # reasons. The config layer only defers to the database for values
-      # nobody configured (#415, api/settings_service.go getConfigSetting), so
-      # a database row alone would not switch Timmy on. And
+      # These are environment variables because they supply the values
+      # (provisioned from Terraform, not entered through the admin API). An
+      # admin-set database row for the same setting would override the env
+      # value (#1168), so do not set one. And
       # TMI_TIMMY_TEXT_EMBEDDING_MODEL must stay in lockstep with
       # TMI_EMBEDDING_MODEL on the tmi-chunk-embed worker
       # (deployments/k8s/platform/components/tmi-chunk-embed.yml): the worker

@@ -211,16 +211,19 @@ func TestGetClientConfig_WithoutOperatorInfo(t *testing.T) {
 
 // TestGetClientConfig_FeatureFlagsFromSettings verifies all three feature flags
 // — including websocket_enabled, which was previously hardcoded — are read from
-// the settings service.
+// the settings service (saml_enabled comes from startup config, #1167).
 func TestGetClientConfig_FeatureFlagsFromSettings(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
 	mockSettings := NewMockSettingsService()
-	mockSettings.AddSetting("features.saml_enabled", "true", "bool")
 	mockSettings.AddSetting("features.webhooks_enabled", "false", "bool")
 	mockSettings.AddSetting("features.websocket_enabled", "false", "bool")
-	server := &Server{settingsService: mockSettings}
+	// features.saml_enabled is startup-only (#1167): it comes from the config
+	// provider, not the settings service.
+	server := &Server{settingsService: mockSettings, configProvider: &MockConfigProvider{settings: []MigratableSetting{
+		{Key: "features.saml_enabled", Value: "true", Type: "bool"},
+	}}}
 
 	r.GET("/config", server.GetClientConfig)
 

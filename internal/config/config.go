@@ -1359,7 +1359,10 @@ func KeysInFile(path string) (map[string]bool, error) {
 
 // OperationalKeysInFile returns the operational-category setting keys present
 // in a YAML config file. Operational config belongs in the database; finding
-// it in a file indicates drift during the bootstrap-only migration.
+// it in a file indicates drift during the bootstrap-only migration. Each YAML
+// path is mapped to its setting key before classifying (#1167); the returned
+// entries are the dotted YAML paths as written in the file, so an operator can
+// find them.
 func OperationalKeysInFile(path string) ([]string, error) {
 	raw := map[string]any{}
 	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied config path
@@ -1371,7 +1374,7 @@ func OperationalKeysInFile(path string) ([]string, error) {
 	}
 	var found []string
 	walkYAMLKeys(raw, "", func(dotted string) {
-		if classificationFor(dotted).Category == CategoryOperational {
+		if classificationFor(SettingKeyForYAMLPath(dotted)).Category == CategoryOperational {
 			found = append(found, dotted)
 		}
 	})

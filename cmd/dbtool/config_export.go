@@ -26,8 +26,8 @@ import (
 // struct's yaml tags and diffing against the classification registry.
 var nonRoundTrippingKeys = map[string]string{
 	"session.timeout_minutes": "derived display value; the real source is auth.jwt.expiration_seconds",
-	"features.saml_enabled":   "derived display path; the real source is auth.saml.providers.<id>.enabled",
-	"auth.oauth_callback_url": "derived display value; real path is auth.oauth.callback_url",
+	"features.saml_enabled":   "startup-only (#1167), so the database row is inert; set auth.saml.enabled in the config file or TMI_SAML_ENABLED",
+	"auth.oauth_callback_url": "startup-only (#1167), so the database row is inert; set auth.oauth.callback_url in the config file or TMI_OAUTH_CALLBACK_URL",
 }
 
 // nonRoundTrippingKeysNote renders nonRoundTrippingKeys as a YAML comment
@@ -43,7 +43,7 @@ func nonRoundTrippingKeysNote() string {
 	}
 	sort.Strings(keys)
 	var b strings.Builder
-	b.WriteString("#\n# NOTE: the following exported keys are derived/display-only values and do\n")
+	b.WriteString("#\n# NOTE: the following exported keys are derived, display-only or inert values and do\n")
 	b.WriteString("# NOT round-trip via --import-config (no corresponding config.Load path):\n")
 	for _, k := range keys {
 		fmt.Fprintf(&b, "#   - %s (%s)\n", k, nonRoundTrippingKeys[k])

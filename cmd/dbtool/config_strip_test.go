@@ -30,7 +30,7 @@ auth:
     enabled: true
     domain: localhost
 features:
-  saml_enabled: false
+  websocket_enabled: false
 operator:
   name: TMI
   contact: ops@example
@@ -78,7 +78,7 @@ operator:
 	for _, gone := range []string{
 		"expiration_seconds",
 		"cookie",
-		"saml_enabled",
+		"websocket_enabled",
 		"features",
 		"operator",
 	} {
@@ -163,6 +163,45 @@ func TestLooksLikeYAMLPath(t *testing.T) {
 	for in, want := range cases {
 		if got := looksLikeYAMLPath(in); got != want {
 			t.Errorf("looksLikeYAMLPath(%q) = %v, want %v", in, got, want)
+		}
+	}
+}
+
+// TestStripOperationalKeys_ClassifiesBySettingKey pins #1167: the strip maps
+// each YAML path to its setting key before classifying. The two startup-only
+// settings (auth.oauth.callback_url, auth.saml.enabled) are non-operational and
+// stay in the file; content_extractors.async_enabled (setting key
+// extraction.async_enabled) is operational and is removed.
+func TestStripOperationalKeys_ClassifiesBySettingKey(t *testing.T) {
+	yamlIn := `auth:
+  build_mode: dev
+  oauth:
+    callback_url: https://x.test/oauth2/callback
+  saml:
+    enabled: true
+content_extractors:
+  async_enabled: true
+`
+	path := filepath.Join(t.TempDir(), "c.yml")
+	if err := os.WriteFile(path, []byte(yamlIn), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stripOperationalKeys(path); err != nil {
+		t.Fatalf("stripOperationalKeys: %v", err)
+	}
+	out, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(out)
+	for _, must := range []string{"callback_url: https://x.test/oauth2/callback", "enabled: true"} {
+		if !strings.Contains(got, must) {
+			t.Errorf("startup-only setting %q was stripped\n--- got ---\n%s", must, got)
+		}
+	}
+	for _, gone := range []string{"async_enabled", "content_extractors"} {
+		if strings.Contains(got, gone) {
+			t.Errorf("operational fragment %q survived\n--- got ---\n%s", gone, got)
 		}
 	}
 }

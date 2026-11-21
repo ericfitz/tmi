@@ -268,21 +268,21 @@ func TestGenerateReferenceMarkdown_MutabilityComesFromRegistry(t *testing.T) {
 		t.Errorf("expected static to dominate per the registry audit, got static=%d hot=%d", static, hot)
 	}
 
-	// Cross-check one traced case end to end: features.saml_enabled gates a
-	// manager built once at boot, so it must render static.
-	d, ok := DefFor("features.saml_enabled")
+	// Cross-check one traced case end to end: administrators is read once at
+	// boot, so it must render static.
+	d, ok := DefFor("administrators")
 	if !ok {
-		t.Fatal("features.saml_enabled missing from the registry")
+		t.Fatal("administrators missing from the registry")
 	}
 	if d.Class.Mutability != MutabilityStatic {
-		t.Errorf("features.saml_enabled declared %s, want static", d.Class.Mutability)
+		t.Errorf("administrators declared %s, want static", d.Class.Mutability)
 	}
-	if !strings.Contains(string(out), "`features.saml_enabled`") {
-		t.Fatal("features.saml_enabled not present in the reference table")
+	if !strings.Contains(string(out), "`administrators`") {
+		t.Fatal("administrators not present in the reference table")
 	}
 	for _, line := range strings.Split(string(out), "\n") {
-		if strings.Contains(line, "`features.saml_enabled`") && !strings.Contains(line, "| static |") {
-			t.Errorf("features.saml_enabled row does not report static: %s", line)
+		if strings.Contains(line, "`administrators`") && !strings.Contains(line, "| static |") {
+			t.Errorf("administrators row does not report static: %s", line)
 		}
 	}
 }

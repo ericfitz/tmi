@@ -286,7 +286,6 @@ func TestDefaultOperationalSettings_MatchesPreRegistryBaseline(t *testing.T) {
 		"auth.jwt.expiration_seconds":                     "3600",
 		"auth.jwt.refresh_token_days":                     "7",
 		"auth.jwt.session_lifetime_days":                  "7",
-		"auth.oauth_callback_url":                         "http://localhost:8080/oauth2/callback",
 		"auth.step_up_window_seconds":                     "300",
 		"content_extractors.compressed_size_bytes":        "20971520",
 		"content_extractors.decompressed_size_bytes":      "52428800",
@@ -301,7 +300,6 @@ func TestDefaultOperationalSettings_MatchesPreRegistryBaseline(t *testing.T) {
 		"content_sources.google_workspace.enabled":        "false",
 		"content_sources.microsoft.enabled":               "false",
 		"extraction.async_enabled":                        "false",
-		"features.saml_enabled":                           "false",
 		"observability.enabled":                           "false",
 		"observability.prometheus_port":                   "0",
 		"observability.sampling_rate":                     "1",
@@ -360,5 +358,5 @@ func TestDefaultOperationalSettings_MatchesPreRegistryBaseline(t *testing.T) {
 		"DefaultOperationalSettings() must match the pre-registry baseline exactly — "+
 			"a diff here means SeedDefaults would seed a different row set on a fresh "+
 			"database, or #794's origin backfill would classify existing rows differently")
-	assert.Len(t, want, 70, "baseline has a fixed size; update deliberately, not by drift")
+	assert.Len(t, want, 68, "baseline has a fixed size; update deliberately, not by drift")
 }

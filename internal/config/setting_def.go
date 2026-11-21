@@ -83,6 +83,10 @@ var settingDefs = concatDefs(serverSettingDefs, authSettingDefs, contentSettingD
 // settingDefIndex is the by-key lookup, built once from settingDefs.
 var settingDefIndex = indexDefs(settingDefs)
 
+// settingKeyByYAMLPath is the reverse lookup, built once from settingDefs. The
+// first def declaring a path wins.
+var settingKeyByYAMLPath = indexKeysByYAMLPath(settingDefs)
+
 // concatDefs joins definition groups into the single registry slice.
 func concatDefs(groups ...[]SettingDef) []SettingDef {
 	var out []SettingDef
@@ -114,6 +118,32 @@ func indexDefs(defs []SettingDef) map[string]SettingDef {
 		idx[d.Key] = d
 	}
 	return idx
+}
+
+// indexKeysByYAMLPath maps each declared YAMLPath to its setting key.
+func indexKeysByYAMLPath(defs []SettingDef) map[string]string {
+	idx := make(map[string]string, len(defs))
+	for _, d := range defs {
+		if d.YAMLPath == "" {
+			continue
+		}
+		if _, dup := idx[d.YAMLPath]; !dup {
+			idx[d.YAMLPath] = d.Key
+		}
+	}
+	return idx
+}
+
+// SettingKeyForYAMLPath returns the setting key for a dotted YAML path: the key
+// of the def declaring that path, otherwise the path itself. Generated provider
+// keys (auth.oauth.providers.* etc.) have no def and are already YAML paths.
+// Anything classifying or looking up a setting from a config file's path must
+// go through this, because three keys differ from their path (#1166, #1167).
+func SettingKeyForYAMLPath(path string) string {
+	if key, ok := settingKeyByYAMLPath[path]; ok {
+		return key
+	}
+	return path
 }
 
 // DefFor returns the declaration for a setting key, and whether one exists.

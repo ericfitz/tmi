@@ -230,7 +230,6 @@ func TestRuntimeWritableConfigSettings_ExactSet(t *testing.T) {
 	want := []string{
 		"auth.everyone_is_a_reviewer",
 		"auth.oauth.client_callback_allowlist",
-		"auth.oauth_callback_url",
 		"extraction.async_enabled",
 		"features.webhooks_enabled",
 		"features.websocket_enabled",
