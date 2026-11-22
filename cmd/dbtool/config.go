@@ -115,54 +115,14 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 			continue
 		}
 
-		var existing models.SystemSetting
-		exists := db.DB().Where("setting_key = ?", s.Key).First(&existing).Error == nil
-
-		if exists && !overwrite {
+		wrote, err := writeImportedSetting(db, s, encryptor, overwrite)
+		if err != nil {
+			return err
+		}
+		if !wrote {
 			skipped++
-			log.Debug("  Skipping existing: %s", s.Key)
+			log.Debug("  Skipping existing explicit: %s", s.Key)
 			continue
-		}
-
-		value := s.Value
-		if s.Secret && encryptor != nil && value != "" {
-			encrypted, encErr := encryptor.Encrypt(value)
-			if encErr != nil {
-				return fmt.Errorf("failed to encrypt setting %s: %w", s.Key, encErr)
-			}
-			value = encrypted
-		}
-
-		description := s.Description
-		// origin is stamped explicit: an operator ran --import-config to put
-		// this value here deliberately (#794), including on the #792
-		// snapshot/restore path where this now outranks env for these keys.
-		setting := models.SystemSetting{
-			SettingKey:  models.DBVarchar(s.Key),
-			Value:       models.DBText(value),
-			SettingType: models.DBVarchar(s.Type),
-			Description: models.NewNullableDBText(&description),
-			ModifiedAt:  time.Now(),
-			Origin:      models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true},
-		}
-
-		if exists {
-			// modified_at omitted: SystemSetting.ModifiedAt has autoUpdateTime
-			// and hooks are enabled here, so GORM sets it itself. Setting it by
-			// hand with a lowercase key duplicates the column assignment on
-			// Oracle (ORA-00957) (#615).
-			if updateErr := db.DB().Model(&existing).Updates(map[string]any{
-				"value":        value,
-				"setting_type": s.Type,
-				"description":  description,
-				"origin":       models.SystemSettingOriginExplicit,
-			}).Error; updateErr != nil {
-				return fmt.Errorf("failed to update setting %s: %w", s.Key, updateErr)
-			}
-		} else {
-			if createErr := db.DB().Create(&setting).Error; createErr != nil {
-				return fmt.Errorf("failed to create setting %s: %w", s.Key, createErr)
-			}
 		}
 		written++
 		log.Debug("  Wrote: %s", s.Key)
@@ -205,6 +165,92 @@ func settingsProductionMode(sourceBuildMode string) bool {
 		return sourceBuildMode == "production"
 	}
 	return os.Getenv("TMI_BUILD_MODE") == "production"
+}
+
+// writeImportedSetting writes one non-empty --import-config setting, stamped
+// explicit. It reports false when the setting was skipped because an existing
+// explicit row is kept (the default without --overwrite, #1205).
+func writeImportedSetting(db *testdb.TestDB, s config.MigratableSetting, encryptor *crypto.SettingsEncryptor, overwrite bool) (bool, error) {
+	// Find (not First) so a read error is reported as itself instead of
+	// being mistaken for a missing row and surfacing later as a duplicate
+	// key on Create.
+	var existing models.SystemSetting
+	found := db.DB().Where("setting_key = ?", s.Key).Limit(1).Find(&existing)
+	if found.Error != nil {
+		return false, fmt.Errorf("failed to read setting %s: %w", s.Key, found.Error)
+	}
+	exists := found.RowsAffected > 0
+
+	// Without --overwrite, an existing explicit row is left alone: an
+	// upgrade deploy must not change configuration someone chose (#1205).
+	// A seeded (or legacy NULL-origin) row is only a registry default, so
+	// it is replaced, which lets a fresh deploy's import take effect after
+	// the server has already seeded defaults. --overwrite replaces every
+	// existing row.
+	if exists && !overwrite && existing.IsExplicit() {
+		return false, nil
+	}
+
+	value := s.Value
+	if s.Secret && encryptor != nil && value != "" {
+		encrypted, encErr := encryptor.Encrypt(value)
+		if encErr != nil {
+			return false, fmt.Errorf("failed to encrypt setting %s: %w", s.Key, encErr)
+		}
+		value = encrypted
+	}
+
+	description := s.Description
+	// origin is stamped explicit: an operator ran --import-config to put
+	// this value here deliberately (#794), including on the #792
+	// snapshot/restore path where this now outranks env for these keys.
+	setting := models.SystemSetting{
+		SettingKey:  models.DBVarchar(s.Key),
+		Value:       models.DBText(value),
+		SettingType: models.DBVarchar(s.Type),
+		Description: models.NewNullableDBText(&description),
+		ModifiedAt:  time.Now(),
+		Origin:      models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true},
+	}
+
+	if exists {
+		// modified_at omitted: SystemSetting.ModifiedAt has autoUpdateTime
+		// and hooks are enabled here, so GORM sets it itself. Setting it by
+		// hand with a lowercase key duplicates the column assignment on
+		// Oracle (ORA-00957) (#615).
+		upd := db.DB().Model(&models.SystemSetting{}).Where("setting_key = ?", s.Key)
+		if !overwrite {
+			// Conditional replace, as in applySnapshotSettings: only a row
+			// that is still not explicit. The explicit NULL branch keeps this
+			// identical on Oracle and PostgreSQL (<> alone is unknown for
+			// NULL). 0 rows affected means the row became explicit since the
+			// read above, so it is skipped.
+			upd = upd.Where("(origin IS NULL OR origin <> ?)", models.SystemSettingOriginExplicit)
+		}
+		res := upd.Updates(map[string]any{
+			"value":        value,
+			"setting_type": s.Type,
+			"description":  description,
+			"origin":       models.SystemSettingOriginExplicit,
+		})
+		if res.Error != nil {
+			return false, fmt.Errorf("failed to update setting %s: %w", s.Key, res.Error)
+		}
+		if res.RowsAffected == 0 {
+			if !overwrite {
+				return false, nil
+			}
+			// --overwrite matched nothing: the row was deleted since the
+			// read above, so create it instead.
+			exists = false
+		}
+	}
+	if !exists {
+		if createErr := db.DB().Create(&setting).Error; createErr != nil {
+			return false, fmt.Errorf("failed to create setting %s: %w", s.Key, createErr)
+		}
+	}
+	return true, nil
 }
 
 // validateSettingValues applies api.ValidateSettingSemantics to every

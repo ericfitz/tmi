@@ -33,7 +33,13 @@
 #   --domain DOMAIN                Domain name for the ACM certificate and server CNAME (required)
 #   --zone-id ZONE_ID              Route 53 hosted zone ID for --domain (required)
 #   --config-export FILE           Import this dbtool config-export YAML into the deployed
-#                                   database after the overlay is up (optional)
+#                                   database after the overlay is up (optional). Keys
+#                                   already set explicitly (admin API or an earlier import)
+#                                   are left unchanged, so an upgrade keeps its
+#                                   configuration; seeded defaults and missing keys are
+#                                   written from the file (#1205).
+#   --overwrite-config             With --config-export, also replace explicitly set keys
+#                                   with the file's values (destructive; opt-in)
 #   --api-cidr CIDR                EKS public API endpoint allowlist, e.g. 203.0.113.5/32
 #                                   (default: resolve `api_cidr_host` from the untracked
 #                                   .local/aws-deploy.json to a /32; required if absent). Warns, but
@@ -104,6 +110,7 @@ PROFILE="tmi"
 DOMAIN=""
 ZONE_ID=""
 CONFIG_EXPORT_FILE=""
+OVERWRITE_CONFIG=false
 SKIP_BUILD=false
 DESTROY=false
 DRY_RUN=false
@@ -198,6 +205,8 @@ parse_args() {
                 ZONE_ID="$2"; shift 2 ;;
             --config-export)
                 CONFIG_EXPORT_FILE="$2"; shift 2 ;;
+            --overwrite-config)
+                OVERWRITE_CONFIG=true; shift ;;
             --api-cidr)
                 API_CIDR="$2"; shift 2 ;;
             --skip-build)
@@ -226,7 +235,9 @@ parse_args() {
 }
 
 show_help() {
-    sed -n '2,77p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    # Print the header comment block: every line after the shebang up to the
+    # first non-comment line.
+    awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"
 }
 
 # ============================================================================
@@ -413,6 +424,11 @@ preflight_checks() {
         log_error "--domain and --zone-id are both required (including for --destroy)"
         echo "  domain_name/hosted_zone_id are required Terraform variables with no"
         echo "  default; Terraform needs them to plan/apply OR destroy this environment."
+        failed=1
+    fi
+
+    if [[ "${OVERWRITE_CONFIG}" == "true" ]] && [[ -z "${CONFIG_EXPORT_FILE}" ]]; then
+        log_error "--overwrite-config requires --config-export FILE (there is nothing to import)"
         failed=1
     fi
 
@@ -1169,8 +1185,15 @@ EOF
     (cd "${PROJECT_ROOT}" && uv run "${SCRIPT_DIR}/build-server.py" --component dbtool)
 
     log_info "Importing config from ${CONFIG_EXPORT_FILE}..."
+    # Without --overwrite, dbtool keeps existing explicit rows and replaces only
+    # seeded defaults (#1205); --overwrite-config opts into replacing them too.
+    local -a overwrite_args=()
+    if [[ "${OVERWRITE_CONFIG}" == "true" ]]; then
+        log_warning "--overwrite-config: explicitly set keys will be replaced by the file's values"
+        overwrite_args=(--overwrite)
+    fi
     "${PROJECT_ROOT}/bin/tmi-dbtool" --import-config -f "${CONFIG_EXPORT_FILE}" \
-        --config "${tmp_dir}/dbtool-connect.yaml" --overwrite
+        --config "${tmp_dir}/dbtool-connect.yaml" "${overwrite_args[@]+"${overwrite_args[@]}"}"
 
     log_success "Config import complete (secret-classified settings encrypted at rest)"
 

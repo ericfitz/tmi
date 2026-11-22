@@ -52,7 +52,7 @@ func run() int {
 
 	configFile := flag.String("config", "", "TMI config file (provides DB connection via database.url)")
 	outputFile := flag.String("output", "", "Path for migrated config YAML (with -c or -l); export destination (with --export-config)")
-	overwrite := flag.Bool("overwrite", false, "Overwrite existing settings (with -c)")
+	overwrite := flag.Bool("overwrite", false, "Replace existing explicit settings too (with -c; default keeps them and replaces only seeded defaults)")
 	noBackup := flag.Bool("no-backup", false, "Skip the timestamped backup of the source file (with -l default flow)")
 	noRewrite := flag.Bool("no-rewrite", false, "Keep legacy behavior — write a sibling *-migrated.yml and leave the source untouched (with -l)")
 
@@ -379,7 +379,7 @@ Behavior:
       --skip-schema-check   Proceed even if the database schema fingerprint does
                             not match this binary (data operations refuse by
                             default; --schema and the health check are exempt)
-      --overwrite           Overwrite existing settings (with -c)
+      --overwrite           Replace existing explicit settings too (with -c; default keeps them and replaces only seeded defaults)
       --no-backup           Skip the timestamped source backup (with -l default flow)
       --no-rewrite          Write a sibling *-migrated.yml and leave the source
                             untouched (with -l; mutually exclusive with --output)
