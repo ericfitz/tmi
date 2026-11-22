@@ -147,8 +147,15 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 	result := tx.Clauses(clause.OnConflict{
 		Columns: []clause.Column{Col(dialect, "provider"), Col(dialect, "group_name")},
 		DoUpdates: clause.Assignments(AssignmentMap(dialect, map[string]any{
-			"last_used":   time.Now().UTC().Truncate(time.Microsecond),
-			"usage_count": gorm.Expr("usage_count + 1"),
+			"last_used": time.Now().UTC().Truncate(time.Microsecond),
+			// Qualify with the target table: an unqualified usage_count is
+			// ambiguous against the EXCLUDED/source row on PostgreSQL
+			// (SQLSTATE 42702, #1199). gorm-oracle's MERGE targets the table
+			// by name too, so the same qualification is valid there.
+			"usage_count": gorm.Expr("? + 1", clause.Column{
+				Table: models.Group{}.TableName(),
+				Name:  ColumnName(dialect, "usage_count"),
+			}),
 		})),
 	}).Create(&group)
 
