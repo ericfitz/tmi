@@ -216,3 +216,38 @@ func TestPatchValidation_OversizedRejectedPerRegisteredType(t *testing.T) {
 	}
 	assert.GreaterOrEqual(t, checkedTypes, 8, "per-type coverage unexpectedly small")
 }
+
+// TestPatchValidation_OwnerByProviderID pins #1207: a client promoting a
+// permission row typed as a provider ID sends /owner without a usable email
+// (email ""). The server identifies the owner by provider and provider_id
+// (GetOwnerInternalUUID), so the patched owner is validated as a Principal,
+// with empty optional members treated as absent, not as the User response
+// shape that requires email and display_name.
+func TestPatchValidation_OwnerByProviderID(t *testing.T) {
+	tmType := reflect.TypeFor[ThreatModel]()
+	original := []byte(`{"name":"TM","owner":` + rtUser + `}`)
+
+	accepted := map[string]map[string]any{
+		"provider id, empty email": {"principal_type": "user", "provider": "tmi", "provider_id": "bob", "display_name": "bob", "email": ""},
+		"provider id only":         {"principal_type": "user", "provider": "tmi", "provider_id": "bob"},
+		"empty display name":       {"principal_type": "user", "provider": "tmi", "provider_id": "bob", "display_name": "", "email": "bob@tmi.local"},
+		"full user":                {"principal_type": "user", "provider": "tmi", "provider_id": "bob", "display_name": "Bob", "email": "bob@tmi.local"},
+	}
+	for name, owner := range accepted {
+		t.Run("accepts "+name, func(t *testing.T) {
+			require.NoError(t, validatePatchedFieldsFor(tmType, original, []PatchOperation{pop("replace", "/owner", owner)}))
+		})
+	}
+
+	rejected := map[string]map[string]any{
+		"missing provider_id": {"principal_type": "user", "provider": "tmi", "email": "bob@tmi.local"},
+		"empty provider_id":   {"principal_type": "user", "provider": "tmi", "provider_id": ""},
+		"bad principal_type":  {"principal_type": "robot", "provider": "tmi", "provider_id": "bob"},
+		"malformed email":     {"principal_type": "user", "provider": "tmi", "provider_id": "bob", "email": "aaaa"},
+	}
+	for name, owner := range rejected {
+		t.Run("rejects "+name, func(t *testing.T) {
+			requireValidationRejects(t, validatePatchedFieldsFor(tmType, original, []PatchOperation{pop("replace", "/owner", owner)}))
+		})
+	}
+}
