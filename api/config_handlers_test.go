@@ -1780,6 +1780,7 @@ func TestUpdateSystemSetting_SetErrorClassification(t *testing.T) {
 		"input":     {newSettingInputError(errors.New("value is not a valid integer")), http.StatusBadRequest},
 		"transient": {fmt.Errorf("failed to save setting: %w", dberrors.ErrTransient), http.StatusServiceUnavailable},
 		"other":     {errors.New("ORA-00001 secret_table boom"), http.StatusInternalServerError},
+		"too long":  {fmt.Errorf("failed to save setting secret_table: %w", dberrors.ErrInvalidValue), http.StatusBadRequest},
 	} {
 		t.Run(name, func(t *testing.T) {
 			mock := NewMockSettingsService()

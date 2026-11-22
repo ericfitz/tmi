@@ -937,16 +937,16 @@ func TestParsePatchRequestRejectsRootPath(t *testing.T) {
 // A bodiless delete/read has no client input to blame: a constraint or
 // invalid-value rejection there is a server bug (for example an incomplete
 // cascade) and must stay a visible 500. A transient fault is still 503.
-func TestDeleteErrorToRequestError(t *testing.T) {
+func TestServerSideErrorToRequestError(t *testing.T) {
 	fk := fmt.Errorf("transaction failed: %w", dberrors.ErrConstraint)
 	invalid := fmt.Errorf("transaction failed: %w", dberrors.ErrInvalidValue)
 	transient := fmt.Errorf("transaction failed after 3 attempts: %w", dberrors.ErrTransient)
 
-	assert.Equal(t, http.StatusInternalServerError, DeleteErrorToRequestError(fk, "Failed to delete thing").Status)
-	assert.Equal(t, http.StatusInternalServerError, DeleteErrorToRequestError(invalid, "Failed to delete thing").Status)
-	assert.Equal(t, http.StatusInternalServerError, DeleteErrorToRequestError(errors.New("boom"), "Failed to delete thing").Status)
-	assert.Equal(t, http.StatusServiceUnavailable, DeleteErrorToRequestError(transient, "Failed to delete thing").Status)
-	assert.Equal(t, "Failed to delete thing", DeleteErrorToRequestError(fk, "Failed to delete thing").Message)
+	assert.Equal(t, http.StatusInternalServerError, ServerSideErrorToRequestError(fk, "Failed to delete thing").Status)
+	assert.Equal(t, http.StatusInternalServerError, ServerSideErrorToRequestError(invalid, "Failed to delete thing").Status)
+	assert.Equal(t, http.StatusInternalServerError, ServerSideErrorToRequestError(errors.New("boom"), "Failed to delete thing").Status)
+	assert.Equal(t, http.StatusServiceUnavailable, ServerSideErrorToRequestError(transient, "Failed to delete thing").Status)
+	assert.Equal(t, "Failed to delete thing", ServerSideErrorToRequestError(fk, "Failed to delete thing").Message)
 
 	// Write paths that take client input keep the 400 mapping.
 	assert.Equal(t, http.StatusBadRequest, WriteErrorToRequestError(fk, "Failed to create thing").Status)

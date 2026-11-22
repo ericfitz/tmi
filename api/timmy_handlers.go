@@ -577,7 +577,7 @@ func (s *Server) RefreshTimmySources(c *gin.Context, threatModelId ThreatModelId
 	snapshotJSON, _ := json.Marshal(sources)
 	if updateErr := GlobalTimmySessionStore.UpdateSnapshot(c.Request.Context(), string(session.ID), models.JSONRaw(snapshotJSON)); updateErr != nil {
 		logger.Error("Failed to update session snapshot: %v", updateErr)
-		HandleRequestError(c, WriteErrorToRequestError(updateErr, "Failed to update session"))
+		HandleRequestError(c, ServerSideErrorToRequestError(updateErr, "Failed to update session"))
 		return
 	}
 

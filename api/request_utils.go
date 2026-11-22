@@ -741,7 +741,7 @@ func QuotaExceededError(status int, message string) *RequestError {
 // server must not return an undocumented status.
 //
 // Delete and read paths have no client input to blame and must use
-// DeleteErrorToRequestError instead.
+// ServerSideErrorToRequestError instead.
 func WriteErrorToRequestError(err error, serverErrorMsg string) *RequestError {
 	var valErr *validation.ValidationError
 	if errors.As(err, &valErr) {
@@ -928,12 +928,12 @@ func truncateBeforeStackTrace(errMsg string) string {
 	return errMsg
 }
 
-// DeleteErrorToRequestError maps the error from a store delete or read that
-// carries no client-supplied data. A constraint or invalid-value failure there
+// ServerSideErrorToRequestError maps the error from a store delete, read, or
+// server-derived write that carries no client-supplied data. A constraint or invalid-value failure there
 // is a server bug (for example an incomplete cascade), not bad input, so it
 // stays a visible 500; only a transient fault is the documented 503 with
 // Retry-After.
-func DeleteErrorToRequestError(err error, serverErrorMsg string) *RequestError {
+func ServerSideErrorToRequestError(err error, serverErrorMsg string) *RequestError {
 	if errors.Is(err, dberrors.ErrTransient) {
 		return ServiceUnavailableError("Storage service temporarily unavailable - please retry")
 	}

@@ -585,7 +585,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 	// Delete(id) shim passes context.Background() and would not cancel under
 	// client disconnect or shutdown).
 	if err := DiagramStore.SoftDelete(c.Request.Context(), diagramId); err != nil {
-		HandleRequestError(c, DeleteErrorToRequestError(err, "Failed to delete diagram"))
+		HandleRequestError(c, ServerSideErrorToRequestError(err, "Failed to delete diagram"))
 		return
 	}
 

@@ -71,7 +71,7 @@ func (h *UserDeletionHandler) deleteWithChallenge(c *gin.Context, userEmail, cha
 	result, err := h.authService.DeleteUserAndData(c.Request.Context(), userEmail)
 	if err != nil {
 		slogging.Get().WithContext(c).Error("Failed to delete user %s: %v", userEmail, err)
-		HandleRequestError(c, DeleteErrorToRequestError(err, "Failed to delete user account"))
+		HandleRequestError(c, ServerSideErrorToRequestError(err, "Failed to delete user account"))
 		return
 	}
 

@@ -839,6 +839,12 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 			})
 			return
 		}
+		// Backstop behind request validation: a value the database rejects as
+		// too long or unstorable is still the caller's input.
+		if errors.Is(dberrors.Classify(err), dberrors.ErrInvalidValue) {
+			HandleRequestError(c, invalidValueRequestError(err))
+			return
+		}
 		handleSettingDBError(c, key, "Failed to update setting", err)
 		return
 	}
