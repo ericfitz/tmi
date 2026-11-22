@@ -205,14 +205,12 @@ func TestPatchValidation_OversizedRejectedPerRegisteredType(t *testing.T) {
 		}
 		checkedTypes++
 		t.Run(typ.String(), func(t *testing.T) {
-			ops := []PatchOperation{pop("add", "/"+field, "x")}
-			doc := func(n int) []byte {
-				b, _ := json.Marshal(map[string]any{field: strings.Repeat("a", n)})
-				return b
+			ops := func(n int) []PatchOperation {
+				return []PatchOperation{pop("add", "/"+field, strings.Repeat("a", n))}
 			}
-			requireValidationRejects(t, validatePatchedFieldsFor(typ, doc(int(limit)+1), ops))
+			requireValidationRejects(t, validatePatchedFieldsFor(typ, []byte(`{}`), ops(int(limit)+1)))
 			if plain {
-				require.NoError(t, validatePatchedFieldsFor(typ, doc(int(limit)), ops))
+				require.NoError(t, validatePatchedFieldsFor(typ, []byte(`{}`), ops(int(limit))))
 			}
 		})
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -89,6 +90,9 @@ func patchValueAt(doc any, tokens []string) (any, bool) {
 					return nil, false
 				}
 				idx = n
+				if idx < 0 {
+					idx += len(node) // json-patch accepts negative indexes from the end
+				}
 			}
 			if idx < 0 || idx >= len(node) {
 				return nil, false
@@ -102,13 +106,12 @@ func patchValueAt(doc any, tokens []string) (any, bool) {
 }
 
 // patchSchemaAt descends from a property schema along the remaining pointer
-// tokens (array items, object properties, additionalProperties). It returns nil
-// when the path leaves the described schema (nothing to validate there).
-func patchSchemaAt(s *openapi3.Schema, tokens []string) *openapi3.Schema {
-	for _, raw := range tokens {
-		if s == nil {
-			return nil
-		}
+// tokens (array items, object properties, additionalProperties). It returns the
+// deepest schema it could address and how many tokens it consumed; when the
+// walk leaves the described schema (oneOf/anyOf elements, undeclared members),
+// the caller validates the nearest addressable ancestor instead.
+func patchSchemaAt(s *openapi3.Schema, tokens []string) (*openapi3.Schema, int) {
+	for i, raw := range tokens {
 		var next *openapi3.SchemaRef
 		if s.Items != nil {
 			next = s.Items
@@ -117,12 +120,12 @@ func patchSchemaAt(s *openapi3.Schema, tokens []string) *openapi3.Schema {
 		} else if s.AdditionalProperties.Schema != nil {
 			next = s.AdditionalProperties.Schema
 		}
-		if next == nil {
-			return nil
+		if next == nil || next.Value == nil {
+			return s, i
 		}
 		s = next.Value
 	}
-	return s
+	return s, len(tokens)
 }
 
 // pruneToSchema drops object members the schema does not describe, recursively
@@ -171,11 +174,11 @@ func pruneToSchema(v any, s *openapi3.Schema, depth int) any {
 // team members) are pruned first rather than rejected. A type with no entry in
 // patchInputSchemas is an error, never a silent pass. Errors are 400
 // RequestErrors that name the path but never echo the value.
-func validatePatchedFields[T any](patchedJSON []byte, operations []PatchOperation) error {
-	return validatePatchedFieldsFor(reflect.TypeFor[T](), patchedJSON, operations)
+func validatePatchedFields[T any](originalJSON []byte, operations []PatchOperation) error {
+	return validatePatchedFieldsFor(reflect.TypeFor[T](), originalJSON, operations)
 }
 
-func validatePatchedFieldsFor(typ reflect.Type, patchedJSON []byte, operations []PatchOperation) error {
+func validatePatchedFieldsFor(typ reflect.Type, originalJSON []byte, operations []PatchOperation) error {
 	schemaNames, ok := patchSchemaNames(typ)
 	if !ok {
 		return fmt.Errorf("no patch request schema registered for %s; add it to patchInputSchemas", typ)
@@ -200,13 +203,25 @@ func validatePatchedFieldsFor(typ reflect.Type, patchedJSON []byte, operations [
 		schemas = append(schemas, ref.Value)
 	}
 
-	var doc map[string]any
-	if err := json.Unmarshal(patchedJSON, &doc); err != nil {
-		return InvalidInputError("Patched entity must be a JSON object")
-	}
-
-	checked := map[string]bool{}
+	// Replay the operations one at a time on a working copy and validate each
+	// write right after it is applied: array positions shift as operations run,
+	// so a pointer looked up in the final document can address a different
+	// element than the one written.
+	work := originalJSON
 	for _, op := range operations {
+		patchBytes, err := convertOperationsToJSONPatch([]PatchOperation{op})
+		if err != nil {
+			return InvalidInputError("Patch operation is invalid")
+		}
+		patch, err := jsonpatch.DecodePatch(patchBytes)
+		if err != nil {
+			return InvalidInputError("Patch operation is invalid")
+		}
+		if work, err = patch.Apply(work); err != nil {
+			return InvalidInputError("Patch operation could not be applied")
+		}
+		// The same normalization ApplyPatchOperations runs on the final document.
+		work = fixOwnerField(fixImageField(fixMetadataField(work, originalJSON), originalJSON), originalJSON)
 		// Only values the patch writes: add/replace targets and the destination
 		// of copy/move. Sources (from), test and remove are never validated.
 		switch op.Op {
@@ -214,10 +229,9 @@ func validatePatchedFieldsFor(typ reflect.Type, patchedJSON []byte, operations [
 		default:
 			continue
 		}
-		if len(op.Path) < 2 || op.Path[0] != '/' || checked[op.Path] {
+		if len(op.Path) < 2 || op.Path[0] != '/' {
 			continue
 		}
-		checked[op.Path] = true
 		tokens := strings.Split(op.Path[1:], "/")
 		name := unescapePointerToken(tokens[0])
 		var prop *openapi3.SchemaRef
@@ -229,13 +243,18 @@ func validatePatchedFieldsFor(typ reflect.Type, patchedJSON []byte, operations [
 		if prop == nil || prop.Value == nil {
 			continue // not a request field
 		}
-		target := patchSchemaAt(prop.Value, tokens[1:])
-		if target == nil {
-			continue
+		var doc map[string]any
+		if err := json.Unmarshal(work, &doc); err != nil {
+			return InvalidInputError("Patched entity must be a JSON object")
 		}
-		value, present := patchValueAt(doc, tokens)
-		if !present || value == nil {
-			continue // removed, or cleared to null
+		target, consumed := patchSchemaAt(prop.Value, tokens[1:])
+		// Validate the value at the deepest addressable pointer.
+		value, present := patchValueAt(doc, tokens[:1+consumed])
+		if !present {
+			return InvalidInputError(fmt.Sprintf("Patched field %q could not be resolved for validation", op.Path))
+		}
+		if value == nil && len(tokens) == 1 {
+			continue // top-level field cleared to null
 		}
 		value = pruneToSchema(value, target, 0)
 		if err := target.VisitJSON(value); err != nil {

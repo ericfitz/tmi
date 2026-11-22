@@ -100,7 +100,7 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 		}
 	}
 
-	if err := validatePatchedFields[T](modifiedBytes, operations); err != nil {
+	if err := validatePatchedFields[T](originalBytes, processedOperations); err != nil {
 		return zero, err
 	}
 
