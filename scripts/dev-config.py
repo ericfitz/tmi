@@ -84,18 +84,29 @@ import os
 import sys
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from deploy import (  # noqa: E402
-    NS, OAUTH_PROVIDERS_ENV_FILE, ensure_port_forward, kubectl, set_active_context,
+from deploy import (
+    NS,
+    OAUTH_PROVIDERS_ENV_FILE,
+    ensure_port_forward,
+    kubectl,
+    set_active_context,
 )
-from tmi_common import (  # noqa: E402
-    add_config_arg, add_verbosity_args, apply_verbosity, get_project_root,
-    log_error, log_info, log_success, log_warn, run_cmd,
+from tmi_common import (
+    add_config_arg,
+    add_verbosity_args,
+    apply_verbosity,
+    get_project_root,
+    log_error,
+    log_info,
+    log_success,
+    log_warn,
+    run_cmd,
 )
 
 # Per-cluster because the two dev clusters legitimately disagree on
@@ -375,8 +386,8 @@ def cmd_status(args: argparse.Namespace) -> None:
 
     snap = Path(args.file) if args.file else snapshot_path(args.cluster)
     if snap.is_file():
-        age = datetime.now(timezone.utc) - datetime.fromtimestamp(
-            snap.stat().st_mtime, tz=timezone.utc)
+        age = datetime.now(UTC) - datetime.fromtimestamp(
+            snap.stat().st_mtime, tz=UTC)
         keys = sum(
             1 for line in snap.read_text().splitlines()
             if line.strip() and not line.lstrip().startswith("#") and ":" in line

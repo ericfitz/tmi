@@ -7,6 +7,8 @@ Evidence: `test/results/cats/cats-results-20261121T201842Z.db` (latest.db). Repr
 ## Human decisions
 
 - **threat_model_framework is an enum** (Eric, 2026-11-21): CIA, STRIDE, LINDDUN, DIE, PLOT4ai, enforced on every write (spec `enum`, create, PUT, PATCH). Omitted/empty keeps today's default behavior. Recorded in `docs/superpowers/specs/2026-11-21-adr-threat-model-framework-enum.md`.
+- **PATCH keeps the diagram `image.svg` maxLength (102400)** (Eric, 2026-11-21): PATCH enforces the same schema as PUT; an oversized thumbnail is a client bug (ericfitz/tmi-ux#1027).
+- **PR title is `fix!:`** (Eric, 2026-11-21): the request contract tightened; server 1.22.0, schema 3.0.0.
 
 ## Implementation choices (not human decisions)
 
