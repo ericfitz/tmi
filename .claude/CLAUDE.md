@@ -45,7 +45,7 @@ PostgreSQL for persistence, Redis for caching and sessions, in-memory storage fo
 
 ### CATS API fuzzing
 
-CATS fuzzes the API via the portable `cats@efitz-skills` plugin (`make cats-fuzz`, `/cats:run`, `/cats:analyze`, `/cats:fp`, `/cats:report`). Before any CATS run, seeding, analysis, or false-positive work, load the project `cats-tmi` skill: it holds the TMI-specific run-validity gates and gotchas.
+CATS fuzzes the API via the portable `test-api-fuzzing@estack` plugin (`make cats-fuzz`, `/test-api-fuzzing:run`, `/test-api-fuzzing:analyze`, `/test-api-fuzzing:fp`, `/test-api-fuzzing:report`). Before any CATS run, seeding, analysis, or false-positive work, load the project `cats-tmi` skill: it holds the TMI-specific run-validity gates and gotchas.
 
 ### OAuth callback stub
 

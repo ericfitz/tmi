@@ -124,7 +124,7 @@ clean-test-outputs:
 	$(call log_info,"Cleaning test outputs...")
 	@rm -rf test/outputs/integration/*
 	@rm -rf test/outputs/unit/*
-# test/results/cats/ is intentionally absent: the cats plugin owns that
+# test/results/cats/ is intentionally absent: the test-api-fuzzing plugin owns that
 # directory's lifecycle and prunes it via keep_runs while protecting
 # latest.db. Wiping it here destroys every campaign corpus (~40 min each to
 # reproduce) as a side effect of a target advertised as "clean test outputs".

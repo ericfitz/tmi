@@ -59,7 +59,7 @@ def clean_logs() -> None:
 def clean_files() -> None:
     """Remove log files and wstest logs.
 
-    CATS results are deliberately NOT touched here. The cats plugin owns the
+    CATS results are deliberately NOT touched here. The test-api-fuzzing plugin owns the
     run lifecycle under `test/results/cats/`: it writes per-run databases named
     `cats-results-<run_id>.db`, maintains the `latest.db` symlink, and prunes
     old runs itself via `keep_runs` while explicitly protecting whatever

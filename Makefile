@@ -516,14 +516,14 @@ stop-all: stop-oauth-stub dev-down  ## Stop the OAuth stub and tear down the dev
 
 .PHONY: cats-seed cats-seed-oci cats-fuzz cats-fuzz-oci query-cats-results analyze-cats-results cats-report e2e-seed
 
-# The cats plugin (scripts/cats_tool.py) is a portable tool that replaces the
+# The test-api-fuzzing plugin (scripts/cats_tool.py) is a portable tool that replaces the
 # former run-cats-fuzz.py / parse_cats_results.py / query-cats-results.py
 # pipeline. Config lives at .local/cats/config.yaml (gitignored; discovered by
 # walking up from cwd).
 #
-# Resolution order is load-bearing. The /cats:* skills invoke
+# Resolution order is load-bearing. The /test-api-fuzzing:* skills invoke
 # $(CLAUDE_PLUGIN_ROOT)/scripts/cats_tool.py -- the installed plugin -- so these
-# targets prefer that same copy: `make cats-fuzz` and `/cats:run` running two
+# targets prefer that same copy: `make cats-fuzz` and `/test-api-fuzzing:run` running two
 # different implementations of the run-validity gates is precisely the class of
 # bug those gates exist to catch. The development checkout is the fallback for a
 # machine where the plugin is not installed (CI, another contributor).
@@ -531,8 +531,8 @@ stop-all: stop-oauth-stub dev-down  ## Stop the OAuth stub and tear down the dev
 # The cache holds one version per plugin, so the wildcard resolves to a single
 # path; lastword+sort keeps it deterministic if that ever stops being true.
 # Override either path with `make ... CATS_TOOL=/path/to/cats_tool.py`.
-CATS_PLUGIN_TOOL := $(lastword $(sort $(wildcard $(HOME)/.claude/plugins/cache/efitz-skills/cats/*/scripts/cats_tool.py)))
-CATS_CHECKOUT_TOOL := $(wildcard $(HOME)/Projects/skills/cats/scripts/cats_tool.py)
+CATS_PLUGIN_TOOL := $(lastword $(sort $(wildcard $(HOME)/.claude/plugins/cache/estack/test-api-fuzzing/*/scripts/cats_tool.py)))
+CATS_CHECKOUT_TOOL := $(wildcard $(HOME)/Projects/skills/test-api-fuzzing/scripts/cats_tool.py)
 CATS_TOOL ?= $(firstword $(CATS_PLUGIN_TOOL) $(CATS_CHECKOUT_TOOL))
 CATS := uv run $(CATS_TOOL)
 
@@ -540,7 +540,7 @@ CATS := uv run $(CATS_TOOL)
 # reads as a broken target instead of an uninstalled plugin.
 define CATS_TOOL_GUARD
 if [ -z "$(CATS_TOOL)" ] || [ ! -f "$(CATS_TOOL)" ]; then \
-	echo "Error: cats plugin not found. Install it with /plugin (cats@efitz-skills), check out ~/Projects/skills, or pass CATS_TOOL=/path/to/cats_tool.py." >&2; \
+	echo "Error: test-api-fuzzing plugin not found. Install it with /plugin (test-api-fuzzing@estack), check out ~/Projects/skills, or pass CATS_TOOL=/path/to/cats_tool.py." >&2; \
 	exit 1; \
 fi
 endef

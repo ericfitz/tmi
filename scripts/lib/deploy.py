@@ -79,7 +79,7 @@ SERVER_URL = f"http://localhost:{HOST_PORT}"
 # low-throughput from the host (test setup only), so a port-forward is fine here.
 #
 # Postgres is an in-cluster StatefulSet reachable only as a ClusterIP Service.
-# Seeding (scripts/run-dbtool.py, which the cats plugin also calls as its `seed`
+# Seeding (scripts/run-dbtool.py, which the test-api-fuzzing plugin also calls as its `seed`
 # hook) opens a DIRECT database connection using config-development.yml's
 # localhost:5432, so it needs this forward on top of the server one.
 #

@@ -98,7 +98,7 @@ test/
 - Security fuzzing configuration
 - Run via: `make cats-fuzz`
 - Output: `test/results/cats/cats-results-<run_id>.db` plus a `latest.db` symlink, and
-  HTML reports from `make cats-report`. The cats plugin owns this directory and prunes
+  HTML reports from `make cats-report`. The test-api-fuzzing plugin owns this directory and prunes
   it via `keep_runs`; do not add it to any clean target.
 
 ## Integration Test Framework Architecture

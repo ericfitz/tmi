@@ -8,7 +8,7 @@ These tests exist because `clean-files` twice grew the ability to destroy CATS
 campaign corpora:
 
   * It cleaned `test/outputs/cats` with a preserve-list naming the
-    pre-migration single database (`cats-results.db`). After the cats plugin
+    pre-migration single database (`cats-results.db`). After the test-api-fuzzing plugin
     moved results to `test/results/cats/` with per-run
     `cats-results-<run_id>.db` files, "fixing" that path would have made the
     preserve-list match nothing and deleted every run.
