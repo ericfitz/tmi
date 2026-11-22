@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // shortBody yields its data and then fails like a stalled or truncated client.
@@ -119,4 +121,33 @@ func TestRequestBodyReadMiddleware_NonGetUpgradeStillBuffered(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// The incomplete-body 400 carries the error code the route's schema allows:
+// protocol routes (/oauth2, /saml, /.well-known) use the RFC 6749 OAuthError
+// enum, which has no invalid_input.
+func TestRequestBodyReadMiddleware_IncompleteBodyErrorCodeByRoute(t *testing.T) {
+	cases := map[string]string{
+		"/threat_models":         "invalid_input",
+		"/oauth2/token":          "invalid_request",
+		"/saml/acs":              "invalid_request",
+		"/.well-known/jwks.json": "invalid_request",
+	}
+	gin.SetMode(gin.TestMode)
+	for path, want := range cases {
+		t.Run(path, func(t *testing.T) {
+			r := gin.New()
+			r.Use(RequestBodyReadMiddleware())
+			r.POST(path, func(c *gin.Context) { c.Status(http.StatusOK) })
+			req := httptest.NewRequest(http.MethodPost, path,
+				&shortBody{data: strings.NewReader("{}"), err: io.ErrUnexpectedEOF})
+			req.ContentLength = 500
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			require.Equal(t, http.StatusBadRequest, w.Code)
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+			assert.Equal(t, want, body["error"])
+		})
+	}
 }

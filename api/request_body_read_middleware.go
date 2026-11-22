@@ -35,7 +35,10 @@ func RequestBodyReadMiddleware() gin.HandlerFunc {
 		_ = c.Request.Body.Close()
 		if err != nil {
 			slogging.Get().WithContext(c).Warn("Request body could not be read to completion: %v", err)
-			HandleRequestError(c, InvalidInputError("Request body is incomplete or could not be read"))
+			// Protocol routes use the RFC 6749 error enum, which has no invalid_input.
+			reqErr := InvalidInputError("Request body is incomplete or could not be read")
+			reqErr.Code = unicodeErrorCode(c)
+			HandleRequestError(c, reqErr)
 			c.Abort()
 			return
 		}
