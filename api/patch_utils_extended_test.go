@@ -284,10 +284,6 @@ func TestCheckOwnershipChanges_NearMissPaths(t *testing.T) {
 
 // TestApplyPatchOperations_EdgeCases tests edge cases in the generic patch pipeline.
 func TestApplyPatchOperations_EdgeCases(t *testing.T) {
-	type SimpleEntity struct {
-		Name string `json:"name"`
-	}
-
 	t.Run("empty_operations_returns_original", func(t *testing.T) {
 		original := SimpleEntity{Name: "original"}
 		result, err := ApplyPatchOperations(original, []PatchOperation{})
