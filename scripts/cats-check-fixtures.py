@@ -155,7 +155,7 @@ def main() -> int:
         targets = anchor_targets(data.get("all") or {})
 
     # shell=True is for the OPERATOR's own token command (same trust model as
-    # the cats plugin's hooks — it needs pipes, quoting and env expansion), but
+    # the test-api-fuzzing plugin's hooks — it needs pipes, quoting and env expansion), but
     # nothing is interpolated into it. The server goes in via the environment,
     # which is also how the plugin passes it to every other hook, so a URL
     # containing shell metacharacters cannot reach a command line.

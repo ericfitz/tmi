@@ -7,7 +7,7 @@
 """CATS `pre_run` hook: clear Redis rate-limit keys before a fuzzing run.
 
 Extracted from disable_rate_limits()/_redis_del_pattern() in the former
-run-cats-fuzz.py so the cats plugin can invoke it as an opaque `pre_run`
+run-cats-fuzz.py so the test-api-fuzzing plugin can invoke it as an opaque `pre_run`
 hook command. Does NOT touch report directories — the plugin owns run
 directories now.
 
@@ -64,7 +64,7 @@ REF_DATA_RELPATH = Path("test") / "results" / "cats" / "cats-test-data.yml"
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Clear CATS rate-limit keys from Redis (cats plugin `pre_run` hook).",
+        description="Clear CATS rate-limit keys from Redis (test-api-fuzzing plugin `pre_run` hook).",
     )
     parser.add_argument(
         "--user",
@@ -115,7 +115,7 @@ def _check_server_not_loopback(allow_local_server: bool) -> None:
     """Fail fast if CATS_SERVER points at localhost/loopback (TMI policy #578).
 
     All CATS fuzzing targets the k3s cluster directly (http://<node_host>:30080);
-    the cats plugin's own preflight only refuses a *detected kubectl
+    the test-api-fuzzing plugin's own preflight only refuses a *detected kubectl
     port-forward* on a loopback URL (catslib.runner.detect_port_forward) --
     this check is deliberately stricter and also catches a natively-run local
     server with no forward involved at all (e.g. `go run ./cmd/server`

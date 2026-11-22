@@ -132,7 +132,7 @@ def _ensure_forwards(args: argparse.Namespace) -> None:
     Both paths reach in-cluster ClusterIP Services, so both need a forward.
 
     This is the single wiring point that covers every way seeding is invoked:
-    `make cats-seed`, `make e2e-seed`, and the cats plugin's `seed` hook (hence
+    `make cats-seed`, `make e2e-seed`, and the test-api-fuzzing plugin's `seed` hook (hence
     `make cats-fuzz`). Requiring a developer to have started these by hand was
     never workable -- a hand-started forward is killed as an orphan by the next
     dev-up/dev-restart/dev-down (see deploy.stop_port_forward), so it reliably

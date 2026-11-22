@@ -70,7 +70,7 @@ def log_success(msg: str) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Authenticate via the OAuth stub and print an access token "
-        "(cats plugin `token` hook).",
+        "(test-api-fuzzing plugin `token` hook).",
     )
     parser.add_argument(
         "--user",

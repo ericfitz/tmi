@@ -44,8 +44,8 @@ This directory contains scripts that are actively used by the refactored build s
 
 ## CATS Fuzzing Tools
 
-CATS fuzzing itself runs through the portable cats plugin, not a script in this
-directory. Invoke it as `make cats-fuzz` from a shell or `/cats:run` from Claude Code —
+CATS fuzzing itself runs through the portable test-api-fuzzing plugin, not a script in this
+directory. Invoke it as `make cats-fuzz` from a shell or `/test-api-fuzzing:run` from Claude Code —
 the Makefile resolves the installed plugin first and falls back to a `~/Projects/skills`
 development checkout, so both paths run the same implementation. These three scripts are
 hook commands the plugin shells out to, per `.local/cats/config.yaml`:

@@ -104,8 +104,8 @@ This takes approximately 9 minutes. The output will show progress through variou
 
 `make cats-fuzz-oci` (Step 4) already parses and classifies results as part of the
 run — there is no separate parse step. Query the results database directly. The cats
-plugin is installed, so invoke the `/cats:report` skill for the full schema (tables,
-views, worked queries) and for ad-hoc queries; `/cats:analyze` triages the findings.
+plugin is installed, so invoke the `/test-api-fuzzing:report` skill for the full schema (tables,
+views, worked queries) and for ad-hoc queries; `/test-api-fuzzing:analyze` triages the findings.
 
 For a quick shape-of-the-run check without loading a skill:
 
@@ -113,7 +113,7 @@ For a quick shape-of-the-run check without loading a skill:
 make query-cats-results
 ```
 
-That target resolves the plugin the same way `/cats:*` does (installed copy first,
+That target resolves the plugin the same way `/test-api-fuzzing:*` does (installed copy first,
 development checkout as fallback), so both run the same implementation.
 
 **Analysis**:
@@ -151,7 +151,7 @@ If any stage fails:
 
 ## Database Schema Reference
 
-Invoke the `/cats:report` skill for the full results database schema — tables, views,
+Invoke the `/test-api-fuzzing:report` skill for the full results database schema — tables, views,
 and worked queries.
 
 ## Troubleshooting
