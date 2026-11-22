@@ -30,6 +30,8 @@ type MockSettingsService struct {
 	getErr       error // returned by Get when set
 	hasRowErr    error // returned by HasRow when set
 	deleteErr    error // returned by Delete when set
+	listErr      error // returned by List when set
+	setErr       error // returned by Set when set
 	settings     map[string]*models.SystemSetting
 }
 
@@ -81,6 +83,9 @@ func (m *MockSettingsService) GetBool(ctx context.Context, key string) (bool, er
 }
 
 func (m *MockSettingsService) List(ctx context.Context) ([]models.SystemSetting, error) {
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
 	result := make([]models.SystemSetting, 0, len(m.settings))
 	for _, s := range m.settings {
 		result = append(result, *s)
@@ -89,6 +94,9 @@ func (m *MockSettingsService) List(ctx context.Context) ([]models.SystemSetting,
 }
 
 func (m *MockSettingsService) Set(ctx context.Context, setting *models.SystemSetting) error {
+	if m.setErr != nil {
+		return m.setErr
+	}
 	m.settings[string(setting.SettingKey)] = setting
 	return nil
 }
@@ -1719,6 +1727,83 @@ func TestDeleteSystemSetting_DatabaseErrorClassification(t *testing.T) {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/admin/settings/"+tc.key, nil))
 			assert.Equal(t, tc.want, w.Code, w.Body.String())
+		})
+	}
+}
+
+func newAdminSettingsRouter(t *testing.T, server *Server) *gin.Engine {
+	t.Helper()
+	original := GlobalGroupMemberRepository
+	t.Cleanup(func() { restoreConfigStores(original) })
+	GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", uuid.New().String())
+		c.Set("userProvider", "test")
+		c.Next()
+	})
+	r.GET("/admin/settings", server.ListSystemSettings)
+	return r
+}
+
+// A transient database error listing settings is the documented 503; anything
+// else is a 500 that does not echo the error.
+func TestListSystemSettings_DatabaseErrorClassification(t *testing.T) {
+	for name, tc := range map[string]struct {
+		err  error
+		want int
+	}{
+		"transient": {fmt.Errorf("list failed: %w", dberrors.ErrTransient), http.StatusServiceUnavailable},
+		"other":     {errors.New("boom"), http.StatusInternalServerError},
+	} {
+		t.Run(name, func(t *testing.T) {
+			mock := NewMockSettingsService()
+			mock.listErr = tc.err
+			r := newAdminSettingsRouter(t, &Server{settingsService: mock})
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin/settings", nil))
+			assert.Equal(t, tc.want, w.Code, w.Body.String())
+			assert.NotContains(t, w.Body.String(), "boom")
+		})
+	}
+}
+
+// PUT: only validation (client input) errors are 400; a database failure is
+// 503 (transient) or 500, and never echoes driver text.
+func TestUpdateSystemSetting_SetErrorClassification(t *testing.T) {
+	for name, tc := range map[string]struct {
+		err  error
+		want int
+	}{
+		"input":     {newSettingInputError(errors.New("value is not a valid integer")), http.StatusBadRequest},
+		"transient": {fmt.Errorf("failed to save setting: %w", dberrors.ErrTransient), http.StatusServiceUnavailable},
+		"other":     {errors.New("ORA-00001 secret_table boom"), http.StatusInternalServerError},
+	} {
+		t.Run(name, func(t *testing.T) {
+			mock := NewMockSettingsService()
+			mock.setErr = tc.err
+			w := putSettingTyped(t, &Server{settingsService: mock, configProvider: &MockConfigProvider{}},
+				"custom.test_key", "5", "int")
+			assert.Equal(t, tc.want, w.Code, w.Body.String())
+			assert.NotContains(t, w.Body.String(), "secret_table")
+		})
+	}
+}
+
+// The real SettingsService marks its validation failures as client input.
+func TestSettingsService_SetValidationErrorsAreInputErrors(t *testing.T) {
+	svc := NewSettingsService(setupSettingsTestDB(t), nil)
+	for name, st := range map[string]models.SystemSetting{
+		"bad type":  {SettingKey: "websocket.inactivity_timeout_seconds", Value: "5", SettingType: "nonsense"},
+		"bad value": {SettingKey: "websocket.inactivity_timeout_seconds", Value: "abc", SettingType: models.SystemSettingTypeInt},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := svc.Set(context.Background(), &st)
+			require.Error(t, err)
+			var inErr *settingInputError
+			assert.True(t, errors.As(err, &inErr), "want settingInputError, got %v", err)
 		})
 	}
 }

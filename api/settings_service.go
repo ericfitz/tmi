@@ -564,7 +564,10 @@ func ValidateSettingSemantics(key, value string, productionMode bool) error {
 
 // validateSettingSemantics applies the per-key validator for the setting, if any.
 func (s *SettingsService) validateSettingSemantics(setting *models.SystemSetting) error {
-	return ValidateSettingSemantics(string(setting.SettingKey), string(setting.Value), s.isProductionMode())
+	if err := ValidateSettingSemantics(string(setting.SettingKey), string(setting.Value), s.isProductionMode()); err != nil {
+		return newSettingInputError(err)
+	}
+	return nil
 }
 
 // Set creates or updates a setting
@@ -578,7 +581,7 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 		models.SystemSettingTypeFloat:
 		// Valid
 	default:
-		return fmt.Errorf("invalid setting type: %s", setting.SettingType)
+		return newSettingInputError(fmt.Errorf("invalid setting type: %s", setting.SettingType))
 	}
 
 	// Validate value matches type (validate plaintext before encryption)
@@ -603,10 +606,10 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 	encryptionEnabled := s.encryptor != nil && s.encryptor.IsEnabled()
 	if !encryptionEnabled && shouldMaskSettingValue(string(setting.SettingKey)) {
 		if s.isProductionMode() {
-			return fmt.Errorf(
+			return newSettingInputError(fmt.Errorf(
 				"refusing to store secret-classified setting %s in plaintext: settings encryption is not configured; "+
 					"configure the settings encryption key, restart, then retry (POST /admin/settings/reencrypt encrypts existing values)",
-				setting.SettingKey)
+				setting.SettingKey))
 		}
 		logger.Warn("Storing secret-classified setting %s in plaintext: settings encryption is not configured (allowed outside production builds)", setting.SettingKey)
 	}
@@ -635,7 +638,7 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 		Session(&gorm.Session{NowFunc: func() time.Time { return now }}).
 		Save(&dbSetting)
 	if result.Error != nil {
-		return fmt.Errorf("failed to save setting %s: %w", setting.SettingKey, result.Error)
+		return fmt.Errorf("failed to save setting %s: %w", setting.SettingKey, dberrors.Classify(result.Error))
 	}
 
 	// Update the caller's ModifiedAt and Origin to match what was saved
@@ -917,8 +920,16 @@ func (s *SettingsService) PlaintextKeys(ctx context.Context, keys []string) ([]s
 	return plaintext, nil
 }
 
-// validateValue validates that the value matches the declared type
+// validateValue validates that the value matches the declared type; a mismatch
+// is a settingInputError.
 func (s *SettingsService) validateValue(setting *models.SystemSetting) error {
+	if err := s.checkValueType(setting); err != nil {
+		return newSettingInputError(err)
+	}
+	return nil
+}
+
+func (s *SettingsService) checkValueType(setting *models.SystemSetting) error {
 	switch setting.SettingType {
 	case models.SystemSettingTypeInt:
 		if _, err := strconv.Atoi(string(setting.Value)); err != nil {
@@ -1084,3 +1095,12 @@ func (s *SettingsService) InvalidateAll(ctx context.Context) {
 	// For Redis, we would need to use SCAN to find all keys with the prefix
 	// For now, settings will expire naturally with TTL
 }
+
+// settingInputError marks a Set failure caused by the caller's value (bad
+// type, value not matching its type, failed per-key validation). Its message is
+// written for the caller; any other Set error is a storage or server failure.
+type settingInputError struct{ err error }
+
+func newSettingInputError(err error) error { return &settingInputError{err: err} }
+func (e *settingInputError) Error() string { return e.err.Error() }
+func (e *settingInputError) Unwrap() error { return e.err }

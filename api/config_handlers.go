@@ -582,6 +582,15 @@ func (s *Server) ListSystemSettings(c *gin.Context) {
 
 	settings, err := s.settingsService.List(ctx)
 	if err != nil {
+		if errors.Is(dberrors.Classify(err), dberrors.ErrTransient) {
+			logger.Warn("Transient database error listing system settings: %v", err)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusServiceUnavailable,
+				Code:    errcode.ServiceUnavailable,
+				Message: "Settings temporarily unavailable; retry",
+			})
+			return
+		}
 		logger.Error("Failed to list system settings: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
@@ -818,12 +827,19 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 
 	// Save the setting
 	if err := s.settingsService.Set(ctx, &setting); err != nil {
-		logger.Error("Failed to update system setting %s: %v", key, err)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    errcode.InvalidInput,
-			Message: err.Error(),
-		})
+		// Only validation failures (settingInputError) are the caller's fault
+		// and carry a caller-facing message; storage failures never echo driver text.
+		var inputErr *settingInputError
+		if errors.As(err, &inputErr) {
+			logger.Warn("Rejected update of system setting %s: %v", key, err)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    errcode.InvalidInput,
+				Message: inputErr.Error(),
+			})
+			return
+		}
+		handleSettingDBError(c, key, "Failed to update setting", err)
 		return
 	}
 
@@ -879,7 +895,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 	if config.ClassificationCategoryFor(key) == config.CategoryBootstrap {
 		has, hasErr := s.settingsService.HasRow(ctx, key)
 		if hasErr != nil {
-			handleSettingDeleteDBError(c, key, "Failed to check setting", hasErr)
+			handleSettingDBError(c, key, "Failed to check setting", hasErr)
 			return
 		}
 		if has {
@@ -895,7 +911,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		setting, err = &models.SystemSetting{SettingKey: models.DBVarchar(key)}, nil
 	}
 	if err != nil {
-		handleSettingDeleteDBError(c, key, "Failed to check setting", err)
+		handleSettingDBError(c, key, "Failed to check setting", err)
 		return
 	}
 
@@ -911,7 +927,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 
 	// Delete the setting
 	if err := s.settingsService.Delete(ctx, key); err != nil {
-		handleSettingDeleteDBError(c, key, "Failed to delete setting", err)
+		handleSettingDBError(c, key, "Failed to delete setting", err)
 		return
 	}
 
@@ -921,13 +937,13 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 	c.Status(http.StatusNoContent)
 }
 
-// handleSettingDeleteDBError answers a database failure while DeleteSystemSetting
-// looks up or deletes a row: a transient fault (ADB connection drop, deadlock,
+// handleSettingDBError answers a database failure while a settings handler
+// reads, writes or deletes a row: a transient fault (ADB connection drop, deadlock,
 // serialization failure) is the documented 503, anything else a 500.
-func handleSettingDeleteDBError(c *gin.Context, key, serverMsg string, err error) {
+func handleSettingDBError(c *gin.Context, key, serverMsg string, err error) {
 	logger := slogging.Get().WithContext(c)
 	if errors.Is(dberrors.Classify(err), dberrors.ErrTransient) {
-		logger.Warn("Transient database error deleting system setting %s: %v", key, err)
+		logger.Warn("Transient database error on system setting %s: %v", key, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusServiceUnavailable,
 			Code:    errcode.ServiceUnavailable,
