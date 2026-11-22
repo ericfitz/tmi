@@ -241,12 +241,12 @@ class TestSnapshotSafety(unittest.TestCase):
             aside = list(root.glob("snap.yaml.corrupt-*"))
             self.assertEqual([p.read_text() for p in aside], ["a: [unclosed\n"])
 
-    def test_prev_replaced_with_private_mode_even_if_old_was_world_readable(self):
+    def test_prev_replaced_with_private_mode_even_if_old_was_group_readable(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             prev = root / "snap.yaml.prev"
             prev.write_text("old")
-            os.chmod(prev, 0o644)
+            os.chmod(prev, 0o640)
             self._snap(root, self.GOOD.replace("Eric", "Bob"), existing=self.GOOD)
             self.assertEqual(stat.S_IMODE(prev.stat().st_mode), 0o600)
             self.assertEqual(prev.read_text(), self.GOOD)

@@ -249,7 +249,8 @@ def snapshot_skipped(path: Path) -> list[str]:
             if line.startswith(SKIPPED_PREFIX):
                 return [k.strip() for k in line[len(SKIPPED_PREFIX):].split(",") if k.strip()]
     except OSError:
-        pass
+        # A missing or unreadable snapshot has no skip header: report no skips.
+        return []
     return []
 
 
