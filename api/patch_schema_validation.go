@@ -13,6 +13,16 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
+// patchFieldSchemas overrides, per entity type, the schema a patched top-level
+// field is validated against. A threat model's owner is identified by provider
+// and provider_id (GetOwnerInternalUUID); the User schema behind
+// ThreatModelBase.owner requires email and display_name because it describes
+// the response, not what a client must send to change the owner (#1207).
+// Empty optional members of an overridden field are treated as absent.
+var patchFieldSchemas = map[reflect.Type]map[string]string{
+	reflect.TypeFor[ThreatModel](): {"owner": "Principal"},
+}
+
 // patchInputSchemas maps each patchable entity type to the request schema a
 // PUT or POST of that entity is validated against; later schemas cover fields
 // that are patchable but not part of the input schema.
@@ -161,6 +171,27 @@ func pruneToSchema(v any, s *openapi3.Schema, depth int) any {
 	return v
 }
 
+// dropEmptyOptional removes empty-string members of an object that the schema
+// does not require, so a client's "" for an optional member (an owner's email
+// when the owner was entered by provider ID) is treated as absent. Required
+// members are kept, so an empty required value is still rejected.
+func dropEmptyOptional(v any, s *openapi3.Schema) any {
+	node, ok := v.(map[string]any)
+	if !ok || s == nil {
+		return v
+	}
+	required := map[string]bool{}
+	for _, r := range s.Required {
+		required[r] = true
+	}
+	for k, val := range node {
+		if str, isStr := val.(string); isStr && str == "" && !required[k] {
+			delete(node, k)
+		}
+	}
+	return v
+}
+
 // validatePatchedFields enforces the request schema's constraints (maxLength,
 // enum, pattern, ...) on every value a patch writes. JSON Patch bypasses the
 // OpenAPI request-body validator, so without this a patch could store a value a
@@ -233,10 +264,19 @@ func validatePatchedFieldsFor(typ reflect.Type, originalJSON []byte, operations 
 		tokens := strings.Split(op.Path[1:], "/")
 		name := unescapePointerToken(tokens[0])
 		var prop *openapi3.SchemaRef
+		overridden := false
+		if override, ok := patchFieldSchemas[typ][name]; ok {
+			ref, found := patchSpec.Components.Schemas[override]
+			if !found || ref.Value == nil {
+				return fmt.Errorf("field schema %q not found for patch validation", override)
+			}
+			prop, overridden = ref, true
+		}
 		for _, sch := range schemas {
-			if prop = patchSchemaProperty(sch, name, 0); prop != nil {
+			if prop != nil {
 				break
 			}
+			prop = patchSchemaProperty(sch, name, 0)
 		}
 		if prop == nil || prop.Value == nil {
 			continue // not a request field
@@ -258,6 +298,9 @@ func validatePatchedFieldsFor(typ reflect.Type, originalJSON []byte, operations 
 			continue // top-level field cleared to null
 		}
 		value = pruneToSchema(value, target, 0)
+		if overridden {
+			value = dropEmptyOptional(value, target)
+		}
 		if err := target.VisitJSON(value); err != nil {
 			return InvalidInputError(fmt.Sprintf("Patched field %q is invalid: %s", op.Path, patchSchemaReason(err)))
 		}
