@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from tmi_common import (  # noqa: E402
+from tmi_common import (
     add_verbosity_args,
     apply_verbosity,
     get_project_root,
@@ -77,9 +77,21 @@ def spawn_terminal(cmd: str) -> None:
         osascript_cmd = f'tell app "Terminal" to do script "{cmd}"'
         subprocess.run(["osascript", "-e", osascript_cmd], check=False)
     elif system == "Linux":
-        if subprocess.run(["which", "gnome-terminal"], capture_output=True).returncode == 0:
-            subprocess.Popen(["gnome-terminal", "--", "bash", "-c", f"{cmd}; exec bash"])
-        elif subprocess.run(["which", "xterm"], capture_output=True).returncode == 0:
+        if (
+            subprocess.run(
+                ["which", "gnome-terminal"], capture_output=True, check=False
+            ).returncode
+            == 0
+        ):
+            subprocess.Popen(
+                ["gnome-terminal", "--", "bash", "-c", f"{cmd}; exec bash"]
+            )
+        elif (
+            subprocess.run(
+                ["which", "xterm"], capture_output=True, check=False
+            ).returncode
+            == 0
+        ):
             subprocess.Popen(["xterm", "-e", cmd])
         else:
             # Background fallback handled by caller
@@ -111,7 +123,7 @@ def main() -> None:
     log_info("Launching host terminal (alice)...")
     alice_cmd = (
         f"cd {wstest_dir} && "
-        'timeout 30 ./wstest --user alice --host --participants "bob,charlie,hobobarbarian@gmail.com"'
+        'timeout 30 ./wstest --user alice --host --participants "bob,charlie,user@example.com"'
     )
     try:
         spawn_terminal(alice_cmd)
@@ -119,8 +131,14 @@ def main() -> None:
         log_info("No terminal emulator found. Running alice in background...")
         with open(wstest_dir / "alice.log", "w") as fh:
             subprocess.Popen(
-                ["./wstest", "--user", "alice", "--host",
-                 "--participants", "bob,charlie,hobobarbarian@gmail.com"],
+                [
+                    "./wstest",
+                    "--user",
+                    "alice",
+                    "--host",
+                    "--participants",
+                    "bob,charlie,user@example.com",
+                ],
                 cwd=wstest_dir,
                 stdout=fh,
                 stderr=fh,
@@ -164,7 +182,9 @@ def main() -> None:
         log_info("Participant (charlie) running in background, see wstest/charlie.log")
 
     log_success("WebSocket test started with 3 terminals")
-    print("Watch the terminals for WebSocket activity. Use 'make clean-process' to stop all instances.")
+    print(
+        "Watch the terminals for WebSocket activity. Use 'make clean-process' to stop all instances."
+    )
 
 
 if __name__ == "__main__":

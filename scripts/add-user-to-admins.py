@@ -13,8 +13,12 @@ Steps:
 3. Retrieve Charlie's JWT
 4. Look up the target user by provider and email
 5. Add the target user to the administrators group
+
+Usage:
+    uv run scripts/add-user-to-admins.py --email USER@EXAMPLE.COM [--provider google]
 """
 
+import argparse
 import subprocess
 import sys
 import time
@@ -25,8 +29,7 @@ import requests  # ty:ignore[unresolved-import]
 TMI_BASE = "http://localhost:8080"
 STUB_BASE = "http://localhost:8079"
 LOGIN_USER = "charlie"
-TARGET_PROVIDER = "google"
-TARGET_EMAIL = "hobobarbarian@gmail.com"
+DEFAULT_PROVIDER = "google"
 ADMIN_GROUP_UUID = "00000000-0000-0000-0000-000000000002"
 
 
@@ -60,6 +63,7 @@ def start_oauth_stub() -> bool:
     print("Starting OAuth client callback stub...")
     subprocess.run(
         ["make", "start-oauth-stub"],
+        check=False,
         cwd=Path(__file__).resolve().parent.parent,
         capture_output=True,
         timeout=10,
@@ -91,7 +95,10 @@ def login_as(user: str) -> str:
         r = requests.get(f"{STUB_BASE}/flows/{flow_id}", timeout=5)
         if r.status_code == 200:
             data = r.json()
-            if data.get("tokens_ready") or data.get("status") == "authorization_completed":
+            if (
+                data.get("tokens_ready")
+                or data.get("status") == "authorization_completed"
+            ):
                 print(f"  Flow complete (status={data.get('status')})")
                 break
     else:
@@ -163,7 +170,9 @@ def add_to_administrators(token: str, user_uuid: str) -> None:
         member = r.json()
         print("  SUCCESS: Added to administrators group")
         print(f"    Member ID: {member.get('id')}")
-        print(f"    User: {member.get('user_email', 'N/A')} ({member.get('user_name', 'N/A')})")
+        print(
+            f"    User: {member.get('user_email', 'N/A')} ({member.get('user_name', 'N/A')})"
+        )
         print(f"    Added by: {member.get('added_by_email', 'N/A')}")
     elif r.status_code == 409:
         print("  User is already a member of the administrators group")
@@ -172,7 +181,28 @@ def add_to_administrators(token: str, user_uuid: str) -> None:
         sys.exit(1)
 
 
-def main():
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse the target user's identity; both values come from the operator."""
+    parser = argparse.ArgumentParser(
+        description="Add a user to the TMI administrators group."
+    )
+    parser.add_argument(
+        "--email", required=True, help="Email of the user to promote (required)"
+    )
+    parser.add_argument(
+        "--provider",
+        default=DEFAULT_PROVIDER,
+        help=f"Identity provider of the user (default: {DEFAULT_PROVIDER})",
+    )
+    args = parser.parse_args(argv)
+    if "@" not in args.email or args.email.strip() != args.email:
+        parser.error(f"--email must be an email address, got {args.email!r}")
+    return args
+
+
+def main(argv: list[str] | None = None):
+    args = parse_args(argv)
+
     # Verify TMI server is running
     if not wait_for_service(f"{TMI_BASE}/", "TMI server"):
         print("\nTMI server is not running. Start it with: make dev-up")
@@ -186,7 +216,7 @@ def main():
     token = login_as(LOGIN_USER)
 
     # Look up the target user
-    user_uuid = lookup_user(token, TARGET_PROVIDER, TARGET_EMAIL)
+    user_uuid = lookup_user(token, args.provider, args.email)
 
     # Add to administrators
     add_to_administrators(token, user_uuid)
