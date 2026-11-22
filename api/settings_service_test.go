@@ -288,7 +288,6 @@ func TestDefaultSystemSettings(t *testing.T) {
 			// #813 -- seeded but read by nothing.
 			"session.timeout_minutes",
 			"websocket.max_participants",
-			"features.saml_enabled",
 			"features.webhooks_enabled",
 			"ui.default_theme",
 			"upload.max_file_size_mb",
@@ -301,6 +300,11 @@ func TestDefaultSystemSettings(t *testing.T) {
 
 		for _, key := range expectedKeys {
 			assert.True(t, defaultKeys[key], "Expected default setting: %s", key)
+		}
+
+		// Startup-only keys come from config/env, never the database (#1167).
+		for _, key := range []string{"features.saml_enabled", "auth.oauth_callback_url"} {
+			assert.False(t, defaultKeys[key], "startup-only setting %s must not be seeded", key)
 		}
 	})
 

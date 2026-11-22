@@ -40,6 +40,9 @@ func run() int {
 	flag.BoolVar(importLegacy, "l", false, "Import operational settings from a legacy config file (short)")
 
 	exportConfig := flag.Bool("export-config", false, "Export database settings to a config YAML file")
+	restoreSnapshot := flag.Bool("restore-snapshot", false, "Restore a dev settings snapshot written by --export-config --explicit-only")
+	explicitOnly := flag.Bool("explicit-only", false, "With --export-config: write only explicit (operator-set) rows plus the snapshot format marker")
+	allowSkips := flag.Bool("allow-skips", false, "With --export-config --explicit-only: do not fail when an explicit row cannot be exported (warn instead)")
 	noDecrypt := flag.Bool("no-decrypt", false, "With --export-config: skip secret settings instead of decrypting")
 
 	backfillEmptyStrings := flag.Bool("backfill-empty-strings", false, "PostgreSQL only: normalize stored '' to NULL on NullableDB* columns (#700)")
@@ -96,6 +99,8 @@ func run() int {
 		"import_test_data":       *importTestData,
 		"import_legacy":          *importLegacy,
 		"export_config":          *exportConfig,
+		"restore_snapshot":       *restoreSnapshot,
+		"explicit_only":          *explicitOnly,
 		"backfill_empty_strings": *backfillEmptyStrings,
 		"dry_run":                *dryRun,
 		"skip_schema_check":      *skipSchemaCheck,
@@ -108,7 +113,7 @@ func run() int {
 	}
 
 	// Determine which operation to run
-	opCount := boolCount(*schema, *importConfig, *importTestData, *importLegacy, *exportConfig, *backfillEmptyStrings)
+	opCount := boolCount(*schema, *importConfig, *importTestData, *importLegacy, *exportConfig, *restoreSnapshot, *backfillEmptyStrings)
 
 	// Resolve config file
 	dbConfigFile := *configFile
@@ -154,6 +159,9 @@ func run() int {
 		importTestData:       *importTestData,
 		importLegacy:         *importLegacy,
 		exportConfig:         *exportConfig,
+		restoreSnapshot:      *restoreSnapshot,
+		explicitOnly:         *explicitOnly,
+		allowSkips:           *allowSkips,
 		backfillEmptyStrings: *backfillEmptyStrings,
 		inputFile:            *inputFile,
 		outputFile:           *outputFile,
@@ -192,6 +200,9 @@ type cliFlags struct {
 	noBackup             bool
 	noRewrite            bool
 	noDecrypt            bool
+	explicitOnly         bool
+	allowSkips           bool
+	restoreSnapshot      bool
 	serverURL            string
 	user                 string
 	provider             string
@@ -208,7 +219,11 @@ func dispatchOperation(db *testdb.TestDB, log *slogging.Logger, opCount int, f c
 		// No operation flags - health check mode
 		return runHealthCheck(db, f.verbose)
 	case opCount > 1:
-		return fmt.Errorf("only one operation flag can be specified at a time (-s, -c, -t, -l, --export-config, --backfill-empty-strings)")
+		return fmt.Errorf("only one operation flag can be specified at a time (-s, -c, -t, -l, --export-config, --restore-snapshot, --backfill-empty-strings)")
+	case f.explicitOnly && !f.exportConfig:
+		return fmt.Errorf("--explicit-only requires --export-config")
+	case f.allowSkips && !f.explicitOnly:
+		return fmt.Errorf("--allow-skips requires --export-config --explicit-only")
 	case f.schema:
 		// #758: a cancellable context so Ctrl-C / SIGTERM releases the
 		// cross-replica migration lock (pg_advisory_lock otherwise waits
@@ -224,6 +239,8 @@ func dispatchOperation(db *testdb.TestDB, log *slogging.Logger, opCount int, f c
 		return dispatchImportLegacy(db, log, f)
 	case f.exportConfig:
 		return dispatchExportConfig(db, f)
+	case f.restoreSnapshot:
+		return dispatchRestoreSnapshot(db, log, f)
 	case f.backfillEmptyStrings:
 		return runBackfillEmptyStrings(db, f.dryRun, f.verbose)
 	}
@@ -287,7 +304,24 @@ func dispatchExportConfig(db *testdb.TestDB, f cliFlags) error {
 	case f.inputFile == "":
 		return fmt.Errorf("--input-file / -f is required for --export-config")
 	}
-	return runConfigExport(db, f.inputFile, f.outputFile, !f.noDecrypt)
+	return runConfigExport(db, f.inputFile, f.outputFile, !f.noDecrypt, f.explicitOnly, f.allowSkips)
+}
+
+// dispatchRestoreSnapshot runs --restore-snapshot after validating its flags.
+// --overwrite is rejected: a snapshot never replaces an explicit row.
+func dispatchRestoreSnapshot(db *testdb.TestDB, log *slogging.Logger, f cliFlags) error {
+	switch {
+	case f.inputFile == "":
+		return fmt.Errorf("--input-file / -f is required for --restore-snapshot")
+	case f.overwrite:
+		return fmt.Errorf("--overwrite is not supported with --restore-snapshot (existing explicit rows are always kept)")
+	}
+	if !f.dryRun {
+		if migrateErr := ensureSchema(db); migrateErr != nil {
+			log.Warn("Schema migration skipped or failed: %v", migrateErr)
+		}
+	}
+	return runSnapshotRestore(db, f.inputFile, f.dryRun)
 }
 
 // ensureSchema runs AutoMigrate if needed. Non-fatal for import operations.
@@ -324,6 +358,10 @@ Database Operations:
   -t, --import-test-data    Import test data from a seed file
   -l, --import-legacy       Import operational settings from a legacy config file into the database
       --export-config       Export database settings to a config YAML file
+      --restore-snapshot    Restore a dev settings snapshot (-f FILE) written by
+                            --export-config --explicit-only: writes the file's keys
+                            as explicit, replaces seeded rows, keeps explicit rows,
+                            refuses a file without the snapshot marker
       --backfill-empty-strings
                             PostgreSQL only: normalize stored '' to NULL on
                             NullableDB* columns (#700)
@@ -345,6 +383,10 @@ Behavior:
       --no-backup           Skip the timestamped source backup (with -l default flow)
       --no-rewrite          Write a sibling *-migrated.yml and leave the source
                             untouched (with -l; mutually exclusive with --output)
+      --explicit-only       With --export-config: export only explicit (operator-set)
+                            rows, plus the marker --restore-snapshot requires
+      --allow-skips         With --explicit-only: warn instead of failing when an explicit
+                            row cannot be exported (secret with no decryptor, empty value)
       --no-decrypt          With --export-config: skip secret settings instead of decrypting
   -v, --verbose             Print step-by-step operations and DB messages
   -h, --help                Print usage

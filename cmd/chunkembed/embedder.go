@@ -8,9 +8,10 @@ import (
 	"github.com/ericfitz/tmi/internal/worker"
 )
 
-// embedConfig is tmi-chunk-embed's embedding configuration, read from env.
-// In Plan 3 / #415 this is replaced by the projected shared-config object so
-// the worker and the monolith's Timmy query path cannot diverge.
+// embedConfig is tmi-chunk-embed's embedding configuration, read from env. It
+// is the fallback for jobs whose envelope carries no embedding profile and the
+// source of the API key, which is never stamped. A stamped model and base URL
+// override Model and BaseURL per job (see embedderPool).
 type embedConfig struct {
 	Model   string
 	BaseURL string

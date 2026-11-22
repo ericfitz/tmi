@@ -100,7 +100,7 @@ func (h *Handlers) GetProviders(c *gin.Context) {
 			Icon:        icon,
 			AuthURL:     authURL,
 			TokenURL:    tokenURL,
-			RedirectURI: h.oauthCallbackURL(c.Request.Context()),
+			RedirectURI: h.oauthCallbackURL(),
 			ClientID:    providerConfig.ClientID,
 		})
 	}
@@ -113,7 +113,7 @@ func (h *Handlers) GetProviders(c *gin.Context) {
 // GetSAMLProviders returns the available SAML providers
 func (h *Handlers) GetSAMLProviders(c *gin.Context) {
 	// Return empty array if SAML disabled
-	if !h.samlEnabled(c.Request.Context()) {
+	if !h.samlEnabled() {
 		c.JSON(http.StatusOK, gin.H{"providers": []SAMLProviderInfo{}})
 		return
 	}
@@ -210,9 +210,7 @@ func (h *Handlers) ensureSAMLProvider(samlManager *SAMLManager, providerID strin
 }
 
 // getProviderWithContext returns a Provider instance for the given provider
-// ID. The OAuth callback URL is fetched from the runtime config reader
-// (DB-backed) when wired, falling back to the YAML snapshot when not
-// (e.g. in unit tests).
+// ID. The OAuth callback URL is the startup config value (#1167).
 func (h *Handlers) getProviderWithContext(ctx context.Context, providerID string) (Provider, error) {
 	var providerConfig OAuthProviderConfig
 	var exists bool
@@ -227,5 +225,5 @@ func (h *Handlers) getProviderWithContext(ctx context.Context, providerID string
 		return nil, fmt.Errorf("provider %s not found", providerID)
 	}
 
-	return NewProvider(providerConfig, h.oauthCallbackURL(ctx))
+	return NewProvider(providerConfig, h.oauthCallbackURL())
 }

@@ -101,6 +101,32 @@ type Job struct {
 	// Metadata carries small key/value pairs forwarded between stages
 	// (e.g. document title). Never large payloads.
 	Metadata map[string]string `json:"metadata,omitempty"`
+	// Config carries operational configuration the monolith stamped at
+	// publish time, forwarded unchanged by every stage. Nil means the
+	// producer stamped nothing (an older monolith, or no usable settings);
+	// consumers then fall back to their own environment. Never carries a
+	// secret.
+	Config *Config `json:"config,omitempty"`
+}
+
+// Config is the stamped, non-secret configuration block of a Job. The JSON
+// shape ("config": {"embedding": {...}}) matches the worker-probe fixture.
+type Config struct {
+	// Embedding is the effective embedding profile, or nil when not stamped.
+	Embedding *EmbeddingProfile `json:"embedding,omitempty"`
+}
+
+// EmbeddingProfile is the embedding configuration a worker should follow.
+// The API key is deliberately absent: each side resolves its own key from
+// its own secret source.
+type EmbeddingProfile struct {
+	// Model is the embedding model name.
+	Model string `json:"model"`
+	// Endpoint is the embedding API base URL. A worker follows it only when
+	// its host is on the worker's allowlist.
+	Endpoint string `json:"endpoint"`
+	// Dimension is the expected vector length; 0 means not configured.
+	Dimension int `json:"dimension"`
 }
 
 // Result is the return-path envelope published to jobs.result.<job_id>.

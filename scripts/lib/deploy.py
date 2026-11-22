@@ -41,6 +41,8 @@ from tmi_common import (
 NS = "tmi-platform"
 DEV_DIR = "deployments/k8s/dev"
 PLATFORM_DIR = "deployments/k8s/platform"
+# k3s NATS: platform/nats.yml with the JetStream store on a longhorn PVC.
+K3S_NATS_OVERLAY = "deployments/k8s/dev/k3s/nats"
 CONFIG_FILE = "config-development.yml"
 CONFIGMAP_NAME = "tmi-server-config"
 # Gitignored, machine-local OAuth/SAML provider config for a dev cluster, in
@@ -448,9 +450,10 @@ RELOADER_SELECTOR = "app.kubernetes.io/name=reloader,app.kubernetes.io/managed-b
 CERT_MANAGER_DEPLOYMENTS = ("cert-manager", "cert-manager-cainjector", "cert-manager-webhook")
 
 
-def apply_platform_base() -> None:
+def apply_platform_base(cluster_target: str) -> None:
     """Apply the cluster-wide platform in dependency order: cert-manager and
-    Reloader, the internal PKI, then NATS, KEDA and the TMIComponent CRD.
+    Reloader, the internal PKI, then NATS (apply_nats), KEDA and the
+    TMIComponent CRD.
 
     cert-manager's webhook admits every cert-manager.io object, so pki.yml
     waits for the three cert-manager Deployments; even then the webhook's
@@ -490,10 +493,78 @@ def apply_platform_base() -> None:
     _apply_with_retry(str(platform / "pki.yml"))
     kubectl(["-n", "cert-manager", "wait", "--for=condition=Ready", "certificate/tmi-internal-ca", "--timeout=120s"])
     kubectl(["-n", NS, "wait", "--for=condition=Ready", "certificate", "--all", "--timeout=180s"])
-    kubectl(["apply", "-f", str(platform / "nats.yml")])
+    apply_nats(cluster_target)
     kubectl(["apply", "--server-side", "-f", str(platform / "keda.yml")])
     kubectl(["apply", "-f", str(project_root / "config/crd/bases/tmi.dev_tmicomponents.yaml")])
     log_success("Platform base applied (cert-manager, Reloader, PKI, NATS, KEDA, CRD)")
+
+
+def apply_nats(cluster_target: str) -> None:
+    """Apply NATS. docker-desktop applies platform/nats.yml as is (JetStream
+    on an emptyDir). k3s applies the K3S_NATS_OVERLAY, which puts the
+    JetStream store on a longhorn PVC so a node drain with
+    --delete-emptydir-data does not wipe it, then waits for the rollout."""
+    if cluster_target not in ("docker-desktop", "k3s"):
+        log_error(f"apply_nats: unsupported CLUSTER={cluster_target!r} "
+                  "(expected docker-desktop or k3s)")
+        sys.exit(1)
+    project_root = get_project_root()
+    if cluster_target == "docker-desktop":
+        kubectl(["apply", "-f", str(project_root / PLATFORM_DIR / "nats.yml")])
+        return
+    _orphan_delete_pre_pvc_nats()
+    rendered = run_cmd(
+        ["kubectl", "kustomize", "--load-restrictor", "LoadRestrictionsNone",
+         str(project_root / K3S_NATS_OVERLAY)],
+        capture=True,
+    ).stdout
+    kubectl(["apply", "-f", "-"], input_text=rendered)
+    _replace_nats_pod_off_claim()
+    kubectl(["-n", NS, "rollout", "status", "statefulset/nats", "--timeout=180s"])
+
+
+def _replace_nats_pod_off_claim() -> None:
+    """Delete nats-0 if it does not mount the data-nats-0 claim, so the
+    StatefulSet recreates it on the PVC. An adopted pre-PVC pod is never rolled
+    by the controller: adding the claim volume is a forbidden in-place pod
+    update (FailedUpdate event), so rollout status would hang. No-op when the
+    pod is absent (the StatefulSet creates it) or already on the claim."""
+    r = kubectl(["-n", NS, "get", "pod", "nats-0", "-o",
+                 'jsonpath={.spec.volumes[?(@.name=="data")].persistentVolumeClaim.claimName}'],
+                check=False, capture=True)
+    if r.returncode != 0:
+        if "NotFound" in (r.stderr or ""):
+            return
+        log_error(f"Cannot read pod/nats-0 in {NS}: {(r.stderr or '').strip()}")
+        sys.exit(1)
+    if r.stdout.strip() == "data-nats-0":
+        return
+    log_info("pod/nats-0 is not on the data-nats-0 PVC; deleting it so the "
+             "StatefulSet recreates it on the claim (the emptyDir store is lost)")
+    kubectl(["-n", NS, "delete", "pod", "nats-0", "--ignore-not-found"])
+
+
+def _orphan_delete_pre_pvc_nats() -> None:
+    """volumeClaimTemplates is immutable, so a nats StatefulSet created from
+    the emptyDir manifest must be deleted before the PVC overlay can apply.
+    --cascade=orphan keeps nats-0 serving until _replace_nats_pod_off_claim
+    moves it onto the claim. No-op when the StatefulSet is absent (fresh
+    cluster, or a previous run died between delete and apply) or already has
+    the data claim (second run)."""
+    r = kubectl(["-n", NS, "get", "statefulset", "nats", "-o",
+                 "jsonpath={.spec.volumeClaimTemplates[*].metadata.name}"],
+                check=False, capture=True)
+    if r.returncode != 0:
+        if "NotFound" in (r.stderr or ""):
+            return
+        log_error(f"Cannot read statefulset/nats in {NS}: {(r.stderr or '').strip()}")
+        sys.exit(1)
+    if "data" in r.stdout.split():
+        return
+    log_info("statefulset/nats has no JetStream PVC; orphan-deleting it so the "
+             "longhorn PVC overlay can apply")
+    kubectl(["-n", NS, "delete", "statefulset", "nats", "--cascade=orphan",
+             "--ignore-not-found"])
 
 
 def _find_cert_manager_webhook() -> tuple[str, str] | None:
@@ -1212,7 +1283,7 @@ def start(*, db: str, cluster_target: str = "docker-desktop",
     ensure_namespace()
     ensure_redis_password_secret()
     seed_tmi_secret_keys(cluster_target, db)
-    apply_platform_base()
+    apply_platform_base(cluster_target)
     if cluster_target in ("k3s", "docker-desktop") and db != "oracle":
         apply_incluster_postgres(cluster_target)  # in-cluster DB up before the server (AutoMigrate)
     deliver_config(cluster_target)
@@ -1246,7 +1317,7 @@ def dev_config_snapshot_path(cluster_target: str) -> Path:
 
 
 def snapshot_dev_config(cluster_target: str) -> None:
-    """Best-effort snapshot of the dev database's operational settings.
+    """Best-effort snapshot of the dev database's explicit (operator-set) settings.
 
     Called before every teardown, because the settings in system_settings —
     OAuth providers, callback URLs, feature flags, everything configured
@@ -1279,9 +1350,12 @@ def snapshot_dev_config(cluster_target: str) -> None:
 def restore_dev_config(cluster_target: str) -> None:
     """Restore the snapshot into a freshly started dev database, if one exists.
 
-    Safe to run unconditionally: `tmi-dbtool --import-config` without
-    --overwrite writes only keys the database is MISSING, so this repopulates a
-    nuked database without reverting edits made since the snapshot was taken.
+    Safe to run unconditionally: `tmi-dbtool --restore-snapshot` writes the
+    snapshot's keys as explicit rows, replaces seeded rows, and skips existing
+    explicit rows, so it repopulates a nuked database without reverting edits
+    made since the snapshot was taken. A snapshot in the pre-#1180 format (no
+    marker) is refused, which lands in the warning below; re-take it with
+    `make dev-config-snapshot CLUSTER=<cluster>`.
     """
     snap = dev_config_snapshot_path(cluster_target)
     if not snap.is_file():
@@ -1333,7 +1407,7 @@ def restart(*, db: str, cluster_target: str = "docker-desktop",
     ensure_namespace()
     ensure_redis_password_secret()
     seed_tmi_secret_keys(cluster_target, db)
-    apply_platform_base()
+    apply_platform_base(cluster_target)
     apply_overlay(db, cluster_target)
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", f"--timeout={server_rollout_timeout(db)}"])

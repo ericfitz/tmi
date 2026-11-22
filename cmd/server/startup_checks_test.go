@@ -778,3 +778,15 @@ func TestValidateEffectiveTimmyAtStartup(t *testing.T) {
 		})
 	}
 }
+
+// The effective-config check only logs: reaching the assertion after an
+// invalid config proves it did not exit the process (#1181).
+func TestLogInvalidEffectiveTimmy_NeverExits(t *testing.T) {
+	bad := timmyStubSettings{values: map[string]string{"timmy.llm_provider": "bogus"}}
+	err := logInvalidEffectiveTimmy(context.Background(), bad, "production")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "timmy.llm_provider")
+
+	good := timmyStubSettings{values: map[string]string{"timmy.llm_provider": "openai"}}
+	require.NoError(t, logInvalidEffectiveTimmy(context.Background(), good, "production"))
+}

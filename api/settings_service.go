@@ -25,19 +25,18 @@ import (
 // SettingsService provides access to system settings with caching.
 //
 // Configuration Priority:
-// When a ConfigProvider is set, the service implements a three-tier configuration
-// priority system: environment variables > config file > database.
+// Every read path (GetString, GetInt, GetBool, GetJSON, GetResolvedString and
+// the admin settings reads) applies one rule, implemented by configOutranksRow:
+// an explicit (admin-set or dbtool-imported) database row wins over config,
+// explicit or not; a seeded default row yields to explicit config (an env var
+// or a key written in the config file); with no usable row (missing, empty,
+// unreadable, or failing its per-key semantic validator) the config layer's
+// value, explicit or default, is used.
+// Bootstrap settings are never database-backed, so config is their only source.
 //
-// The ConfigProvider (via GetMigratableSettings) already merges environment variables
-// with config file values (environment takes precedence). When retrieving a setting,
-// if a value exists in the ConfigProvider, it is returned. Otherwise, the database
-// value is used. This allows operators to:
-//   - Override any setting via environment variables (highest priority)
-//   - Set defaults in config files (medium priority)
-//   - Store runtime-configurable values in the database (lowest priority)
-//
-// The database serves as the persistent store for settings that can be modified
-// at runtime via the admin API, while environment/config values always win.
+// The ConfigProvider (via GetMigratableSettings) already merges environment
+// variables with config file values (environment takes precedence). The
+// database holds runtime-editable values set through the admin API (#1168).
 type SettingsService struct {
 	gormDB  *gorm.DB
 	redis   *db.RedisDB
@@ -49,7 +48,7 @@ type SettingsService struct {
 	memCacheTTL time.Duration
 	useMemCache bool
 
-	// Config provider for environment/config file values (takes priority over database)
+	// Config provider for environment/config file values (see the precedence rule above)
 	configProvider ConfigProvider
 	// Cached config settings map for fast lookups
 	configSettingsCache    map[string]MigratableSetting
@@ -58,6 +57,9 @@ type SettingsService struct {
 
 	// Encryptor for at-rest encryption of setting values
 	encryptor *crypto.SettingsEncryptor
+
+	// warnedInvalidRows records keys whose invalid row has been logged (#1181).
+	warnedInvalidRows sync.Map
 }
 
 // settingsCacheEntry represents a cached setting value
@@ -86,8 +88,10 @@ func NewSettingsService(gormDB *gorm.DB, redisDB *db.RedisDB) *SettingsService {
 	}
 }
 
-// SetConfigProvider sets the config provider for environment/config file priority lookups.
-// When set, GetWithPriority will check config values before database values.
+// SetConfigProvider sets the config provider consulted when resolving a setting
+// (environment and config-file values). Resolution follows the row-wins rule
+// (#1168): an admin-set database row outranks config, and config outranks a
+// seeded row only when it is explicit. Bootstrap keys never read the database.
 func (s *SettingsService) SetConfigProvider(provider ConfigProvider) {
 	s.configSettingsCacheMu.Lock()
 	defer s.configSettingsCacheMu.Unlock()
@@ -108,7 +112,8 @@ func (s *SettingsService) SetEncryptor(enc *crypto.SettingsEncryptor) {
 // falls back to the TMI_BUILD_MODE environment variable, the existing idiom in
 // this package (see auth_flow_rate_limiter.go).
 func (s *SettingsService) isProductionMode() bool {
-	if ms, ok := s.getConfigSetting("auth.build_mode"); ok {
+	// auth.build_mode is a bootstrap key: config is its only source.
+	if ms, ok := s.getConfigSettingRaw("auth.build_mode"); ok {
 		return ms.Value == "production"
 	}
 	return os.Getenv("TMI_BUILD_MODE") == "production"
@@ -118,10 +123,9 @@ func (s *SettingsService) isProductionMode() bool {
 // without applying any precedence rule, building the cache lazily. The caller
 // decides what to do with Class.Category and Explicit.
 //
-// getConfigSetting swallows non-explicit operational settings, which is right
-// for its callers but wrong for GetResolvedString: the converged precedence
-// rule needs to know both what the config layer holds AND whether an operator
-// supplied it, and those are two different questions (#794).
+// The precedence rule needs to know both what the config layer holds AND
+// whether an operator supplied it, and those are two different questions
+// (#794); see resolveSetting.
 func (s *SettingsService) getConfigSettingRaw(key string) (MigratableSetting, bool) {
 	if s.configProvider == nil {
 		return MigratableSetting{}, false
@@ -150,40 +154,6 @@ func (s *SettingsService) getConfigSettingRaw(key string) (MigratableSetting, bo
 
 	setting, found := s.configSettingsCache[key]
 	if !found {
-		return MigratableSetting{}, false
-	}
-	return setting, true
-}
-
-// getConfigSetting retrieves a setting from the config provider, applying the
-// #415 rule that a bare struct default must not shadow the database.
-// Returns the setting and true when the config layer is authoritative.
-func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool) {
-	setting, found := s.getConfigSettingRaw(key)
-	if !found {
-		return MigratableSetting{}, false
-	}
-
-	// Bootstrap settings (database URL, JWT secret, listen port) are never
-	// database-backed, so the config layer is their only source.
-	if setting.Class.Category == config.CategoryBootstrap {
-		return setting, true
-	}
-
-	// Operational settings are database-backed (#415). The config layer wins
-	// only when an operator actually supplied the value — env var set, or the
-	// key written in the YAML file.
-	//
-	// Without the Explicit check this returns the struct default for every
-	// operational key, since GetMigratableSettings emits all of them. That
-	// made the settings database unreachable: timmy.enabled was true in the
-	// table while the server reported Timmy disabled, because the default
-	// false shadowed it. Yielding here is what lets a database value apply,
-	// and keeping the Explicit escape hatch is what stops it silently
-	// discarding live configuration — on AWS every ConfigMap key arrives as
-	// an env var via envFrom, and config-development.yml sets
-	// server.disable_rate_limiting=true, which the database has as false.
-	if !setting.Explicit {
 		return MigratableSetting{}, false
 	}
 	return setting, true
@@ -228,8 +198,13 @@ func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSe
 	if s.encryptor != nil {
 		decrypted, err := s.encryptor.Decrypt(string(dbSetting.Value))
 		if err != nil {
-			logger.Error("Failed to decrypt setting %s: %v", key, err)
-			return nil, fmt.Errorf("failed to decrypt setting %s: %w", key, err)
+			logger.Warn("Setting %s is unreadable: stored value could not be decrypted", key)
+			// Return the row's non-secret metadata (type, origin, timestamps)
+			// with the error so the admin API can describe it; Value is
+			// cleared so ciphertext never leaks. Callers must check err first.
+			dbSetting.Value = ""
+			dbSetting.Unreadable = true
+			return &dbSetting, fmt.Errorf("%w: setting %s could not be decrypted: %w", errSettingUnreadable, key, err)
 		}
 		dbSetting.Value = models.DBText(decrypted)
 	}
@@ -240,23 +215,63 @@ func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSe
 	return &dbSetting, nil
 }
 
-// GetString retrieves a string setting value.
-// Priority: environment/config file > database (see SettingsService documentation).
-func (s *SettingsService) GetString(ctx context.Context, key string) (string, error) {
-	// Check config provider first (environment > config file)
-	if configSetting, found := s.getConfigSetting(key); found {
-		return configSetting.Value, nil
+// getUsableRow is Get with "unreadable row == no usable row" applied (#1169):
+// a row that cannot be decrypted is reported as absent (nil, nil) rather than
+// as an error, so every precedence-resolving reader falls through to the
+// config layer instead of failing. Get has already logged the key. Callers that
+// must distinguish the two (the admin API) call Get and test for
+// errSettingUnreadable.
+func (s *SettingsService) getUsableRow(ctx context.Context, key string) (*models.SystemSetting, error) {
+	row, err := s.Get(ctx, key)
+	if errors.Is(err, errSettingUnreadable) {
+		return nil, nil
+	}
+	return row, err
+}
+
+// resolveSetting applies the single precedence rule (configOutranksRow) to a
+// scalar setting and returns the winning raw string. found is false when no
+// layer supplies a usable value. fromConfig reports which layer won, so callers
+// can name it in parse errors. A non-explicit config default that is empty is
+// treated as unset, so typed getters return the zero value rather than a parse
+// error. Bootstrap keys resolve from config only and never touch the database.
+func (s *SettingsService) resolveSetting(ctx context.Context, key string) (value string, found, fromConfig bool, err error) {
+	cfg, cfgFound := s.getConfigSettingRaw(key)
+
+	if config.ClassificationCategoryFor(key) == config.CategoryBootstrap ||
+		(cfgFound && cfg.Class.Category == config.CategoryBootstrap) {
+		return cfg.Value, cfgFound, true, nil
 	}
 
-	// Fall back to database
-	setting, err := s.Get(ctx, key)
+	row, err := s.getUsableRow(ctx, key)
 	if err != nil {
-		return "", err
+		// Before #1168 explicit config never touched the database, so a
+		// transient fault (ORA-03113/12537 class) must not make a value the
+		// config layer can answer unreadable: fall back to config, unretried
+		// because /config reads many keys back to back. With nothing in config
+		// the classified error is all there is.
+		classified := dberrors.Classify(err)
+		if errors.Is(classified, dberrors.ErrTransient) && cfgFound {
+			slogging.Get().Warn("Transient database error reading setting %s; using the config layer value", key)
+			row = nil
+		} else {
+			return "", false, false, classified
+		}
 	}
-	if setting == nil {
-		return "", nil
+	if s.configOutranksRow(key, cfgFound && cfg.Explicit, row) {
+		if !cfgFound || (cfg.Value == "" && !cfg.Explicit) {
+			return "", false, true, nil
+		}
+		return cfg.Value, true, true, nil
 	}
-	return string(setting.Value), nil
+	return string(row.Value), true, false, nil
+}
+
+// GetString retrieves a string setting value.
+// Priority: see the SettingsService documentation (admin-set row wins).
+func (s *SettingsService) GetString(ctx context.Context, key string) (string, error) {
+	v, _, _, err := s.resolveSetting(ctx, key)
+	return v, err
 }
 
 // GetResolvedString retrieves a string setting by applying the single
@@ -310,7 +325,7 @@ func (s *SettingsService) GetResolvedString(ctx context.Context, key string) (st
 	var row *models.SystemSetting
 	err := db.WithRetryableGormRead(ctx, db.DefaultRetryConfig(), func() error {
 		var readErr error
-		row, readErr = s.Get(ctx, key)
+		row, readErr = s.getUsableRow(ctx, key)
 		if readErr != nil {
 			return dberrors.Classify(readErr)
 		}
@@ -320,113 +335,135 @@ func (s *SettingsService) GetResolvedString(ctx context.Context, key string) (st
 		return "", false, err
 	}
 
-	// An empty row value is treated as absent. On Oracle '' binds as NULL, so
-	// an empty-but-present row is indistinguishable from a missing one anyway
-	// — collapsing them here keeps the rule engine-independent
-	// (oracle-db-admin review of #767, note 3).
-	dbHasValue := row != nil && string(row.Value) != ""
-
-	switch {
-	case !dbHasValue:
-		// Nothing usable in the database — the config layer is all there is,
-		// explicit or not.
+	if s.configOutranksRow(key, cfgFound && cfg.Explicit, row) {
 		return cfg.Value, cfgFound && cfg.Value != "", nil
+	}
+	return string(row.Value), true, nil
+}
+
+// configOutranksRow reports whether the config layer's value, rather than the
+// database row, is the one in effect for a non-bootstrap setting. It is the
+// single implementation of the precedence table on GetResolvedString, shared
+// by the runtime read path and the admin settings read endpoints so that the
+// admin API reports the value the server actually uses (#1161). row may be
+// nil (no row).
+func configOutranksRow(cfgExplicit bool, row *models.SystemSetting, productionMode bool) bool {
+	return outranksRow(cfgExplicit, row, row != nil && rowFailsSemantics(row, productionMode))
+}
+
+// outranksRow is configOutranksRow with the row's semantic verdict supplied,
+// so the service wrapper can log on it without validating twice.
+func outranksRow(cfgExplicit bool, row *models.SystemSetting, invalid bool) bool {
+	switch {
+	case row == nil || row.Unreadable || string(row.Value) == "" || invalid:
+		// Nothing usable in the database — the config layer is all there is,
+		// explicit or not. An empty row value is treated as absent: on Oracle
+		// '' binds as NULL, so an empty-but-present row is indistinguishable
+		// from a missing one anyway — collapsing them keeps the rule
+		// engine-independent (oracle-db-admin review of #767, note 3). A row
+		// that could not be decrypted is likewise no usable row (#1169), and so
+		// is one whose value fails its per-key semantic validator (#1181).
+		return true
 	case row.IsExplicit():
 		// An operator deliberately set this row, via the admin API or a
 		// dbtool import. It outranks config either way, which is what keeps
 		// runtime edits effective without a redeploy (#419/#767).
-		return string(row.Value), true, nil
-	case cfgFound && cfg.Explicit:
-		// The row is a seeded registry default and the operator supplied a
-		// value explicitly. This is the case that broke production.
-		return cfg.Value, cfg.Value != "", nil
+		return false
 	default:
-		// Both sides are defaults; prefer the one an admin can change at
-		// runtime.
-		return string(row.Value), true, nil
+		// The row is a seeded registry default. An explicit operator value
+		// beats it (the case that broke production); when both sides are
+		// defaults, prefer the row, which an admin can change at runtime.
+		return cfgExplicit
 	}
 }
 
-// GetInt retrieves an integer setting value.
-// Priority: environment/config file > database (see SettingsService documentation).
-func (s *SettingsService) GetInt(ctx context.Context, key string) (int, error) {
-	// Check config provider first (environment > config file)
-	if configSetting, found := s.getConfigSetting(key); found {
-		val, err := strconv.Atoi(configSetting.Value)
-		if err != nil {
-			return 0, fmt.Errorf("config setting %s is not a valid integer: %w", key, err)
-		}
-		return val, nil
-	}
+// rowFailsSemantics reports whether a stored row's value fails the per-key
+// semantic validator, which makes it unusable (#1181). It is computed at
+// resolution time rather than stored on the row, because cached rows would not
+// carry a flag and a validator can tighten in a later release. Keys without a
+// validator never fail. The validator's message is deliberately dropped: it
+// may echo the value.
+func rowFailsSemantics(row *models.SystemSetting, productionMode bool) bool {
+	return ValidateSettingSemantics(string(row.SettingKey), string(row.Value), productionMode) != nil
+}
 
-	// Fall back to database
-	setting, err := s.Get(ctx, key)
-	if err != nil {
+// configOutranksRow is the service-side entry to the package-level rule: it
+// supplies the build mode and, for an invalid row, logs the key (once per key
+// per process, since resolution runs on every read) so the ignored row is
+// visible. Values are never logged.
+func (s *SettingsService) configOutranksRow(key string, cfgExplicit bool, row *models.SystemSetting) bool {
+	invalid := row != nil && !row.Unreadable && string(row.Value) != "" &&
+		rowFailsSemantics(row, s.isProductionMode())
+	if invalid {
+		if _, seen := s.warnedInvalidRows.LoadOrStore(key, struct{}{}); !seen {
+			slogging.Get().Warn("System setting %s has a stored value that fails validation; ignoring the row and using the config layer value", key)
+		}
+	}
+	return outranksRow(cfgExplicit, row, invalid)
+}
+
+// settingLayer names the winning layer for parse-error messages.
+func settingLayer(fromConfig bool) string {
+	if fromConfig {
+		return "config setting"
+	}
+	return "setting"
+}
+
+// parseCause strips the offending input from a strconv error: *strconv.NumError
+// formats as `strconv.Atoi: parsing "<input>": ...`, which would put a stored
+// (possibly secret) setting value in the error and the log lines built from it.
+func parseCause(err error) error {
+	var numErr *strconv.NumError
+	if errors.As(err, &numErr) {
+		return numErr.Err
+	}
+	return err
+}
+
+// GetInt retrieves an integer setting value.
+// Priority: see the SettingsService documentation (admin-set row wins).
+func (s *SettingsService) GetInt(ctx context.Context, key string) (int, error) {
+	raw, found, fromConfig, err := s.resolveSetting(ctx, key)
+	if err != nil || !found {
 		return 0, err
 	}
-	if setting == nil {
-		return 0, nil
-	}
-	val, err := strconv.Atoi(string(setting.Value))
+	val, err := strconv.Atoi(raw)
 	if err != nil {
-		return 0, fmt.Errorf("setting %s is not a valid integer: %w", key, err)
+		return 0, fmt.Errorf("%s %s is not a valid integer: %w", settingLayer(fromConfig), key, parseCause(err))
 	}
 	return val, nil
 }
 
 // GetBool retrieves a boolean setting value.
-// Priority: environment/config file > database (see SettingsService documentation).
+// Priority: see the SettingsService documentation (admin-set row wins).
 func (s *SettingsService) GetBool(ctx context.Context, key string) (bool, error) {
-	// Check config provider first (environment > config file)
-	if configSetting, found := s.getConfigSetting(key); found {
-		val, err := strconv.ParseBool(configSetting.Value)
-		if err != nil {
-			return false, fmt.Errorf("config setting %s is not a valid boolean: %w", key, err)
-		}
-		return val, nil
-	}
-
-	// Fall back to database
-	setting, err := s.Get(ctx, key)
-	if err != nil {
+	raw, found, fromConfig, err := s.resolveSetting(ctx, key)
+	if err != nil || !found {
 		return false, err
 	}
-	if setting == nil {
-		return false, nil
-	}
-	val, err := strconv.ParseBool(string(setting.Value))
+	val, err := strconv.ParseBool(raw)
 	if err != nil {
-		return false, fmt.Errorf("setting %s is not a valid boolean: %w", key, err)
+		return false, fmt.Errorf("%s %s is not a valid boolean: %w", settingLayer(fromConfig), key, parseCause(err))
 	}
 	return val, nil
 }
 
 // GetJSON retrieves a JSON setting value and unmarshals it into the target.
-// Priority: environment/config file > database (see SettingsService documentation).
+// Priority: see the SettingsService documentation (admin-set row wins).
 func (s *SettingsService) GetJSON(ctx context.Context, key string, target any) error {
-	// Check config provider first (environment > config file)
-	if configSetting, found := s.getConfigSetting(key); found {
-		if err := json.Unmarshal([]byte(configSetting.Value), target); err != nil {
-			return fmt.Errorf("config setting %s is not valid JSON: %w", key, err)
-		}
-		return nil
-	}
-
-	// Fall back to database
-	setting, err := s.Get(ctx, key)
-	if err != nil {
+	raw, found, fromConfig, err := s.resolveSetting(ctx, key)
+	if err != nil || !found {
 		return err
 	}
-	if setting == nil {
-		return nil
-	}
-	if err := json.Unmarshal([]byte(string(setting.Value)), target); err != nil {
-		return fmt.Errorf("setting %s is not valid JSON: %w", key, err)
+	if err := json.Unmarshal([]byte(raw), target); err != nil {
+		return fmt.Errorf("%s %s is not valid JSON: %w", settingLayer(fromConfig), key, err)
 	}
 	return nil
 }
 
-// List retrieves all settings
+// List retrieves all settings. A row whose value cannot be decrypted is still
+// returned, with Unreadable set and Value empty.
 func (s *SettingsService) List(ctx context.Context) ([]models.SystemSetting, error) {
 	logger := slogging.Get()
 
@@ -440,8 +477,12 @@ func (s *SettingsService) List(ctx context.Context) ([]models.SystemSetting, err
 		for i := range settings {
 			decrypted, err := s.encryptor.Decrypt(string(settings[i].Value))
 			if err != nil {
-				logger.Error("Failed to decrypt setting %s: %v", settings[i].SettingKey, err)
-				return nil, fmt.Errorf("failed to decrypt setting %s: %w", settings[i].SettingKey, err)
+				// One unreadable row must not fail the whole list (#1169):
+				// flag it, drop the ciphertext, and let callers mask it.
+				logger.Warn("Setting %s is unreadable: stored value could not be decrypted", settings[i].SettingKey)
+				settings[i].Value = ""
+				settings[i].Unreadable = true
+				continue
 			}
 			settings[i].Value = models.DBText(decrypted)
 		}
@@ -481,9 +522,10 @@ func (s *SettingsService) ListByPrefix(ctx context.Context, prefix string) ([]mo
 // settingSemanticValidators is the single key -> validator map applied by Set,
 // so semantic checks on specific settings are enforced for every writer that
 // goes through Set (the admin API) rather than per handler. Writers that
-// bypass Set (raw DB writes) are not covered here; the startup check catches
-// their values at the next boot. dbtool reuses this map through
-// ValidateSettingSemantics so its direct writes obey the same rules (#1108).
+// bypass Set (raw DB writes) are not covered here; a stored value that fails
+// its validator is ignored at read time instead (#1181). dbtool reuses this
+// map through ValidateSettingSemantics so its direct writes obey the same
+// rules (#1108).
 // The validators mirror the startup checks in config.ValidateTimmyConfig (#1102).
 var settingSemanticValidators = map[string]func(value string, productionMode bool) error{
 	"timmy.dump_extracted_text_to_note": func(value string, productionMode bool) error {
@@ -522,7 +564,10 @@ func ValidateSettingSemantics(key, value string, productionMode bool) error {
 
 // validateSettingSemantics applies the per-key validator for the setting, if any.
 func (s *SettingsService) validateSettingSemantics(setting *models.SystemSetting) error {
-	return ValidateSettingSemantics(string(setting.SettingKey), string(setting.Value), s.isProductionMode())
+	if err := ValidateSettingSemantics(string(setting.SettingKey), string(setting.Value), s.isProductionMode()); err != nil {
+		return newSettingInputError(err)
+	}
+	return nil
 }
 
 // Set creates or updates a setting
@@ -536,7 +581,7 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 		models.SystemSettingTypeFloat:
 		// Valid
 	default:
-		return fmt.Errorf("invalid setting type: %s", setting.SettingType)
+		return newSettingInputError(fmt.Errorf("invalid setting type: %s", setting.SettingType))
 	}
 
 	// Validate value matches type (validate plaintext before encryption)
@@ -561,10 +606,10 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 	encryptionEnabled := s.encryptor != nil && s.encryptor.IsEnabled()
 	if !encryptionEnabled && shouldMaskSettingValue(string(setting.SettingKey)) {
 		if s.isProductionMode() {
-			return fmt.Errorf(
+			return newSettingInputError(fmt.Errorf(
 				"refusing to store secret-classified setting %s in plaintext: settings encryption is not configured; "+
 					"configure the settings encryption key, restart, then retry (POST /admin/settings/reencrypt encrypts existing values)",
-				setting.SettingKey)
+				setting.SettingKey))
 		}
 		logger.Warn("Storing secret-classified setting %s in plaintext: settings encryption is not configured (allowed outside production builds)", setting.SettingKey)
 	}
@@ -593,7 +638,7 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 		Session(&gorm.Session{NowFunc: func() time.Time { return now }}).
 		Save(&dbSetting)
 	if result.Error != nil {
-		return fmt.Errorf("failed to save setting %s: %w", setting.SettingKey, result.Error)
+		return fmt.Errorf("failed to save setting %s: %w", setting.SettingKey, dberrors.Classify(result.Error))
 	}
 
 	// Update the caller's ModifiedAt and Origin to match what was saved
@@ -621,6 +666,17 @@ func (s *SettingsService) Delete(ctx context.Context, key string) error {
 	logger.Info("Deleted system setting: %s", key)
 
 	return nil
+}
+
+// HasRow reports whether a row exists for key. It reads the database directly:
+// no bootstrap guard, no decryption and no cache, so it works for bootstrap
+// keys and for rows that cannot be decrypted.
+func (s *SettingsService) HasRow(ctx context.Context, key string) (bool, error) {
+	var n int64
+	if err := s.gormDB.WithContext(ctx).Model(&models.SystemSetting{}).Where("setting_key = ?", key).Count(&n).Error; err != nil {
+		return false, fmt.Errorf("failed to check setting %s: %w", key, err)
+	}
+	return n > 0, nil
 }
 
 // SeedDefaults seeds the default settings if they don't exist
@@ -864,25 +920,33 @@ func (s *SettingsService) PlaintextKeys(ctx context.Context, keys []string) ([]s
 	return plaintext, nil
 }
 
-// validateValue validates that the value matches the declared type
+// validateValue validates that the value matches the declared type; a mismatch
+// is a settingInputError.
 func (s *SettingsService) validateValue(setting *models.SystemSetting) error {
+	if err := s.checkValueType(setting); err != nil {
+		return newSettingInputError(err)
+	}
+	return nil
+}
+
+func (s *SettingsService) checkValueType(setting *models.SystemSetting) error {
 	switch setting.SettingType {
 	case models.SystemSettingTypeInt:
 		if _, err := strconv.Atoi(string(setting.Value)); err != nil {
-			return fmt.Errorf("value '%s' is not a valid integer", setting.Value)
+			return fmt.Errorf("value is not a valid integer")
 		}
 	case models.SystemSettingTypeBool:
 		if _, err := strconv.ParseBool(string(setting.Value)); err != nil {
-			return fmt.Errorf("value '%s' is not a valid boolean", setting.Value)
+			return fmt.Errorf("value is not a valid boolean")
 		}
 	case models.SystemSettingTypeFloat:
 		if _, err := strconv.ParseFloat(string(setting.Value), 64); err != nil {
-			return fmt.Errorf("value '%s' is not a valid number", setting.Value)
+			return fmt.Errorf("value is not a valid number")
 		}
 	case models.SystemSettingTypeJSON:
 		var js json.RawMessage
 		if err := json.Unmarshal([]byte(string(setting.Value)), &js); err != nil {
-			return fmt.Errorf("value '%s' is not valid JSON", setting.Value)
+			return fmt.Errorf("value is not valid JSON")
 		}
 	case models.SystemSettingTypeString:
 		// Empty string is not allowed for string settings.
@@ -1031,3 +1095,12 @@ func (s *SettingsService) InvalidateAll(ctx context.Context) {
 	// For Redis, we would need to use SCAN to find all keys with the prefix
 	// For now, settings will expire naturally with TTL
 }
+
+// settingInputError marks a Set failure caused by the caller's value (bad
+// type, value not matching its type, failed per-key validation). Its message is
+// written for the caller; any other Set error is a storage or server failure.
+type settingInputError struct{ err error }
+
+func newSettingInputError(err error) error { return &settingInputError{err: err} }
+func (e *settingInputError) Error() string { return e.err.Error() }
+func (e *settingInputError) Unwrap() error { return e.err }

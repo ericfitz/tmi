@@ -149,15 +149,17 @@ var authSettingDefs = []SettingDef{
 		// ("auth.oauth_callback_url"), matching the pre-existing migratable
 		// setting key, while the struct path goes through the nested OAuth
 		// config ("auth.oauth.callback_url").
+		//
+		// Bootstrap (#1167): the auth handlers read it from the config struct
+		// only, so it is startup-only and never database-backed.
 		Key:           "auth.oauth_callback_url",
-		Class:         operationalClass(VisibilityAdminOnly, false),
+		Class:         bootstrapClass(false, VisibilityAdminOnly, false),
 		Type:          "string",
 		Description:   "OAuth callback URL",
 		Default:       "http://localhost:8080/oauth2/callback",
 		YAMLPath:      "auth.oauth.callback_url",
 		EnvVar:        "TMI_OAUTH_CALLBACK_URL",
 		Get:           func(c *Config) string { return c.Auth.OAuth.CallbackURL },
-		Transitional:  true,
 		OmitWhenEmpty: true,
 	},
 	{
@@ -186,24 +188,19 @@ var authSettingDefs = []SettingDef{
 		// feature-flag name ("features.saml_enabled"), while the struct path
 		// is the nested SAML config's enabled flag ("auth.saml.enabled").
 		//
-		// Static: auth/service.go's NewService only builds service.samlManager
-		// when config.SAML.Enabled is true at construction time (auth/service.go
-		// ~line 148, "if config.SAML.Enabled { samlManager := NewSAMLManager(...) }").
-		// A separate DB-backed reader (RuntimeConfigReader.IsSAMLEnabled) does
-		// exist and gates the SAML HTTP handlers per request, but if the manager
-		// was never constructed at boot, flipping the DB row does not make SAML
-		// login work — samlManager stays nil until restart. The setting that
-		// actually controls whether SAML functions is the boot-time one.
-		Key:          "features.saml_enabled",
-		Class:        withMutability(operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX), MutabilityStatic),
-		Type:         "bool",
-		Description:  "Enable SAML authentication",
-		Default:      "false",
-		YAMLPath:     "auth.saml.enabled",
-		EnvVar:       "TMI_SAML_ENABLED",
-		Get:          func(c *Config) string { return strconv.FormatBool(c.Auth.SAML.Enabled) },
-		Transitional: true,
-		Seeded:       true,
+		// Bootstrap (#1167): auth/service.go's NewService only builds
+		// service.samlManager when config.SAML.Enabled is true at construction,
+		// and the SAML handlers read the same struct, so this is startup-only:
+		// enabling SAML takes a config change and a restart, never a database
+		// row. Public and tmi-ux-consumed because /config reports it.
+		Key:         "features.saml_enabled",
+		Class:       withConsumers(bootstrapClass(false, VisibilityPublic, false), ConsumerMonolith, ConsumerTMIUX),
+		Type:        "bool",
+		Description: "Enable SAML authentication",
+		Default:     "false",
+		YAMLPath:    "auth.saml.enabled",
+		EnvVar:      "TMI_SAML_ENABLED",
+		Get:         func(c *Config) string { return strconv.FormatBool(c.Auth.SAML.Enabled) },
 	},
 	{
 		// Top-level Config field, not under Auth. No env tag exists on

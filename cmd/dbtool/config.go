@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"sort"
@@ -12,7 +11,6 @@ import (
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/crypto"
-	"github.com/ericfitz/tmi/internal/secrets"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/test/testdb"
 	"gopkg.in/yaml.v3"
@@ -101,22 +99,7 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 	}
 
 	// Initialize encryptor if secrets config is available
-	var encryptor *crypto.SettingsEncryptor
-	secretsProvider, err := secrets.NewProvider(context.Background(), &cfg.Secrets)
-	if err != nil {
-		log.Debug("No secrets provider available for encryption: %v", err)
-	} else {
-		enc, encErr := crypto.NewSettingsEncryptor(context.Background(), secretsProvider)
-		if encErr != nil {
-			log.Debug("No encryptor available: %v", encErr)
-		} else {
-			encryptor = enc
-			log.Info("Settings encryption enabled")
-		}
-		if closeErr := secretsProvider.Close(); closeErr != nil {
-			log.Debug("Failed to close secrets provider: %v", closeErr)
-		}
-	}
+	encryptor := newSettingsEncryptor(cfg)
 
 	// Write DB-eligible settings
 	var written, skipped int

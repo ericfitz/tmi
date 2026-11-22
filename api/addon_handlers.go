@@ -99,11 +99,7 @@ func CreateAddon(c *gin.Context) {
 
 	if err := GlobalAddonStore.Create(c.Request.Context(), addon); err != nil {
 		logger.Error("Failed to create add-on: %v", err)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    errcode.ServerError,
-			Message: "Failed to create add-on",
-		})
+		HandleRequestError(c, WriteErrorToRequestError(err, "Failed to create add-on"))
 		return
 	}
 
@@ -309,6 +305,10 @@ func PatchAddon(c *gin.Context) {
 		}
 		// The referenced threat model can be deleted between validation and
 		// write; the resulting FK violation is the caller's 400, not a 500.
+		if errors.Is(err, dberrors.ErrInvalidValue) {
+			HandleRequestError(c, invalidValueRequestError(err))
+			return
+		}
 		if errors.Is(err, dberrors.ErrConstraint) {
 			HandleRequestError(c, InvalidInputError("threat_model_id does not refer to an existing threat model"))
 			return

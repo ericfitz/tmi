@@ -123,10 +123,10 @@ func ExpectedMigratableKeysSkipped() map[string]string {
 		// auth.oauth.callback_url is emitted as auth.oauth_callback_url
 		// (note: underscore in the second-level segment, no dot). The
 		// key rename is preserved for backward compatibility with
-		// existing /admin/settings rows written before #426. Renaming the
-		// DB key would silently drop the operator's stored value on next
-		// SeedDefaults run. Future cleanup requires a DB migration.
-		"auth.oauth.callback_url": "emitted as auth.oauth_callback_url (legacy key shape); rename requires DB migration",
+		// existing /admin/settings rows written before #426. The key is now
+		// startup-only (#1167) and any database row for it is inert, so the
+		// shape is kept only for the admin API, the reference docs and dbtool.
+		"auth.oauth.callback_url": "emitted as auth.oauth_callback_url (legacy key shape, startup-only since #1167)",
 
 		// auth.saml.enabled is emitted as features.saml_enabled (the
 		// public /config endpoint shape). The struct field is kept for

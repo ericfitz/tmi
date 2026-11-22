@@ -142,7 +142,11 @@ func (r *GormDeletionRepository) deleteUserCore(tx *gorm.DB, user *models.User, 
 			// with a lowercase key made the injector's dedup miss on Oracle
 			// (it tests "ModifiedAt"/"MODIFIED_AT") and emit a SECOND assignment
 			// to the same column -- ORA-00957, PostgreSQL-invisible (#615).
-			if err := tx.Model(&tm).Updates(map[string]any{
+			// The model value is an EMPTY struct, not the loaded row: GORM runs
+			// the BeforeUpdate hook on the Model value, and the loaded row would
+			// re-validate unrelated stored fields (e.g. a legacy
+			// threat_model_framework), failing the transfer.
+			if err := tx.Model(&models.ThreatModel{}).Where("id = ?", tm.ID).Updates(map[string]any{
 				"owner_internal_uuid": access.UserInternalUUID,
 			}).Error; err != nil {
 				return fmt.Errorf("failed to transfer ownership of threat model %s: %w", tm.ID, dberrors.Classify(err))
@@ -889,7 +893,9 @@ func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUs
 			// Update threat model ownership
 			// modified_at omitted: autoUpdateTime sets it. See the note at the
 			// ownership-transfer site above (#615, ORA-00957).
-			if err := tx.Model(&tm).Updates(map[string]any{
+			// Empty Model value so BeforeUpdate does not re-validate unrelated
+			// stored fields of the loaded row (see the note at the other site).
+			if err := tx.Model(&models.ThreatModel{}).Where("id = ?", tm.ID).Updates(map[string]any{
 				"owner_internal_uuid": targetUserUUID,
 			}).Error; err != nil {
 				return fmt.Errorf("failed to transfer ownership of threat model %s: %w", tm.ID, dberrors.Classify(err))

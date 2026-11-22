@@ -87,8 +87,8 @@ var oracleCodeSentinels = map[int]error{
 	942:  ErrUndefinedObject, // table or view does not exist
 
 	// Constraint violations
-	12899: ErrConstraint, // value too large for column
-	1400:  ErrConstraint, // cannot insert NULL into ... — PG-23502 analogue
+	12899: ErrInvalidValue, // value too large for column — PG-22001 analogue
+	1400:  ErrConstraint,   // cannot insert NULL into ... — PG-23502 analogue
 	// ORA-01407 (cannot update ... to NULL) is the UPDATE-path sibling of
 	// ORA-01400, which Oracle raises only on INSERT. Reachable because Oracle
 	// binds '' as NULL: emptying a NOT NULL string column succeeds on
@@ -107,7 +107,10 @@ var oracleCodeSentinels = map[int]error{
 	// via 22003; without this Oracle fell through to a 500. ORA-01401 is the
 	// pre-11g spelling of ORA-12899, folded in for completeness.
 	1438: ErrConstraint,
-	1401: ErrConstraint,
+	1401: ErrInvalidValue,
+	// ORA-01461: can bind a LONG value only for insert into a LONG column —
+	// raised when an over-long string is bound as a LOB/LONG parameter.
+	1461: ErrInvalidValue,
 
 	// Serialization / deadlock / lock contention
 	8177: ErrTransient, // can't serialize access

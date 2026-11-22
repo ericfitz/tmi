@@ -59,3 +59,15 @@ func TestClassifyPgError_UndefinedObject(t *testing.T) {
 	assert.False(t, errors.Is(got, ErrTransient), "a missing object must not be classified transient")
 	assert.False(t, errors.Is(got, ErrConstraint), "a missing object is not a constraint violation")
 }
+
+// TestClassifyPgError_InvalidValue verifies that value-too-long (22001) and
+// bad-encoding (22021) errors classify as ErrInvalidValue, which still
+// satisfies ErrConstraint for callers that only know the broad class.
+func TestClassifyPgError_InvalidValue(t *testing.T) {
+	for _, code := range []string{"22001", "22021"} {
+		got := Classify(&pgconn.PgError{Code: code, Message: "value too long for type character varying(10)"})
+		assert.True(t, errors.Is(got, ErrInvalidValue), "%s should map to ErrInvalidValue", code)
+		assert.True(t, errors.Is(got, ErrConstraint), "%s should still satisfy ErrConstraint", code)
+		assert.False(t, errors.Is(got, ErrDuplicate), "%s is not a duplicate", code)
+	}
+}

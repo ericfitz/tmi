@@ -13,7 +13,8 @@
 #   - No NATS storage-class patch: deployments/k8s/platform/nats.yml's
 #     StatefulSet uses an emptyDir for /data/jetstream (no PVC, no
 #     storageClassName at all), so there is nothing for this overlay or the
-#     deploy script to patch. JetStream data is ephemeral, matching local dev.
+#     deploy script to patch. JetStream data is ephemeral, as on docker-desktop
+#     (only k3s overlays a longhorn PVC: deployments/k8s/dev/k3s/nats).
 #   - No ingress subnets annotation: terraform/modules/network/aws/main.tf
 #     tags both public subnets kubernetes.io/role/elb=1, so the AWS Load
 #     Balancer Controller auto-discovers them without an explicit

@@ -547,7 +547,7 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 	// Re-check primary identity (users table). This is a pre-flight guard; the
 	// authoritative duplicate check inside CreateExclusive (below) covers the
 	// linked_identities table in a serializable transaction.
-	_, errUser := h.service.GetUserByProviderID(ctx, pending.Provider, pending.ProviderUserID)
+	_, errUser := h.service.lookupUserByProviderID(ctx, pending.Provider, pending.ProviderUserID) // database, not cache (#1162)
 	if errUser == nil {
 		_ = h.identityLinkAud().LogRejected(ctx, actor, "identity_already_bound", map[string]string{
 			"provider": pending.Provider,
@@ -644,8 +644,9 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 // is already owned by any TMI user — either as a primary identity in the users
 // table or as a linked identity in the linked_identities table.
 func (h *Handlers) isProviderSubAlreadyBound(ctx context.Context, provider, providerUserID string) bool {
-	// Check the users (primary identities) table first.
-	_, err := h.service.GetUserByProviderID(ctx, provider, providerUserID)
+	// Check the users (primary identities) table first. Read the database, not
+	// the user cache: a cached entry can outlive its row (#1162).
+	_, err := h.service.lookupUserByProviderID(ctx, provider, providerUserID)
 	if err == nil {
 		return true
 	}

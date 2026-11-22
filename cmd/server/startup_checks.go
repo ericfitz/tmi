@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/ericfitz/tmi/api"
@@ -125,9 +124,10 @@ func warnIfPlaintextSecretsAtRest(
 //
 // This is the check that would have caught the 2026-08-20 outage: an operator had
 // TMI_OAUTH_CALLBACK_URL set correctly the whole time, but a seeded default row in
-// the database silently outranked it, so OAuth redirected to localhost and every
-// provider rejected the login. A second regression in the same deploy left SAML
-// silently disabled for the same reason. Nothing warned. This does.
+// the database silently outranked it, so OAuth redirected to localhost. Nothing
+// warned. (That key and features.saml_enabled are now startup-only bootstrap
+// settings, #1167, so they can no longer diverge; the check still covers every
+// remaining operational key, where an explicit admin-set row outranks config.)
 //
 // A config value only counts if MigratableSetting.Explicit is true (an operator
 // actually set it, not just the struct default), because a default disagreeing with
@@ -254,16 +254,21 @@ func validateTimmyAtStartup(source string, timmyCfg config.TimmyConfig, buildMod
 }
 
 // validateEffectiveTimmyAtStartup runs validateTimmyAtStartup on the Timmy
-// config resolved through the settings service (config-first, then DB).
+// config resolved through the settings service: an admin-set database row wins
+// over config, and explicit config wins over a seeded row (#1168).
 func validateEffectiveTimmyAtStartup(ctx context.Context, settings api.SettingsServiceInterface, buildMode string) error {
 	return validateTimmyAtStartup("settings", api.NewTimmyConfigProvider(settings).Current(ctx), buildMode)
 }
 
-// exitOnInvalidEffectiveTimmy logs the failure and exits the process when the
-// effective Timmy config is invalid.
-func exitOnInvalidEffectiveTimmy(ctx context.Context, settings api.SettingsServiceInterface, buildMode string) {
-	if err := validateEffectiveTimmyAtStartup(ctx, settings, buildMode); err != nil {
+// logInvalidEffectiveTimmy logs, but never exits on, an invalid effective Timmy
+// config. A database row that fails validation is ignored by the settings
+// service (#1181), so the effective config can only be invalid when the env/YAML
+// layer is, and that is checked, and exits, separately; database content must
+// not be able to stop the server. It returns the error for tests.
+func logInvalidEffectiveTimmy(ctx context.Context, settings api.SettingsServiceInterface, buildMode string) error {
+	err := validateEffectiveTimmyAtStartup(ctx, settings, buildMode)
+	if err != nil {
 		slogging.Get().Error("%v", err)
-		os.Exit(1)
 	}
+	return err
 }

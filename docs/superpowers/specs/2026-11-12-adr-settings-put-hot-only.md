@@ -4,6 +4,7 @@
 - Date: 2026-11-12
 - Decision maker: Eric Fitzgerald (human decision, 2026-11-12)
 - Issue: #1160
+- Amended by: 2026-11-20-adr-settings-precedence-row-wins.md
 
 ## Context
 

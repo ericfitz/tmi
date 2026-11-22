@@ -91,6 +91,9 @@ func TestFixtureManifestMarksDecoyedAnchors(t *testing.T) {
 		// an ordinary DELETE took the only seeded record and the run went INVALID.
 		// They now get decoys of their own.
 		"team_note_id": true, "webhook_id": true,
+		// Run 20261121T192150Z lost project_note_id the same way: the leaf has a
+		// DELETE and no decoy, so the fuzzer consumed the only seeded note.
+		"project_note_id": true,
 		// Threat-model children with nested paths (metadata, restore, audit_trail)
 		// and a DELETE on their own path (#1115): CATS walks lexical order, so an
 		// undecoyed DELETE runs before every nested path and leaves them all on a
@@ -286,6 +289,41 @@ func TestCatsSeedRefsAllResolve(t *testing.T) {
 		}
 		if e.Ref != "" {
 			defined[e.Ref] = true
+		}
+	}
+}
+
+// Project notes are seeded positionally like team notes: index 0 is the real
+// fixture (the global project_note_id) and index 1 is the decoy the leaf path
+// is pointed at, hanging off the REAL project.
+func TestWriteYAMLReferenceDecoysProjectNote(t *testing.T) {
+	refs := RefMap{
+		projectRef(realProjectName):        {Kind: "project", ID: "pj-real"},
+		projectNoteRef(realProjectName, 0): {Kind: kindProjectNote, ID: "pn-real"},
+		projectNoteRef(realProjectName, 1): {Kind: kindProjectNote, ID: "pn-decoy"},
+	}
+	for i := 0; i < 40; i++ {
+		path := filepath.Join(t.TempDir(), "cats-test-data.yml")
+		if err := writeYAMLReference(path, refs, "charlie", "tmi"); err != nil {
+			t.Fatalf("writeYAMLReference: %v", err)
+		}
+		data, err := os.ReadFile(path) // #nosec G304 -- test-controlled temp path
+		if err != nil {
+			t.Fatalf("read refData: %v", err)
+		}
+		var doc map[string]map[string]any
+		if err := yaml.Unmarshal(data, &doc); err != nil {
+			t.Fatalf("parse refData: %v", err)
+		}
+		if got := doc["all"]["project_note_id"]; got != "pn-real" {
+			t.Fatalf("all.project_note_id = %v, want pn-real", got)
+		}
+		sec, ok := doc["/projects/{project_id}/notes/{project_note_id}"]
+		if !ok {
+			t.Fatal("no decoy section for /projects/{project_id}/notes/{project_note_id}")
+		}
+		if got := sec["project_note_id"]; got != "pn-decoy" {
+			t.Fatalf("decoy project_note_id = %v, want pn-decoy", got)
 		}
 	}
 }

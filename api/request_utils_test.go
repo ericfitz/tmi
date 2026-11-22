@@ -13,6 +13,7 @@ import (
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -844,6 +845,21 @@ func TestWriteErrorToRequestError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, WriteErrorToRequestError(errors.New("boom"), "Failed to create thing").Status)
 }
 
+// A classified value-too-long / bad-encoding store error is client input: 400
+// with a fixed message that does not echo the driver text (CATS run 20261121).
+func TestWriteErrorToRequestError_InvalidValue(t *testing.T) {
+	raw := &pgconn.PgError{Code: "22001", Message: "value too long for type character varying(256)", ColumnName: "secret_col"}
+	err := fmt.Errorf("transaction failed: %w", dberrors.Classify(raw))
+	reqErr := WriteErrorToRequestError(err, "Failed to create thing")
+	assert.Equal(t, http.StatusBadRequest, reqErr.Status)
+	assert.NotContains(t, reqErr.Message, "secret_col")
+	assert.NotContains(t, reqErr.Message, "256")
+
+	store := StoreErrorToRequestError(err, "nf", "Failed")
+	assert.Equal(t, http.StatusBadRequest, store.Status)
+	assert.NotContains(t, store.Message, "secret_col")
+}
+
 func TestNewConstructorsUseVocabulary(t *testing.T) {
 	cases := []struct {
 		err    *RequestError
@@ -916,4 +932,22 @@ func TestParsePatchRequestRejectsRootPath(t *testing.T) {
 	require.ErrorAs(t, err, &reqErr)
 	assert.Equal(t, http.StatusBadRequest, reqErr.Status)
 	assert.Equal(t, errcode.InvalidInput, reqErr.Code)
+}
+
+// A bodiless delete/read has no client input to blame: a constraint or
+// invalid-value rejection there is a server bug (for example an incomplete
+// cascade) and must stay a visible 500. A transient fault is still 503.
+func TestServerSideErrorToRequestError(t *testing.T) {
+	fk := fmt.Errorf("transaction failed: %w", dberrors.ErrConstraint)
+	invalid := fmt.Errorf("transaction failed: %w", dberrors.ErrInvalidValue)
+	transient := fmt.Errorf("transaction failed after 3 attempts: %w", dberrors.ErrTransient)
+
+	assert.Equal(t, http.StatusInternalServerError, ServerSideErrorToRequestError(fk, "Failed to delete thing").Status)
+	assert.Equal(t, http.StatusInternalServerError, ServerSideErrorToRequestError(invalid, "Failed to delete thing").Status)
+	assert.Equal(t, http.StatusInternalServerError, ServerSideErrorToRequestError(errors.New("boom"), "Failed to delete thing").Status)
+	assert.Equal(t, http.StatusServiceUnavailable, ServerSideErrorToRequestError(transient, "Failed to delete thing").Status)
+	assert.Equal(t, "Failed to delete thing", ServerSideErrorToRequestError(fk, "Failed to delete thing").Message)
+
+	// Write paths that take client input keep the 400 mapping.
+	assert.Equal(t, http.StatusBadRequest, WriteErrorToRequestError(fk, "Failed to create thing").Status)
 }

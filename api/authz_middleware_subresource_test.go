@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -411,6 +412,24 @@ func TestAuthzMiddleware_ChildParentage(t *testing.T) {
 
 	t.Run("checker error answers 503", func(t *testing.T) {
 		setChecker(false, errors.New("db down"))
+		w := do(http.MethodGet, "/threat_models/"+tmID+"/assets/"+childID, authzUserReader)
+		assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+		assert.Equal(t, "30", w.Header().Get("Retry-After"))
+	})
+
+	t.Run("canceled context answers 400 not 503", func(t *testing.T) {
+		setChecker(false, fmt.Errorf("lookup: %w", context.Canceled))
+		r := newSubResourceAuthzRouter(t, authzUserReader)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		req := httptest.NewRequest(http.MethodGet, "/threat_models/"+tmID+"/assets/"+childID, nil).WithContext(ctx)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("deadline exceeded stays 503", func(t *testing.T) {
+		setChecker(false, fmt.Errorf("lookup: %w", context.DeadlineExceeded))
 		w := do(http.MethodGet, "/threat_models/"+tmID+"/assets/"+childID, authzUserReader)
 		assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 		assert.Equal(t, "30", w.Header().Get("Retry-After"))

@@ -71,6 +71,11 @@
           "name": "CATS Test Project Note",
           "content": "Project note for CATS fuzzing coverage of project_note_id.",
           "description": "Seeded for CATS"
+        },
+        {
+          "name": "CATS Throwaway Project Note",
+          "content": "Destructive-fuzz decoy for project_note_id (#608). Index 1; DELETE consumes this instead of the real note.",
+          "description": "Seeded for CATS"
         }
       ]
     },

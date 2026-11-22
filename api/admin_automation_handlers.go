@@ -142,6 +142,10 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 
 	createdUser, err := authSvc.CreateUser(c.Request.Context(), newUser)
 	if err != nil {
+		if errors.Is(err, dberrors.ErrInvalidValue) {
+			HandleRequestError(c, invalidValueRequestError(err))
+			return
+		}
 		if errors.Is(err, dberrors.ErrDuplicate) || errors.Is(err, dberrors.ErrConstraint) {
 			c.JSON(http.StatusConflict, Error{
 				Error:            ErrorError(errcode.Conflict),

@@ -2,6 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,6 +12,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/config"
+	"github.com/ericfitz/tmi/internal/dberrors"
 )
 
 // These tests pin the precedence rule for operational settings (#415).
@@ -17,14 +21,14 @@ import (
 // true in the settings database, yet every Timmy endpoint still answered
 // "Timmy AI assistant is not enabled". GetMigratableSettings emits *every* key
 // including ones nobody configured — they carry the struct default — so
-// getConfigSetting found timmy.enabled=false in the config layer and the
+// the config lookup found timmy.enabled=false in the config layer and the
 // database row was never consulted. Any operational setting with a default,
 // which is all of them, was unreachable from the database.
 //
-// The rule: the config layer wins only when a value was actually configured —
-// an env var is set, or the key was present in the YAML file — or when the key
-// is bootstrap (database URL, JWT secret), which is never DB-backed. A bare
-// struct default must yield to the database.
+// The rule (one for every read path since #1168; see configOutranksRow): an
+// admin-set row wins; a seeded row yields to explicit config; with no usable
+// row the config layer is used; bootstrap keys (database URL, JWT secret) are
+// never DB-backed. A bare struct default must yield to a database row.
 
 type stubConfigProvider struct{ settings []MigratableSetting }
 
@@ -41,61 +45,10 @@ func operationalSetting(key, value, source string, explicit bool) MigratableSett
 	}
 }
 
-// The production failure, reduced: an operational key nobody configured must
-// not shadow the database.
-func TestGetConfigSetting_DefaultDoesNotShadowDatabase(t *testing.T) {
-	s := &SettingsService{}
-	s.SetConfigProvider(&stubConfigProvider{settings: []MigratableSetting{
-		operationalSetting("timmy.enabled", "false", "config", false),
-	}})
-
-	if _, found := s.getConfigSetting("timmy.enabled"); found {
-		t.Fatal("a bare default was returned from the config layer; " +
-			"the database value can never take effect (this is the #415 bug)")
-	}
-}
-
-// An operator who sets the env var still wins — that is the documented escape
-// hatch, and on AWS every ConfigMap key arrives as an env var via envFrom, so
-// removing this would silently drop live configuration.
-func TestGetConfigSetting_EnvVarStillWins(t *testing.T) {
-	s := &SettingsService{}
-	s.SetConfigProvider(&stubConfigProvider{settings: []MigratableSetting{
-		operationalSetting("timmy.enabled", "true", "environment", true),
-	}})
-
-	got, found := s.getConfigSetting("timmy.enabled")
-	if !found {
-		t.Fatal("an env-var-set operational value must win over the database")
-	}
-	if got.Value != "true" {
-		t.Fatalf("value = %q, want \"true\"", got.Value)
-	}
-}
-
-// A value written explicitly in the YAML file also wins. Without this,
-// config-development.yml's server.disable_rate_limiting=true would silently
-// yield to the database's false and start rate-limiting dev — which also
-// breaks CATS fuzzing.
-func TestGetConfigSetting_ExplicitFileValueWins(t *testing.T) {
-	s := &SettingsService{}
-	s.SetConfigProvider(&stubConfigProvider{settings: []MigratableSetting{
-		operationalSetting("server.disable_rate_limiting", "true", "config", true),
-	}})
-
-	got, found := s.getConfigSetting("server.disable_rate_limiting")
-	if !found {
-		t.Fatal("a value explicitly present in the config file must win over the database")
-	}
-	if got.Value != "true" {
-		t.Fatalf("value = %q, want \"true\"", got.Value)
-	}
-}
-
 // Bootstrap settings are never DB-backed, so they must always resolve from the
 // config layer even when they carry a default.
 func TestGetConfigSetting_BootstrapAlwaysWins(t *testing.T) {
-	s := &SettingsService{}
+	s := NewSettingsService(setupSettingsTestDB(t), nil)
 	s.SetConfigProvider(&stubConfigProvider{settings: []MigratableSetting{
 		{
 			Key:      "database.url",
@@ -107,8 +60,9 @@ func TestGetConfigSetting_BootstrapAlwaysWins(t *testing.T) {
 		},
 	}})
 
-	if _, found := s.getConfigSetting("database.url"); !found {
-		t.Fatal("bootstrap settings are not database-backed and must always resolve from config")
+	got, err := s.GetString(context.Background(), "database.url")
+	if err != nil || got != "postgres://localhost/tmi" {
+		t.Fatalf("bootstrap settings are not database-backed and must always resolve from config; got %q, %v", got, err)
 	}
 }
 
@@ -119,7 +73,7 @@ func TestGetConfigSetting_UnknownKeyNotFound(t *testing.T) {
 		operationalSetting("timmy.enabled", "false", "config", false),
 	}})
 
-	if _, found := s.getConfigSetting("does.not.exist"); found {
+	if _, found := s.getConfigSettingRaw("does.not.exist"); found {
 		t.Fatal("unknown key should not be found in the config layer")
 	}
 }
@@ -151,7 +105,7 @@ func seedRow(t *testing.T, db *gorm.DB, key, value, origin string) {
 }
 
 func TestGetResolvedString_PrecedenceTable(t *testing.T) {
-	const key = "auth.oauth_callback_url"
+	const key = "operator.contact"
 	const cfgValue = "https://api.tmi.dev/oauth2/callback"
 	const dbValue = "http://localhost:8080/oauth2/callback"
 
@@ -249,7 +203,7 @@ func TestGetResolvedString_NoDatabaseRowFallsBackToConfig(t *testing.T) {
 // empty-but-present row is indistinguishable from a missing one; the rule must
 // not depend on which engine is underneath.
 func TestGetResolvedString_EmptyRowTreatedAsAbsent(t *testing.T) {
-	const key = "auth.oauth_callback_url"
+	const key = "operator.contact"
 	db := setupSettingsTestDB(t)
 	seedRow(t, db, key, "", models.SystemSettingOriginExplicit)
 
@@ -298,4 +252,172 @@ func TestGetResolvedString_UnknownKey(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, exists)
 	require.Equal(t, "", got)
+}
+
+// ---------------------------------------------------------------------------
+// GetString/GetBool/GetInt/GetJSON follow the same rule as GetResolvedString
+// (#1168): an admin-set row outranks config, explicit or not.
+// ---------------------------------------------------------------------------
+
+// The #1168 repro: config does not set timmy.enabled, an admin PUTs false, then
+// the operator exports TMI_TIMMY_ENABLED=true. The admin API reports false, so
+// GetBool must too.
+func TestRowWins1168_AdminRowOutranksExplicitConfig(t *testing.T) {
+	db := setupSettingsTestDB(t)
+	row := models.SystemSetting{
+		SettingKey:  "timmy.enabled",
+		Value:       "false",
+		SettingType: models.SystemSettingTypeBool,
+		Origin:      models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true},
+	}
+	require.NoError(t, db.Create(&row).Error)
+
+	s := NewSettingsService(db, nil)
+	s.SetConfigProvider(&stubConfigProvider{settings: []MigratableSetting{
+		operationalSetting("timmy.enabled", "true", "environment", true),
+	}})
+
+	got, err := s.GetBool(context.Background(), "timmy.enabled")
+	require.NoError(t, err)
+	require.False(t, got, "an admin-set row must win over explicit config")
+}
+
+func TestRowWins1168_PrecedenceTable(t *testing.T) {
+	const key = "upload.max_file_size_mb"
+	tests := []struct {
+		name        string
+		cfgPresent  bool
+		cfgExplicit bool
+		rowOrigin   string // "none" == no row
+		rowValue    string
+		want        string
+	}{
+		{"explicit row beats explicit config", true, true, models.SystemSettingOriginExplicit, "20", "20"},
+		{"explicit row beats default config", true, false, models.SystemSettingOriginExplicit, "20", "20"},
+		{"explicit row, no config entry", false, false, models.SystemSettingOriginExplicit, "20", "20"},
+		{"seeded row loses to explicit config", true, true, models.SystemSettingOriginSeeded, "20", "30"},
+		{"seeded row beats default config", true, false, models.SystemSettingOriginSeeded, "20", "20"},
+		{"no row, explicit config", true, true, "none", "", "30"},
+		{"no row, default config", true, false, "none", "", "30"},
+		{"empty explicit row is absent, explicit config wins", true, true, models.SystemSettingOriginExplicit, "", "30"},
+		{"no row, no config entry", false, false, "none", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := setupSettingsTestDB(t)
+			if tt.rowOrigin != "none" {
+				seedRow(t, db, key, tt.rowValue, tt.rowOrigin)
+			}
+			s := NewSettingsService(db, nil)
+			var cfg []MigratableSetting
+			if tt.cfgPresent {
+				m := operationalSetting(key, "30", "config", tt.cfgExplicit)
+				m.Type = "int"
+				cfg = append(cfg, m)
+			}
+			s.SetConfigProvider(&stubConfigProvider{settings: cfg})
+
+			gotStr, err := s.GetString(context.Background(), key)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, gotStr)
+
+			gotInt, err := s.GetInt(context.Background(), key)
+			require.NoError(t, err)
+			wantInt := 0
+			if tt.want != "" {
+				wantInt, err = strconv.Atoi(tt.want)
+				require.NoError(t, err)
+			}
+			require.Equal(t, wantInt, gotInt)
+
+			// GetResolvedString must agree with GetString on every case.
+			resolved, _, err := s.GetResolvedString(context.Background(), key)
+			require.NoError(t, err)
+			require.Equal(t, gotStr, resolved)
+		})
+	}
+}
+
+// An unusable (empty) non-explicit config default must not turn a typed read
+// into a parse error when no row exists.
+func TestRowWins1168_EmptyConfigDefaultIsUnset(t *testing.T) {
+	db := setupSettingsTestDB(t)
+	s := NewSettingsService(db, nil)
+	s.SetConfigProvider(&stubConfigProvider{settings: []MigratableSetting{
+		operationalSetting("timmy.enabled", "", "config", false),
+	}})
+	got, err := s.GetBool(context.Background(), "timmy.enabled")
+	require.NoError(t, err)
+	require.False(t, got)
+}
+
+func TestRowWins1168_GetJSON(t *testing.T) {
+	const key = "ssrf.webhook.allowlist"
+	db := setupSettingsTestDB(t)
+	seedRow(t, db, key, `["row"]`, models.SystemSettingOriginExplicit)
+	s := NewSettingsService(db, nil)
+	m := operationalSetting(key, `["cfg"]`, "environment", true)
+	m.Type = "json"
+	s.SetConfigProvider(&stubConfigProvider{settings: []MigratableSetting{m}})
+
+	var got []string
+	require.NoError(t, s.GetJSON(context.Background(), key, &got))
+	require.Equal(t, []string{"row"}, got)
+}
+
+// ---------------------------------------------------------------------------
+// Transient database faults (#1168 review): explicit config used to bypass the
+// database, so a transient fault must still return the config layer's value.
+// ---------------------------------------------------------------------------
+
+// failQueries makes every GORM query fail with a message dberrors classifies as
+// transient (or not, per msg).
+func failQueries(t *testing.T, db *gorm.DB, msg string) {
+	t.Helper()
+	require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:fail", func(tx *gorm.DB) {
+		_ = tx.AddError(errors.New(msg))
+	}))
+}
+
+func TestRowWins1168_TransientDBFaultFallsBackToConfig(t *testing.T) {
+	const key = "upload.max_file_size_mb"
+	for _, explicit := range []bool{true, false} {
+		t.Run(fmt.Sprintf("config explicit=%v", explicit), func(t *testing.T) {
+			db := setupSettingsTestDB(t)
+			failQueries(t, db, "statement is closed")
+			s := NewSettingsService(db, nil)
+			m := operationalSetting(key, "30", "config", explicit)
+			m.Type = "int"
+			s.SetConfigProvider(&stubConfigProvider{settings: []MigratableSetting{m}})
+
+			got, err := s.GetInt(context.Background(), key)
+			require.NoError(t, err)
+			require.Equal(t, 30, got)
+			str, err := s.GetString(context.Background(), key)
+			require.NoError(t, err)
+			require.Equal(t, "30", str)
+		})
+	}
+}
+
+func TestRowWins1168_TransientDBFaultWithoutConfigErrors(t *testing.T) {
+	db := setupSettingsTestDB(t)
+	failQueries(t, db, "statement is closed")
+	s := NewSettingsService(db, nil)
+	s.SetConfigProvider(&stubConfigProvider{})
+
+	_, err := s.GetString(context.Background(), "upload.max_file_size_mb")
+	require.Error(t, err)
+	require.ErrorIs(t, err, dberrors.ErrTransient)
+}
+
+func TestRowWins1168_NonTransientDBFaultStillErrors(t *testing.T) {
+	db := setupSettingsTestDB(t)
+	failQueries(t, db, "some permanent failure")
+	s := NewSettingsService(db, nil)
+	m := operationalSetting("upload.max_file_size_mb", "30", "config", true)
+	s.SetConfigProvider(&stubConfigProvider{settings: []MigratableSetting{m}})
+
+	_, err := s.GetString(context.Background(), "upload.max_file_size_mb")
+	require.Error(t, err)
 }

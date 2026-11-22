@@ -179,22 +179,22 @@ func TestThreatPatch_GenericApplier(t *testing.T) {
 		{name: "remove /cwe_id", ops: []PatchOperation{{Op: "remove", Path: "/cwe_id"}},
 			check: func(t *testing.T, g *Threat) { assert.Empty(t, derefSlice(g.CweId)) }},
 
-		{name: "add /cvss", ops: []PatchOperation{pop("add", "/cvss", []any{map[string]any{"vector": "CVSS:3.1/AV:N", "score": 9.8}})},
+		{name: "add /cvss", ops: []PatchOperation{pop("add", "/cvss", []any{map[string]any{"vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", "score": 9.8}})},
 			check: func(t *testing.T, g *Threat) {
 				require.NotNil(t, g.Cvss)
 				require.Len(t, *g.Cvss, 1)
-				assert.Equal(t, "CVSS:3.1/AV:N", (*g.Cvss)[0].Vector)
+				assert.Equal(t, "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", (*g.Cvss)[0].Vector)
 			}},
-		{name: "replace /cvss (unset field)", ops: []PatchOperation{pop("replace", "/cvss", []any{map[string]any{"vector": "CVSS:3.1/AV:L", "score": 5.0}})},
+		{name: "replace /cvss (unset field)", ops: []PatchOperation{pop("replace", "/cvss", []any{map[string]any{"vector": "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", "score": 5.0}})},
 			check: func(t *testing.T, g *Threat) { require.Len(t, *g.Cvss, 1) }},
 		{name: "remove /cvss on unset field", ops: []PatchOperation{{Op: "remove", Path: "/cvss"}}, wantErr: true},
 
-		{name: "add /ssvc", ops: []PatchOperation{pop("add", "/ssvc", map[string]any{"vector": "SSVCv2/E:A/", "decision": "Act", "methodology": "supplier"})},
+		{name: "add /ssvc", ops: []PatchOperation{pop("add", "/ssvc", map[string]any{"vector": "SSVCv2/E:A/", "decision": "Immediate", "methodology": "supplier"})},
 			check: func(t *testing.T, g *Threat) {
 				require.NotNil(t, g.Ssvc)
 				assert.Equal(t, "supplier", g.Ssvc.Methodology)
 			}},
-		{name: "replace /ssvc (unset field)", ops: []PatchOperation{pop("replace", "/ssvc", map[string]any{"vector": "v", "decision": "Track", "methodology": "deployer"})},
+		{name: "replace /ssvc (unset field)", ops: []PatchOperation{pop("replace", "/ssvc", map[string]any{"vector": "v", "decision": "Scheduled", "methodology": "deployer"})},
 			check: func(t *testing.T, g *Threat) { require.NotNil(t, g.Ssvc) }},
 
 		{name: "add /asset_id", ops: []PatchOperation{pop("add", "/asset_id", asset)},

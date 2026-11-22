@@ -106,26 +106,33 @@ func precedenceSection() string {
 		"A setting's value can come from a YAML config file, an environment " +
 		"variable, or a row in the `system_settings` database table. Only one " +
 		"source wins:\n\n" +
-		"| config explicit? | DB row explicit? | winner |\n" +
+		"| config explicit? | DB row | winner |\n" +
 		"|---|---|---|\n" +
-		"| no | no | database |\n" +
-		"| no | yes | database |\n" +
-		"| yes | no | **config/env** |\n" +
-		"| yes | yes | **database** |\n\n" +
+		"| any | usable, explicit | **database** |\n" +
+		"| yes | usable, seeded default | **config/env** |\n" +
+		"| no | usable, seeded default | database |\n" +
+		"| any | none, unreadable or invalid | **config/env** (or its default) |\n\n" +
 		"\"Config explicit\" means an operator actually supplied the value — " +
 		"the environment variable is set, or the key is written into the YAML " +
 		"file — as opposed to the value being the struct default every key " +
 		"carries. \"DB explicit\" means the row was deliberately set through " +
 		"the admin API or a `dbtool --import-config` run, as opposed to having " +
 		"been seeded with a registry default the first time the server " +
-		"started.\n\n" +
+		"started. A row is not usable when it cannot be read (for example a " +
+		"decrypt failure), is empty, or fails the key's semantic validation; " +
+		"the config layer is used instead.\n\n" +
 		"**Bootstrap** settings are never database-backed: config/env is their " +
 		"only source, and the table above does not apply to them. " +
-		"**Operational** settings follow the table above — the database wins " +
-		"whenever either side is silent (the common case, since it is " +
-		"hot-reloadable), and config/env wins only when an operator has " +
-		"explicitly set it while the database row is still at its seeded " +
-		"default.\n\n" +
+		"**Operational** settings follow the table above: an admin-set row " +
+		"wins over env and config, so a config value acts as a default rather " +
+		"than a lock.\n\n" +
+		"**Writes.** `PUT /admin/settings/{key}` is allowed for Operational " +
+		"keys with Mutability `hot`, even when config sets the key explicitly. " +
+		"It returns 409 for `static` keys, bootstrap keys, provider-subtree " +
+		"keys and undefined keys that config supplies. `read_only` on the " +
+		"admin reads is true exactly when `PUT` would return 409. " +
+		"`auth.oauth_callback_url` and `features.saml_enabled` are bootstrap " +
+		"(startup-only); any database row for them is ignored.\n\n" +
 		"**Exception:** `auth.oauth.providers.*` (and the analogous " +
 		"`auth.saml.providers.*` and `content_oauth.providers.*`) is a keyed " +
 		"collection, not a scalar, so the table above doesn't apply to it " +
@@ -208,7 +215,10 @@ func precedenceCell(s MigratableSetting) string {
 	if s.Class.Category == CategoryBootstrap {
 		return "config/env only"
 	}
-	return "db unless config explicit"
+	if declaredMutability(s) == MutabilityHot.String() {
+		return "explicit row, else config"
+	}
+	return "explicit row, else config; PUT 409"
 }
 
 func defaultCell(s MigratableSetting) string {

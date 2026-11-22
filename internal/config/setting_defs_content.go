@@ -10,18 +10,28 @@ import "strconv"
 // SettingDef — see prefixClassifications in classification_registry.go.
 var contentSettingDefs = []SettingDef{
 	// --- Timmy: LLM chat ---
-	// timmy.enabled is the one Timmy key that stays Hot: cmd/server/main.go's
-	// cfgReader closure (feeding the runtime-swappable ContentSourceHolder)
-	// explicitly overlays it from settingsService.GetBool(ctx, "timmy.enabled")
-	// on every rebuild, on top of an otherwise-static *cfg snapshot — see that
-	// closure's own comment, "the live config reader snapshots *cfg ... then
-	// overlays timmy.enabled from the settings service". Every other Timmy
-	// key below (and every content_extractors.*/content_sources.*/
-	// content_oauth.callback_url key later in this file) is read only from
-	// that static snapshot, which the same comment calls out directly:
-	// "most content-source fields live in the static config" — so they are
-	// Static, and each such def is wrapped in withMutability(..., MutabilityStatic)
-	// rather than repeating this comment at every entry.
+	// Timmy keys are Hot (PUT-writable) when a live runtime reader honors a
+	// database value, and Static otherwise (#1163). TimmyConfigProvider
+	// (api/timmy_config_provider.go) reads timmy.* from the settings service on
+	// every request; a key is Hot only if the value it yields is acted on live:
+	//   - client-wiring keys (provider/model/api_key/base_url, embedding
+	//     dimension, operator_system_prompt, llm_timeout_seconds) are in
+	//     TimmyConfigProvider.WiringHash, so a change rebuilds the runtime;
+	//   - tuning knobs (top-k, conversation history, chunk size/overlap, rate
+	//     and session limits) are re-read per request via the live-config
+	//     closures wired in cmd/server/main.go (timmyBuilder);
+	//   - timmy.enabled is also overlaid by main.go's content-source cfgReader.
+	// Static keys, each wrapped in withMutability(..., MutabilityStatic):
+	//   - llm_max_tokens is never read by TimmyConfigProvider;
+	//   - query_decomposition_enabled, rerank_top_k, max_memory_mb and
+	//     inactivity_timeout_seconds are consumed only while building the
+	//     runtime and are not in the wiring hash, so a change would not apply;
+	//   - embedding_cleanup_*, embedding_idle_days_* and
+	//     dump_extracted_text_to_note are read once at startup from the boot
+	//     config (cmd/server/main.go).
+	// Every content_extractors.*/content_sources.*/content_oauth.callback_url
+	// key later in this file is read only from the static boot config, so
+	// those are Static too.
 	{
 		Key:          "timmy.enabled",
 		Class:        classificationFor("timmy.enabled"),
@@ -35,7 +45,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.llm_provider",
-		Class:        withMutability(classificationFor("timmy.llm_provider"), MutabilityStatic),
+		Class:        classificationFor("timmy.llm_provider"),
 		Type:         "string",
 		Description:  "LLM provider",
 		Default:      "",
@@ -46,7 +56,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.llm_model",
-		Class:        withMutability(classificationFor("timmy.llm_model"), MutabilityStatic),
+		Class:        classificationFor("timmy.llm_model"),
 		Type:         "string",
 		Description:  "LLM model",
 		Default:      "",
@@ -57,7 +67,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.llm_api_key",
-		Class:        withMutability(classificationFor("timmy.llm_api_key"), MutabilityStatic),
+		Class:        classificationFor("timmy.llm_api_key"),
 		Type:         "string",
 		Description:  "LLM API key",
 		Default:      "",
@@ -68,7 +78,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.llm_base_url",
-		Class:        withMutability(classificationFor("timmy.llm_base_url"), MutabilityStatic),
+		Class:        classificationFor("timmy.llm_base_url"),
 		Type:         "string",
 		Description:  "LLM API base URL",
 		Default:      "",
@@ -92,7 +102,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Timmy: text embedding profile (shared invariant between ingest and query) ---
 	{
 		Key:          "timmy.text_embedding_provider",
-		Class:        withMutability(classificationFor("timmy.text_embedding_provider"), MutabilityStatic),
+		Class:        classificationFor("timmy.text_embedding_provider"),
 		Type:         "string",
 		Description:  "Text embedding provider",
 		Default:      "",
@@ -103,7 +113,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.text_embedding_model",
-		Class:        withMutability(classificationFor("timmy.text_embedding_model"), MutabilityStatic),
+		Class:        classificationFor("timmy.text_embedding_model"),
 		Type:         "string",
 		Description:  "Text embedding model — shared invariant between ingest and query",
 		Default:      "",
@@ -114,7 +124,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.text_embedding_api_key",
-		Class:        withMutability(classificationFor("timmy.text_embedding_api_key"), MutabilityStatic),
+		Class:        classificationFor("timmy.text_embedding_api_key"),
 		Type:         "string",
 		Description:  "Text embedding API key",
 		Default:      "",
@@ -125,7 +135,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.text_embedding_base_url",
-		Class:        withMutability(classificationFor("timmy.text_embedding_base_url"), MutabilityStatic),
+		Class:        classificationFor("timmy.text_embedding_base_url"),
 		Type:         "string",
 		Description:  "Text embedding API base URL — shared invariant",
 		Default:      "",
@@ -136,7 +146,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.embedding_dimension",
-		Class:        withMutability(classificationFor("timmy.embedding_dimension"), MutabilityStatic),
+		Class:        classificationFor("timmy.embedding_dimension"),
 		Type:         "int",
 		Description:  "Text embedding vector dimension — shared invariant",
 		Default:      "0",
@@ -147,7 +157,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.text_retrieval_top_k",
-		Class:        withMutability(classificationFor("timmy.text_retrieval_top_k"), MutabilityStatic),
+		Class:        classificationFor("timmy.text_retrieval_top_k"),
 		Type:         "int",
 		Description:  "Text retrieval top-k results",
 		Default:      "10",
@@ -160,7 +170,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Timmy: code embedding profile ---
 	{
 		Key:          "timmy.code_embedding_provider",
-		Class:        withMutability(classificationFor("timmy.code_embedding_provider"), MutabilityStatic),
+		Class:        classificationFor("timmy.code_embedding_provider"),
 		Type:         "string",
 		Description:  "Code embedding provider",
 		Default:      "",
@@ -171,7 +181,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.code_embedding_model",
-		Class:        withMutability(classificationFor("timmy.code_embedding_model"), MutabilityStatic),
+		Class:        classificationFor("timmy.code_embedding_model"),
 		Type:         "string",
 		Description:  "Code embedding model",
 		Default:      "",
@@ -182,7 +192,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.code_embedding_api_key",
-		Class:        withMutability(classificationFor("timmy.code_embedding_api_key"), MutabilityStatic),
+		Class:        classificationFor("timmy.code_embedding_api_key"),
 		Type:         "string",
 		Description:  "Code embedding API key",
 		Default:      "",
@@ -193,7 +203,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.code_embedding_base_url",
-		Class:        withMutability(classificationFor("timmy.code_embedding_base_url"), MutabilityStatic),
+		Class:        classificationFor("timmy.code_embedding_base_url"),
 		Type:         "string",
 		Description:  "Code embedding API base URL",
 		Default:      "",
@@ -204,7 +214,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.code_retrieval_top_k",
-		Class:        withMutability(classificationFor("timmy.code_retrieval_top_k"), MutabilityStatic),
+		Class:        classificationFor("timmy.code_retrieval_top_k"),
 		Type:         "int",
 		Description:  "Code retrieval top-k results",
 		Default:      "10",
@@ -228,7 +238,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Timmy: reranker ---
 	{
 		Key:          "timmy.rerank_provider",
-		Class:        withMutability(classificationFor("timmy.rerank_provider"), MutabilityStatic),
+		Class:        classificationFor("timmy.rerank_provider"),
 		Type:         "string",
 		Description:  "Reranker provider",
 		Default:      "",
@@ -239,7 +249,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.rerank_model",
-		Class:        withMutability(classificationFor("timmy.rerank_model"), MutabilityStatic),
+		Class:        classificationFor("timmy.rerank_model"),
 		Type:         "string",
 		Description:  "Reranker model",
 		Default:      "",
@@ -250,7 +260,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.rerank_api_key",
-		Class:        withMutability(classificationFor("timmy.rerank_api_key"), MutabilityStatic),
+		Class:        classificationFor("timmy.rerank_api_key"),
 		Type:         "string",
 		Description:  "Reranker API key",
 		Default:      "",
@@ -261,7 +271,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.rerank_base_url",
-		Class:        withMutability(classificationFor("timmy.rerank_base_url"), MutabilityStatic),
+		Class:        classificationFor("timmy.rerank_base_url"),
 		Type:         "string",
 		Description:  "Reranker API base URL",
 		Default:      "",
@@ -285,7 +295,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Timmy: session / resource limits ---
 	{
 		Key:          "timmy.max_conversation_history",
-		Class:        withMutability(classificationFor("timmy.max_conversation_history"), MutabilityStatic),
+		Class:        classificationFor("timmy.max_conversation_history"),
 		Type:         "int",
 		Description:  "Max conversation history entries",
 		Default:      "50",
@@ -296,7 +306,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.operator_system_prompt",
-		Class:        withMutability(classificationFor("timmy.operator_system_prompt"), MutabilityStatic),
+		Class:        classificationFor("timmy.operator_system_prompt"),
 		Type:         "string",
 		Description:  "Operator system prompt override",
 		Default:      "",
@@ -329,7 +339,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.max_messages_per_user_per_hour",
-		Class:        withMutability(classificationFor("timmy.max_messages_per_user_per_hour"), MutabilityStatic),
+		Class:        classificationFor("timmy.max_messages_per_user_per_hour"),
 		Type:         "int",
 		Description:  "Max messages per user per hour",
 		Default:      "60",
@@ -340,7 +350,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.max_sessions_per_threat_model",
-		Class:        withMutability(classificationFor("timmy.max_sessions_per_threat_model"), MutabilityStatic),
+		Class:        classificationFor("timmy.max_sessions_per_threat_model"),
 		Type:         "int",
 		Description:  "Max Timmy sessions per threat model",
 		Default:      "50",
@@ -351,7 +361,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.max_concurrent_llm_requests",
-		Class:        withMutability(classificationFor("timmy.max_concurrent_llm_requests"), MutabilityStatic),
+		Class:        classificationFor("timmy.max_concurrent_llm_requests"),
 		Type:         "int",
 		Description:  "Max concurrent LLM requests",
 		Default:      "10",
@@ -364,7 +374,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Timmy: chunking / embedding lifecycle ---
 	{
 		Key:          "timmy.chunk_size",
-		Class:        withMutability(classificationFor("timmy.chunk_size"), MutabilityStatic),
+		Class:        classificationFor("timmy.chunk_size"),
 		Type:         "int",
 		Description:  "Embedding chunk size",
 		Default:      "512",
@@ -375,7 +385,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.chunk_overlap",
-		Class:        withMutability(classificationFor("timmy.chunk_overlap"), MutabilityStatic),
+		Class:        classificationFor("timmy.chunk_overlap"),
 		Type:         "int",
 		Description:  "Embedding chunk overlap",
 		Default:      "50",
@@ -386,7 +396,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.llm_timeout_seconds",
-		Class:        withMutability(classificationFor("timmy.llm_timeout_seconds"), MutabilityStatic),
+		Class:        classificationFor("timmy.llm_timeout_seconds"),
 		Type:         "int",
 		Description:  "LLM request timeout in seconds",
 		Default:      "120",

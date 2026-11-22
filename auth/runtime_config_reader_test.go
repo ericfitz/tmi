@@ -10,19 +10,11 @@ type stubRuntimeReader struct {
 	allowList       []string
 	allowListExists bool
 	allowListErr    error
-	samlEnabled     bool
-	callbackURL     string
 	everyoneReviews bool
 }
 
 func (s *stubRuntimeReader) GetClientCallbackAllowList(_ context.Context) ([]string, bool, error) {
 	return s.allowList, s.allowListExists, s.allowListErr
-}
-func (s *stubRuntimeReader) IsSAMLEnabled(_ context.Context) bool {
-	return s.samlEnabled
-}
-func (s *stubRuntimeReader) GetOAuthCallbackURL(_ context.Context) string {
-	return s.callbackURL
 }
 func (s *stubRuntimeReader) IsEveryoneAReviewer(_ context.Context) bool {
 	return s.everyoneReviews
@@ -82,33 +74,25 @@ func (e *simpleError) Error() string { return e.s }
 
 func newSimpleError(s string) error { return &simpleError{s} }
 
-func TestHandlers_samlEnabled_PrefersRuntimeReader(t *testing.T) {
-	// YAML says false, reader says true → reader wins.
+// samlEnabled and oauthCallbackURL are startup-only (#1167): they return the
+// config value regardless of any runtime reader wired in.
+func TestHandlers_samlEnabled_IsStartupConfig(t *testing.T) {
 	h := &Handlers{config: Config{SAML: SAMLConfig{Enabled: false}}}
-	h.SetRuntimeConfigReader(&stubRuntimeReader{samlEnabled: true})
-	if !h.samlEnabled(context.Background()) {
-		t.Error("reader=true should win over YAML=false")
+	h.SetRuntimeConfigReader(&stubRuntimeReader{})
+	if h.samlEnabled() {
+		t.Error("config SAML.Enabled=false must report disabled")
 	}
-
-	// No reader → YAML drives.
-	h2 := &Handlers{config: Config{SAML: SAMLConfig{Enabled: true}}}
-	if !h2.samlEnabled(context.Background()) {
-		t.Error("YAML=true should pass through when no reader is wired")
+	h = &Handlers{config: Config{SAML: SAMLConfig{Enabled: true}}}
+	h.SetRuntimeConfigReader(&stubRuntimeReader{})
+	if !h.samlEnabled() {
+		t.Error("config SAML.Enabled=true must report enabled")
 	}
 }
 
-func TestHandlers_oauthCallbackURL_EmptyRuntimeValueFallsBackToYAML(t *testing.T) {
-	h := &Handlers{
-		config: Config{OAuth: OAuthConfig{CallbackURL: "http://yaml/cb"}},
-	}
-	// Reader returns empty → YAML wins (so a DB-row-missing dev environment still works).
-	h.SetRuntimeConfigReader(&stubRuntimeReader{callbackURL: ""})
-	if got := h.oauthCallbackURL(context.Background()); got != "http://yaml/cb" {
-		t.Errorf("got %q, want YAML fallback http://yaml/cb", got)
-	}
-	// Reader returns non-empty → reader wins.
-	h.SetRuntimeConfigReader(&stubRuntimeReader{callbackURL: "http://db/cb"})
-	if got := h.oauthCallbackURL(context.Background()); got != "http://db/cb" {
-		t.Errorf("got %q, want DB source http://db/cb", got)
+func TestHandlers_oauthCallbackURL_IsStartupConfig(t *testing.T) {
+	h := &Handlers{config: Config{OAuth: OAuthConfig{CallbackURL: "http://yaml/cb"}}}
+	h.SetRuntimeConfigReader(&stubRuntimeReader{})
+	if got := h.oauthCallbackURL(); got != "http://yaml/cb" {
+		t.Errorf("got %q, want config value http://yaml/cb", got)
 	}
 }

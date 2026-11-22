@@ -26,6 +26,14 @@ func Validate(j Job) error {
 	case !hasContentRef && !hasSourceLocator:
 		return fmt.Errorf("jobenvelope: input has neither object_ref nor source_url")
 	}
+	if e := j.Config; e != nil && e.Embedding != nil {
+		if e.Embedding.Model == "" || e.Embedding.Endpoint == "" {
+			return fmt.Errorf("jobenvelope: config.embedding requires model and endpoint")
+		}
+		if e.Embedding.Dimension < 0 {
+			return fmt.Errorf("jobenvelope: config.embedding.dimension must not be negative")
+		}
+	}
 	return nil
 }
 

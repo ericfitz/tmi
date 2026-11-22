@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -187,6 +189,78 @@ func TestGetMigratableSettings_ExplicitTracksEnvAndFile(t *testing.T) {
 	require.True(t, found, "server.port must be emitted by GetMigratableSettings")
 }
 
+// TestGetMigratableSettings_ExplicitFromFileUsesYAMLPath covers every def
+// whose Key differs from its YAMLPath (#1166). explicitFileKeys holds the
+// dotted YAML paths the file named, so a value set only in the file must be
+// found by YAMLPath, not by the renamed setting key.
+func TestGetMigratableSettings_ExplicitFromFileUsesYAMLPath(t *testing.T) {
+	renamed := 0
+	for _, d := range AllSettingDefs() {
+		if d.Get == nil || d.YAMLPath == "" || d.YAMLPath == d.Key {
+			continue
+		}
+		renamed++
+		t.Run(d.Key, func(t *testing.T) {
+			unsetEnvForTest(t, d.EnvVar)
+
+			byPath := getDefaultConfig()
+			byPath.explicitFileKeys = map[string]bool{d.YAMLPath: true}
+			s := findSetting(byPath.GetMigratableSettings(), d.Key)
+			require.NotNil(t, s, "%s must be emitted by GetMigratableSettings", d.Key)
+			assert.True(t, s.Explicit, "%s set in the file at %s must be Explicit", d.Key, d.YAMLPath)
+
+			byKey := getDefaultConfig()
+			byKey.explicitFileKeys = map[string]bool{d.Key: true}
+			s = findSetting(byKey.GetMigratableSettings(), d.Key)
+			require.NotNil(t, s)
+			assert.False(t, s.Explicit, "%s is not a YAML path; naming it must not make it Explicit", d.Key)
+		})
+	}
+	require.GreaterOrEqual(t, renamed, 3, "expected at least the three renamed defs from #1166")
+}
+
+// TestLoadSettingsSource_RenamedKeysSetInFileAreExplicit drives the real
+// loader: a YAML file that sets only the three renamed settings must yield
+// Explicit entries under their setting keys (#1166).
+func TestLoadSettingsSource_RenamedKeysSetInFileAreExplicit(t *testing.T) {
+	unsetEnvForTest(t, "OAUTH_CALLBACK_URL")
+	keys := []string{"auth.oauth_callback_url", "features.saml_enabled", "extraction.async_enabled"}
+	for _, key := range keys {
+		d, ok := DefFor(key)
+		require.True(t, ok, "%s must have a SettingDef", key)
+		unsetEnvForTest(t, d.EnvVar)
+	}
+
+	p := filepath.Join(t.TempDir(), "config.yaml")
+	yaml := "auth:\n" +
+		"  oauth:\n" +
+		"    callback_url: https://api.example.test/oauth2/callback\n" +
+		"  saml:\n" +
+		"    enabled: true\n" +
+		"content_extractors:\n" +
+		"  async_enabled: true\n"
+	require.NoError(t, os.WriteFile(p, []byte(yaml), 0o600))
+
+	c, err := LoadSettingsSource(p)
+	require.NoError(t, err)
+	settings := c.GetMigratableSettings()
+	for _, key := range keys {
+		s := findSetting(settings, key)
+		require.NotNil(t, s, "%s must be emitted", key)
+		assert.True(t, s.Explicit, "%s set only in the YAML file must be Explicit", key)
+	}
+}
+
+// unsetEnvForTest clears name for the duration of t and restores it afterward.
+func unsetEnvForTest(t *testing.T, name string) {
+	t.Helper()
+	if name == "" {
+		return
+	}
+	t.Setenv(name, "")
+	require.NoError(t, os.Unsetenv(name))
+}
+
 // TestDefaultOperationalSettings_MatchesPreRegistryBaseline is the single
 // most important test in this file. want is the exact key/value set
 // captured from DefaultOperationalSettings() BEFORE this refactor (the
@@ -212,7 +286,6 @@ func TestDefaultOperationalSettings_MatchesPreRegistryBaseline(t *testing.T) {
 		"auth.jwt.expiration_seconds":                     "3600",
 		"auth.jwt.refresh_token_days":                     "7",
 		"auth.jwt.session_lifetime_days":                  "7",
-		"auth.oauth_callback_url":                         "http://localhost:8080/oauth2/callback",
 		"auth.step_up_window_seconds":                     "300",
 		"content_extractors.compressed_size_bytes":        "20971520",
 		"content_extractors.decompressed_size_bytes":      "52428800",
@@ -227,7 +300,6 @@ func TestDefaultOperationalSettings_MatchesPreRegistryBaseline(t *testing.T) {
 		"content_sources.google_workspace.enabled":        "false",
 		"content_sources.microsoft.enabled":               "false",
 		"extraction.async_enabled":                        "false",
-		"features.saml_enabled":                           "false",
 		"observability.enabled":                           "false",
 		"observability.prometheus_port":                   "0",
 		"observability.sampling_rate":                     "1",
@@ -286,5 +358,5 @@ func TestDefaultOperationalSettings_MatchesPreRegistryBaseline(t *testing.T) {
 		"DefaultOperationalSettings() must match the pre-registry baseline exactly — "+
 			"a diff here means SeedDefaults would seed a different row set on a fresh "+
 			"database, or #794's origin backfill would classify existing rows differently")
-	assert.Len(t, want, 70, "baseline has a fixed size; update deliberately, not by drift")
+	assert.Len(t, want, 68, "baseline has a fixed size; update deliberately, not by drift")
 }

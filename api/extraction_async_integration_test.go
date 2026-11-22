@@ -272,7 +272,7 @@ func TestExtractionAsyncRoundTrip_Integration(t *testing.T) {
 	defer rc.Stop()
 
 	// Publish via ExtractionPublisher.
-	pub := NewExtractionPublisher(conn, store)
+	pub := NewExtractionPublisher(conn, store, nil)
 	jobID, err := pub.Publish(ctx, ExtractionRequest{
 		DocumentID:  knownDocRef,
 		ContentType: "text/plain",

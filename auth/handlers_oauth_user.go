@@ -100,10 +100,11 @@ const (
 )
 
 // findOrCreateUser is a thin wrapper around findOrCreateUserWithResolver that
-// uses *Service as the resolver. The resolver indirection exists so the matching
-// logic can be unit-tested with a fake (see handlers_oauth_user_test.go).
+// uses the service's database-authoritative login resolver (#1162). The
+// resolver indirection exists so the matching logic can be unit-tested with a
+// fake (see handlers_oauth_user_test.go).
 func (h *Handlers) findOrCreateUser(ctx context.Context, c *gin.Context, providerID, providerUserID, email, name string, emailVerified bool) (User, userMatchType, error) {
-	return findOrCreateUserWithResolver(ctx, c, h.service, providerID, providerUserID, email, name, emailVerified)
+	return findOrCreateUserWithResolver(ctx, c, h.service.loginResolver(), providerID, providerUserID, email, name, emailVerified)
 }
 
 // findOrCreateUserWithResolver implements tiered user matching strategy:

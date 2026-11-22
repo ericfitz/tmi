@@ -575,7 +575,12 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 	if err == nil && cachedUser != nil {
 		return *cachedUser, nil
 	}
+	return s.lookupUserByEmail(ctx, email)
+}
 
+// lookupUserByEmail reads a user by email from the database, bypassing the
+// cache, and refreshes the cache with the result.
+func (s *Service) lookupUserByEmail(ctx context.Context, email string) (User, error) {
 	repoUser, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
@@ -603,7 +608,12 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 	if err == nil && cachedUser != nil {
 		return *cachedUser, nil
 	}
+	return s.lookupUserByID(ctx, id)
+}
 
+// lookupUserByID reads a user by internal UUID from the database, bypassing
+// the cache, and refreshes the cache with the result.
+func (s *Service) lookupUserByID(ctx context.Context, id string) (User, error) {
 	repoUser, err := s.userRepo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
@@ -747,7 +757,12 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 	if err == nil && cachedUser != nil {
 		return *cachedUser, nil
 	}
+	return s.lookupUserByProviderID(ctx, provider, providerUserID)
+}
 
+// lookupUserByProviderID reads a user by provider and provider user ID from
+// the database, bypassing the cache, and refreshes the cache with the result.
+func (s *Service) lookupUserByProviderID(ctx context.Context, provider, providerUserID string) (User, error) {
 	repoUser, err := s.userRepo.GetByProviderID(ctx, provider, providerUserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {

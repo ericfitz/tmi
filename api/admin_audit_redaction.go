@@ -66,11 +66,24 @@ func NewRedactor() Redactor {
 
 const emptyValueSentinel = "<empty>"
 
+// systemSettingFieldPrefix prefixes the audit field path of a settings write.
+const systemSettingFieldPrefix = "system_settings."
+
+// isSecretSettingFieldPath reports whether fieldPath names a setting that the
+// classification registry (or the provider-subtree rule) marks secret. This is
+// the one authoritative secret rule; the name patterns below are a backstop
+// for paths the registry does not know, so a secret whose key matches no
+// pattern (e.g. a SAML provider's sp_private_key) is still redacted.
+func isSecretSettingFieldPath(fieldPath string) bool {
+	key, ok := strings.CutPrefix(fieldPath, systemSettingFieldPrefix)
+	return ok && shouldMaskSettingValue(key)
+}
+
 func (r *redactorImpl) Redact(fieldPath, value string) string {
 	if matchesAny(fieldPath, r.tier1Patterns) {
 		return mustJSON(map[string]any{"redacted": true})
 	}
-	if matchesAny(fieldPath, r.tier2Patterns) {
+	if isSecretSettingFieldPath(fieldPath) || matchesAny(fieldPath, r.tier2Patterns) {
 		out := map[string]any{
 			"redacted":      true,
 			"sha256_prefix": sha256Prefix8(value),

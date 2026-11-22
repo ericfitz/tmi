@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 // Valid enum values for various fields
@@ -182,7 +183,7 @@ func ValidateStatusLength(status *string) error {
 	if status == nil {
 		return nil
 	}
-	if len(*status) > 128 {
+	if utf8.RuneCountInString(*status) > 128 {
 		return NewValidationError("status", "must be at most 128 characters")
 	}
 	return nil

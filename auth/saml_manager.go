@@ -270,7 +270,9 @@ type samlUserResolver interface {
 
 // processUser creates or updates a user from SAML assertion
 func (m *SAMLManager) processUser(ctx context.Context, userInfo *saml.UserInfo, providerID string) (*User, error) {
-	return processSAMLUser(ctx, m.service, userInfo, providerID)
+	// Database-authoritative lookups: a stale cached user must not skip the
+	// create (#1162).
+	return processSAMLUser(ctx, m.service.loginResolver(), userInfo, providerID)
 }
 
 // samlMatchType identifies which tier of processSAMLUser's matching strategy

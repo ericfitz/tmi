@@ -29,7 +29,7 @@ func (h *Handlers) GetSAMLMetadata(c *gin.Context, providerID string) {
 	logger := slogging.Get()
 
 	// Check if SAML is enabled
-	if !h.samlEnabled(c.Request.Context()) {
+	if !h.samlEnabled() {
 		samlErrorJSON(c, http.StatusNotFound, errcode.SAMLNotEnabled, "SAML authentication is not enabled")
 		return
 	}
@@ -84,7 +84,7 @@ func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCa
 	}
 
 	// Check if SAML is enabled
-	if !h.samlEnabled(c.Request.Context()) {
+	if !h.samlEnabled() {
 		samlErrorJSON(c, http.StatusNotFound, errcode.SAMLNotEnabled, "SAML authentication is not enabled")
 		return
 	}
@@ -239,7 +239,7 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 	ctx := c.Request.Context()
 
 	// Check if SAML is enabled
-	if !h.samlEnabled(c.Request.Context()) {
+	if !h.samlEnabled() {
 		h.redirectWithError(c, ctx, relayState, http.StatusNotFound, errcode.SAMLError, "SAML authentication is not enabled")
 		return
 	}
@@ -328,7 +328,7 @@ func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequ
 	logger := slogging.Get()
 
 	// Check if SAML is enabled
-	if !h.samlEnabled(c.Request.Context()) {
+	if !h.samlEnabled() {
 		samlErrorJSON(c, http.StatusNotFound, errcode.SAMLNotEnabled, "SAML authentication is not enabled")
 		return
 	}

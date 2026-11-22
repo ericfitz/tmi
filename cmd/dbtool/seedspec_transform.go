@@ -293,7 +293,7 @@ func transformProjects(projects []SeedSpecProject) []SeedEntry {
 		})
 		seeds = append(seeds, transformTeamProjectNotes(
 			p.Notes, kindProjectNote, "project_ref", projectRef(p.Name),
-			"project-note:"+sanitizeName(p.Name),
+			projectNotePrefix(p.Name),
 		)...)
 	}
 	return seeds
@@ -941,6 +941,17 @@ func teamNotePrefix(teamName string) string { return "team-note:" + sanitizeName
 // reference.go relies on that to tell the real fixture (0) from the #608 decoy (1).
 func teamNoteRef(teamName string, i int) string {
 	return fmt.Sprintf("%s:%d", teamNotePrefix(teamName), i)
+}
+
+// projectNotePrefix is the ref prefix transformProjects passes for a project's notes.
+func projectNotePrefix(projectName string) string {
+	return "project-note:" + sanitizeName(projectName)
+}
+
+// projectNoteRef addresses one of a project's notes by its position in the
+// seed file, like teamNoteRef: index 0 is the real fixture, 1 the #608 decoy.
+func projectNoteRef(projectName string, i int) string {
+	return fmt.Sprintf("%s:%d", projectNotePrefix(projectName), i)
 }
 
 func childRef(kind, tmName, childName string) string {

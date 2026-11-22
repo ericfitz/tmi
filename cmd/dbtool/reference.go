@@ -117,7 +117,9 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	// the #608 decoy note exists this could return either one — and the decoy is
 	// the one DELETE consumes.
 	teamNoteID := findRefByName(refs, teamNoteRef(realTeamName, 0), kindTeamNote)
-	projectNoteID := findRefByKind(refs, kindProjectNote)
+	// Index 0 explicitly, as for team notes: once the decoy note exists a
+	// kind-based lookup could return the decoy.
+	projectNoteID := findRefByName(refs, projectNoteRef(realProjectName, 0), kindProjectNote)
 	feedbackID := findRefByKind(refs, kindFeedback)
 	// TriageNote.id is a per-survey-response sequential INTEGER, not a UUID, so
 	// the nilUUID fallback the other lookups use would be a type error in that
@@ -230,6 +232,10 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 		// nested path keeps the real team_id.
 		{"/teams/{team_id}/notes/{team_note_id}", "team_note_id",
 			findRefByName(refs, teamNoteRef(realTeamName, 1), "")},
+		// Run 20261121T192150Z lost project_note_id the same way; project
+		// notes are positional too, and the decoy hangs off the REAL project.
+		{"/projects/{project_id}/notes/{project_note_id}", "project_note_id",
+			findRefByName(refs, projectNoteRef(realProjectName, 1), "")},
 		{"/admin/webhooks/subscriptions/{webhook_id}", "webhook_id",
 			findRefByName(refs, webhookRef(throwawayWebhookName), "")},
 		// Not a DELETE decoy: POST .../test on an operator-pinned subscription
@@ -494,14 +500,15 @@ func writeFixtureManifest(path string, ids fixtureIDs) error {
 	// Anchors that writeYAMLReference emits a decoy override for. Keep in step
 	// with the `decoys` slice above.
 	decoyed := map[string]bool{
-		"/teams/{team_id}":                              true,
-		"/projects/{project_id}":                        true,
-		"/threat_models/{threat_model_id}":              true,
-		"/admin/groups/{group_id}":                      true,
-		"/admin/users/{user_id}":                        true,
-		"/intake/survey_responses/{survey_response_id}": true,
-		"/teams/{team_id}/notes/{team_note_id}":         true,
-		"/admin/webhooks/subscriptions/{webhook_id}":    true,
+		"/teams/{team_id}":                               true,
+		"/projects/{project_id}":                         true,
+		"/threat_models/{threat_model_id}":               true,
+		"/admin/groups/{group_id}":                       true,
+		"/admin/users/{user_id}":                         true,
+		"/intake/survey_responses/{survey_response_id}":  true,
+		"/teams/{team_id}/notes/{team_note_id}":          true,
+		"/projects/{project_id}/notes/{project_note_id}": true,
+		"/admin/webhooks/subscriptions/{webhook_id}":     true,
 
 		"/admin/surveys/{survey_id}": true,
 

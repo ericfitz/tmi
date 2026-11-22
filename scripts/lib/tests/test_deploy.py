@@ -701,7 +701,7 @@ class TestReusePreinstalledPlatform(unittest.TestCase):
              mock.patch.object(deploy, "_reloader_exists", return_value=reloader), \
              mock.patch.object(deploy, "_apply_with_retry"), \
              mock.patch.object(deploy, "kubectl") as k:
-            deploy.apply_platform_base()
+            deploy.apply_platform_base("docker-desktop")
         return [c[0][0] for c in k.call_args_list]
 
     def test_helm_install_skips_vendored_applies(self):
@@ -720,8 +720,147 @@ class TestReusePreinstalledPlatform(unittest.TestCase):
              mock.patch.object(deploy, "_find_cert_manager_webhook", return_value=("kube-system", "wh")), \
              mock.patch.object(deploy, "kubectl") as k, \
              self.assertRaises(SystemExit):
-            deploy.apply_platform_base()
+            deploy.apply_platform_base("docker-desktop")
         k.assert_not_called()
+
+
+class TestApplyNats(unittest.TestCase):
+    """k3s NATS: JetStream on a longhorn PVC, with a one-time orphan-delete of a
+    pre-PVC StatefulSet; docker-desktop keeps the plain emptyDir manifest."""
+
+    def _run(self, cluster_target, get_result=None, pod_result=None):
+        calls = []
+        if pod_result is None:
+            pod_result = self._get(0, "data-nats-0")
+
+        def fake_kubectl(args, **kw):
+            calls.append((args, kw))
+            if args[:4] == ["-n", deploy.NS, "get", "statefulset"]:
+                return get_result
+            if args[:4] == ["-n", deploy.NS, "get", "pod"]:
+                return pod_result
+            return mock.Mock(returncode=0, stdout="", stderr="")
+
+        render = mock.Mock(return_value=mock.Mock(stdout="RENDERED"))
+        with mock.patch.object(deploy, "get_project_root", return_value=_REPO_ROOT), \
+             mock.patch.object(deploy, "run_cmd", render), \
+             mock.patch.object(deploy, "kubectl", side_effect=fake_kubectl):
+            deploy.apply_nats(cluster_target)
+        return calls, render
+
+    @staticmethod
+    def _get(rc=0, out="", err=""):
+        return mock.Mock(returncode=rc, stdout=out, stderr=err)
+
+    def test_docker_desktop_applies_base_manifest_only(self):
+        calls, render = self._run("docker-desktop")
+        render.assert_not_called()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0][:2], ["apply", "-f"])
+        self.assertTrue(calls[0][0][2].endswith("deployments/k8s/platform/nats.yml"))
+
+    def _assert_overlay_applied(self, calls, render):
+        cmd = render.call_args[0][0]
+        self.assertEqual(cmd[:4], ["kubectl", "kustomize", "--load-restrictor", "LoadRestrictionsNone"])
+        self.assertTrue(cmd[4].endswith(deploy.K3S_NATS_OVERLAY))
+        applies = [c for c in calls if c[0] == ["apply", "-f", "-"]]
+        self.assertEqual(len(applies), 1)
+        self.assertEqual(applies[0][1]["input_text"], "RENDERED")
+        self.assertEqual(calls[-1][0][2:4], ["rollout", "status"])
+
+    def _deletes(self, calls):
+        return [c[0] for c in calls if "delete" in c[0]]
+
+    def _pod_deletes(self, calls):
+        return [c for c in self._deletes(calls) if "pod" in c]
+
+    def test_k3s_adopted_emptydir_pod_is_deleted_before_rollout_wait(self):
+        # Regression: the adopted pre-PVC pod is never rolled by the
+        # StatefulSet controller (forbidden in-place update), so rollout hung.
+        calls, render = self._run("k3s", self._get(0, ""), pod_result=self._get(0, ""))
+        pod_dels = self._pod_deletes(calls)
+        self.assertEqual(pod_dels, [["-n", deploy.NS, "delete", "pod", "nats-0", "--ignore-not-found"]])
+        del_idx = next(i for i, c in enumerate(calls) if c[0] == pod_dels[0])
+        apply_idx = next(i for i, c in enumerate(calls) if c[0] == ["apply", "-f", "-"])
+        self.assertLess(apply_idx, del_idx)
+        self.assertLess(del_idx, len(calls) - 1)  # rollout status comes after
+        self._assert_overlay_applied(calls, render)
+
+    def test_k3s_leftover_pvc_statefulset_with_emptydir_pod_is_repaired(self):
+        # A run that died after apply leaves the claim StatefulSet plus the old pod.
+        calls, _ = self._run("k3s", self._get(0, "data"), pod_result=self._get(0, ""))
+        self.assertEqual(len(self._pod_deletes(calls)), 1)
+        self.assertFalse(any("statefulset" in c and "delete" in c for c in self._deletes(calls)))
+
+    def test_k3s_missing_pod_is_left_to_the_statefulset(self):
+        calls, _ = self._run("k3s", self._get(0, "data"),
+                             pod_result=self._get(1, err='Error from server (NotFound): pods "nats-0" not found'))
+        self.assertEqual(self._pod_deletes(calls), [])
+
+    def test_k3s_unreadable_pod_fails_fast_before_rollout_wait(self):
+        with self.assertRaises(SystemExit):
+            self._run("k3s", self._get(0, "data"), pod_result=self._get(1, err="Unable to connect"))
+
+    def test_k3s_fresh_cluster_applies_without_delete(self):
+        calls, render = self._run("k3s", self._get(1, err='Error from server (NotFound): statefulsets.apps "nats" not found'))
+        self.assertEqual(self._deletes(calls), [])
+        self._assert_overlay_applied(calls, render)
+
+    def test_k3s_pre_pvc_statefulset_is_orphan_deleted_before_apply(self):
+        calls, render = self._run("k3s", self._get(0, ""))
+        dels = self._deletes(calls)
+        self.assertEqual(len(dels), 1)
+        self.assertIn("--cascade=orphan", dels[0])
+        self.assertIn("--ignore-not-found", dels[0])
+        del_idx = next(i for i, c in enumerate(calls) if "delete" in c[0])
+        apply_idx = next(i for i, c in enumerate(calls) if c[0] == ["apply", "-f", "-"])
+        self.assertLess(del_idx, apply_idx)
+        self._assert_overlay_applied(calls, render)
+
+    def test_k3s_second_run_with_pvc_does_not_delete(self):
+        calls, render = self._run("k3s", self._get(0, "data"))
+        self.assertEqual(self._deletes(calls), [])
+        self._assert_overlay_applied(calls, render)
+
+    def test_k3s_unreadable_statefulset_fails_fast(self):
+        get = self._get(1, err="Unable to connect to the server")
+        render = mock.Mock()
+        with mock.patch.object(deploy, "get_project_root", return_value=_REPO_ROOT), \
+             mock.patch.object(deploy, "run_cmd", render), \
+             mock.patch.object(deploy, "kubectl", return_value=get) as k, \
+             self.assertRaises(SystemExit):
+            deploy.apply_nats("k3s")
+        self.assertEqual(k.call_count, 1)  # the get only: no delete, no apply
+        render.assert_not_called()
+
+    def test_unknown_cluster_rejected(self):
+        with mock.patch.object(deploy, "kubectl") as k, self.assertRaises(SystemExit):
+            deploy.apply_nats("aws")
+        k.assert_not_called()
+
+    def test_apply_platform_base_passes_cluster_to_nats(self):
+        with mock.patch.object(deploy, "get_project_root", return_value=_REPO_ROOT), \
+             mock.patch.object(deploy, "_find_cert_manager_webhook", return_value=("cert-manager", "wh")), \
+             mock.patch.object(deploy, "_reloader_exists", return_value=True), \
+             mock.patch.object(deploy, "_apply_with_retry"), \
+             mock.patch.object(deploy, "kubectl"), \
+             mock.patch.object(deploy, "apply_nats") as an:
+            deploy.apply_platform_base("k3s")
+        an.assert_called_once_with("k3s")
+
+    def test_tracked_overlay_swaps_emptydir_for_longhorn_claim(self):
+        overlay = _REPO_ROOT / deploy.K3S_NATS_OVERLAY
+        out = deploy.run_cmd(["kubectl", "kustomize", "--load-restrictor", "LoadRestrictionsNone",
+                              str(overlay)], capture=True).stdout
+        sts = out[out.index("kind: StatefulSet"):]
+        sts = sts[:sts.index("\n---")] if "\n---" in sts else sts
+        self.assertNotIn("emptyDir", sts)
+        self.assertIn("volumeClaimTemplates:", sts)
+        self.assertIn("storageClassName: longhorn", sts)
+        self.assertIn("storage: 3Gi", sts)
+        # The claim must carry the name the container mounts at /data/jetstream.
+        self.assertRegex(sts, r"mountPath: /data/jetstream\n\s+name: data")
+        self.assertRegex(sts, r"volumeClaimTemplates:\n\s*- metadata:\n\s+name: data\n")
 
 
 class TestApplyOverlayRegistrySubstitution(unittest.TestCase):

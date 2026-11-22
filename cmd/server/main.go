@@ -768,6 +768,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	r.Use(api.AcceptHeaderValidation())                                      // Validate Accept header (406 for unsupported types)
 	r.Use(api.HSTSMiddleware(config.Server.TLSEnabled))                      // Add HSTS when TLS is enabled
 	r.Use(api.ContextTimeout(30 * time.Second))
+	r.Use(api.RequestBodyReadMiddleware()) // 400 on an incomplete body, before any middleware inspects it or auth runs
 
 	// Enable 405 Method Not Allowed responses (RFC 9110 §15.5.6).
 	// When a path is registered but the requested HTTP method is not, Gin will
@@ -927,15 +928,16 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	warnIfConfigDatabaseDiverges(context.Background(), settingsService, config, logger)
 
 	// Set config provider for settings migration endpoint and priority lookups
-	// Configuration priority: environment > config file > database
-	// The config provider (environment/config file values) takes precedence over database values
+	// Configuration priority: an admin-set database row wins; a seeded row yields
+	// to explicit environment/config file values; otherwise config is used (#1168).
 	configProvider := api.NewConfigProviderAdapter(config)
 	apiServer.SetConfigProvider(configProvider)
 	settingsService.SetConfigProvider(configProvider)
 	logger.Info("Config provider set for settings migration and priority lookups")
 
-	// Refuse to start on invalid effective (DB-resolved) Timmy config (#1102).
-	exitOnInvalidEffectiveTimmy(context.Background(), settingsService, config.Auth.BuildMode)
+	// Log, never exit on, an invalid effective Timmy config: invalid database
+	// rows are ignored (#1181); invalid env/YAML already exited above.
+	_ = logInvalidEffectiveTimmy(context.Background(), settingsService, config.Auth.BuildMode)
 
 	// Wire optimistic-locking enforcement flag (T14 / #385). When false, missing
 	// If-Match emits Deprecation/Warning headers; when true, returns 428.
@@ -1020,9 +1022,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		logger.Info("Provider registry wired into auth handlers for unified provider lookup")
 
 		// Wire DB-backed runtime config reader so request-time reads of
-		// operational config (client_callback_allowlist, saml_enabled,
-		// oauth_callback_url) come from system_settings rather than the
-		// YAML snapshot loaded at boot. #419.
+		// operational config (client_callback_allowlist,
+		// everyone_is_a_reviewer) come from system_settings rather than the
+		// YAML snapshot loaded at boot. #419. saml_enabled and
+		// oauth_callback_url are startup-only (#1167) and read from config.
 		// The JWT authenticator reads the same reader back off authHandlers for
 		// auth.everyone_is_a_reviewer, which until #794 was read straight off
 		// the boot-time config struct and so ignored its database row entirely.
@@ -1098,7 +1101,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	// the ContentSourceHolder rebuild hook below) to each newly-built
 	// AccessPoller so both call sites route through the async worker pipeline
 	// when extraction.async_enabled is on.
-	extractionPublisher := wireExtractionNATS(apiServer, gormDB.DB())
+	extractionPublisher := wireExtractionNATS(apiServer, gormDB.DB(), api.NewStampedConfigProvider(settingsService))
 	if extractionPublisher != nil {
 		apiServer.SetDocumentAsyncExtraction(extractionPublisher, apiServer.UseAsyncExtraction)
 		logger.Info("async extraction publisher wired into document handler")
@@ -1157,6 +1160,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	r.Use(api.BodySizeLimitMiddleware())              // 413 for oversized bodies on routes that document it, before any body parsing
 	r.Use(api.AcceptLanguageMiddleware())             // Handle Accept-Language gracefully
 	r.Use(api.UnicodeNormalizationMiddleware())       // Normalize and reject problematic Unicode (security hardening)
+	r.Use(api.QueryParameterControlCharMiddleware())  // Reject control chars (NUL etc.) in query parameters (400, not a DB 500)
 	r.Use(api.StrictJSONValidationMiddleware())       // Reject malformed JSON (trailing garbage, duplicate keys)
 	r.Use(api.BoundaryValueValidationMiddleware())    // Enhanced validation for boundary values
 
@@ -1324,7 +1328,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 // Returns a non-nil *api.ExtractionPublisher when NATS is available; the
 // caller should propagate the publisher and the UseAsyncExtraction decider
 // into the DocumentSubResourceHandler and the AccessPoller (Task 8).
-func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) *api.ExtractionPublisher {
+func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB, stamped config.StampedConfigProvider) *api.ExtractionPublisher {
 	logger := slogging.Get()
 	natsURL := os.Getenv("TMI_NATS_URL")
 	if natsURL == "" {
@@ -1362,7 +1366,7 @@ func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) *api.ExtractionP
 	apiServer.SetResultConsumer(rc)
 	logger.Info("result-consumer started")
 
-	pub := api.NewExtractionPublisher(conn, jobStore)
+	pub := api.NewExtractionPublisher(conn, jobStore, stamped)
 	logger.Info("async extraction publisher created")
 	return pub
 }

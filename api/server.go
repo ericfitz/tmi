@@ -17,6 +17,9 @@ import (
 
 // SettingsServiceInterface defines the operations needed by handlers on settings.
 type SettingsServiceInterface interface {
+	// Get returns a non-nil row (Value blanked, Unreadable set) together with
+	// an error wrapping errSettingUnreadable when a stored value cannot be
+	// decrypted; callers must check err first.
 	Get(ctx context.Context, key string) (*models.SystemSetting, error)
 	GetString(ctx context.Context, key string) (string, error)
 	// GetResolvedString applies the single converged precedence rule across
@@ -31,6 +34,10 @@ type SettingsServiceInterface interface {
 	ListByPrefix(ctx context.Context, prefix string) ([]models.SystemSetting, error)
 	Set(ctx context.Context, setting *models.SystemSetting) error
 	Delete(ctx context.Context, key string) error
+	// HasRow reports whether a system_settings row exists for key, without the
+	// bootstrap guard, decryption or caching of Get. The admin DELETE uses it
+	// for bootstrap keys, whose stale rows are inert but still deletable.
+	HasRow(ctx context.Context, key string) (bool, error)
 	SeedDefaults(ctx context.Context) error
 	ReEncryptAll(ctx context.Context) (int, []SettingError, error)
 	CountValuesWithContextID(ctx context.Context, id int) (int64, error)
@@ -190,7 +197,7 @@ type MigratableSetting struct {
 	// Explicit reports whether an operator actually supplied this value (env
 	// var set, or key written in the YAML file) rather than it being the
 	// struct default. The settings service uses it to decide whether a
-	// database value may apply — see getConfigSetting (#415).
+	// database value may apply — see configOutranksRow (#415, #1168).
 	Explicit bool
 	// Class carries the setting's classification; Category distinguishes
 	// bootstrap settings (never database-backed) from operational ones.

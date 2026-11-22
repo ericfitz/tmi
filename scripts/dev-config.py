@@ -17,44 +17,54 @@ TMI's configuration lives in three places, and only one of them is durable:
                            with it the Postgres PVC, and the next `dev-up`
                            re-seeds only classification-registry defaults.
 
-(3) is how a dev cluster silently loses every OAuth provider, callback URL and
+(3) is how a dev cluster silently loses every OAuth provider and
 feature flag that was ever configured through the admin API (#791). This script
 is the missing durable copy for that third bucket: `snapshot` writes the
-database's settings to a gitignored file under .local/, and `restore` puts them
-back.
+database's explicit settings to a gitignored file under .local/, and `restore`
+puts them back.
 
 The safety net is automatic, not a discipline you have to remember:
 scripts/lib/deploy.py snapshots before every teardown (including the namespace
 delete that dev-nuke performs) and restores after every start. So the sequence
 that used to destroy the configuration now round-trips it.
 
-RESTORE SEMANTICS
+SNAPSHOT FORMAT AND RESTORE SEMANTICS (#1180)
 
-`restore` runs `tmi-dbtool --import-config`, which by default only writes keys
-that are MISSING from the database and leaves existing rows alone. That is what
-makes the automatic restore on dev-up safe to run unconditionally: on a freshly
-nuked database it repopulates everything, and on a database you have since
-edited it will not revert your edits. Pass --overwrite to force the snapshot to
-win for every key.
+`snapshot` runs `tmi-dbtool --export-config --explicit-only`: it writes only the
+rows an operator deliberately set (origin "explicit") and puts a format marker on
+the first line. Seeded rows are not snapshotted; the server re-seeds registry
+defaults on every start.
 
-COVERAGE — WHAT RESTORE DOES NOT COVER
+`restore` runs `tmi-dbtool --restore-snapshot`, in one transaction:
 
-`--import-config` writes the keys that `Config.GetMigratableSettings()` knows
-about. A handful of keys live in the classification registry (so the server
-seeds them) without a matching Config struct field, so `--export-config` writes
-them out but `--import-config` silently drops them:
+  - writes exactly the keys in the file, each as an explicit row (struct
+    defaults and the host environment never contribute a row or a value);
+  - replaces an existing seeded row (so an admin edit to a key that has a
+    registry default survives a nuke);
+  - skips an existing explicit row, so restore never reverts an edit made
+    since the snapshot, and a second run is a no-op;
+  - refuses a file without the marker (a snapshot taken before this format
+    holds every row and would stamp seeded defaults explicit). The deploy
+    treats the refusal as a warning; re-take the snapshot with
+    `make dev-config-snapshot CLUSTER=<cluster>`;
+  - treats an empty snapshot (a database with no explicit rows) as nothing to do.
 
-    features.saml_enabled           ui.default_theme
+A manifest pin (TMI_* in the deployment) therefore loses only to a real admin
+edit, which is what the settings-precedence ADR specifies.
+
+COVERAGE: WHAT RESTORE DOES NOT COVER
+
+Restore writes the keys that `Config.GetMigratableSettings()` knows about. A
+handful of keys live in the classification registry (so the server seeds them)
+without a matching Config struct field, so `--export-config` writes them out but
+restore ignores them (it logs their names):
+
     features.webhooks_enabled       upload.max_file_size_mb
     features.websocket_enabled      websocket.max_participants
-    session.timeout_minutes
+    session.timeout_minutes         ui.default_theme
 
-The server re-seeds all of them at their DEFAULTS on startup, so they always
-come back — what does not survive is a CUSTOMIZED value for one of them. That
-is a much smaller hole than "restore does not work", but it is a real one; see
-the follow-up issue linked from #791. Everything with a struct field — every
-OAuth/SAML provider key, the callback allowlist, all the timmy and
-content_extractors tuning, the JWT and cookie settings — round-trips.
+What does not survive a nuke is a CUSTOMIZED value for one of them; see the
+follow-up issue linked from #791. Everything with a struct field round-trips.
 
 USAGE
 
@@ -73,23 +83,36 @@ import contextlib
 import os
 import sys
 import tempfile
-from datetime import datetime, timezone
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from deploy import (  # noqa: E402
-    NS, OAUTH_PROVIDERS_ENV_FILE, ensure_port_forward, kubectl, set_active_context,
+from deploy import (
+    NS,
+    OAUTH_PROVIDERS_ENV_FILE,
+    ensure_port_forward,
+    kubectl,
+    set_active_context,
 )
-from tmi_common import (  # noqa: E402
-    add_config_arg, add_verbosity_args, apply_verbosity, get_project_root,
-    log_error, log_info, log_success, log_warn, run_cmd,
+from tmi_common import (
+    add_config_arg,
+    add_verbosity_args,
+    apply_verbosity,
+    get_project_root,
+    log_error,
+    log_info,
+    log_success,
+    log_warn,
+    run_cmd,
 )
 
 # Per-cluster because the two dev clusters legitimately disagree on
-# host-dependent values -- auth.oauth_callback_url is
-# http://localhost:8080/oauth2/callback on docker-desktop but
-# https://<your-ingress-host>/api/oauth2/callback on k3s -- and a single shared file
-# would push the wrong callback to whichever cluster it was not taken from.
+# host-dependent database values, and a single shared file would push the
+# wrong one to whichever cluster it was not taken from. (The OAuth callback URL
+# is no longer one of them: it is startup-only, set by TMI_OAUTH_CALLBACK_URL.)
 SNAPSHOT_DIR = ".local"
 CLUSTERS = ("k3s", "docker-desktop")
 
@@ -194,28 +217,139 @@ def _dbtool(argv: list[str], cluster: str, *, with_settings_key: bool = False) -
         run_cmd(argv, cwd=str(get_project_root()))
 
 
+SKIPPED_PREFIX = "# skipped-explicit: "  # keep in step with cmd/dbtool skippedExplicitPrefix
+
+
+def snapshot_keys(path: Path) -> set[str] | None:
+    """Dotted leaf keys of a snapshot file (empty set for an empty or
+    marker-only file), or None when it cannot be read or parsed."""
+    try:
+        doc = yaml.safe_load(path.read_text())
+    except (OSError, yaml.YAMLError):
+        return None
+    if doc is None:
+        return set()
+    if not isinstance(doc, dict):
+        return None
+
+    def walk(node, prefix):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                yield from walk(v, f"{prefix}.{k}" if prefix else str(k))
+        else:
+            yield prefix
+
+    return set(walk(doc, ""))
+
+
+def snapshot_skipped(path: Path) -> list[str]:
+    """Explicit rows dbtool reported as not exported (header comment), names only."""
+    try:
+        for line in path.read_text().splitlines():
+            if line.startswith(SKIPPED_PREFIX):
+                return [k.strip() for k in line[len(SKIPPED_PREFIX):].split(",") if k.strip()]
+    except OSError:
+        # A missing or unreadable snapshot has no skip header: report no skips.
+        return []
+    return []
+
+
+def _write_private(path: Path, data: bytes) -> None:
+    """Replace path with data, mode 0600 from creation: write a private temp
+    file (mkstemp is O_EXCL, 0600) and rename it over path, so an old
+    world-readable file is never truncated and refilled with secrets."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".tmp-")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def _loses_to_skips(existing: set[str], new_keys: set[str], skipped: list[str]) -> bool:
+    """True when replacing `existing` with `new_keys` would lose data the export
+    only failed to read: the export is empty while the file has keys, or a key
+    that disappeared is one dbtool reported as skipped (undecryptable, empty).
+    A key that vanished with no skip entry was deleted by an admin, and the
+    snapshot must follow, or deleted rows would resurrect on restore."""
+    if not new_keys:
+        return True
+    return bool((existing - new_keys) & set(skipped))
+
+
 def cmd_snapshot(args: argparse.Namespace) -> None:
     out = Path(args.file) if args.file else snapshot_path(args.cluster)
     out.parent.mkdir(parents=True, exist_ok=True)
+    root = get_project_root()
 
-    if out.exists():
-        # Keep one generation back. The snapshot is the only copy of settings
-        # that exist nowhere else, so an export that fails halfway (or exports
-        # an already-wiped database) must not be able to destroy the good one.
-        backup = out.with_suffix(out.suffix + ".prev")
-        backup.write_bytes(out.read_bytes())
-        log_info(f"Previous snapshot kept at {backup.relative_to(get_project_root())}")
+    # Export to a sibling temp file and only then replace the good snapshot.
+    # The snapshot is the only copy of settings that exist nowhere else, so a
+    # failed export, an export of a database with no explicit rows (a freshly
+    # nuked one whose restore was refused or failed), or a PARTIAL export (an
+    # explicit secret that could not be decrypted) must not destroy it or its
+    # .prev generation.
+    tmp = out.with_name(out.name + ".new")
+    for stale in (*out.parent.glob(out.name + ".new*"), *out.parent.glob(out.name + ".prev.tmp-*")):
+        stale.unlink(missing_ok=True)
 
     build_dbtool()
-    log_info(f"Exporting operational settings from the {args.cluster} dev database...")
-    _dbtool([
-        "./bin/tmi-dbtool", "--export-config",
-        f"--config={args.config}",
-        "-f", args.config,
-        "--output", str(out),
-    ], cluster=args.cluster, with_settings_key=True)
-    os.chmod(out, 0o600)
-    log_success(f"Snapshot written: {out.relative_to(get_project_root())}")
+    log_info(f"Exporting explicit settings from the {args.cluster} dev database...")
+    try:
+        # --allow-skips: an explicit row dbtool cannot export (a secret with no
+        # decryptor, an empty value) must not fail the best-effort snapshot that
+        # runs before every teardown; dbtool names the keys in the file header
+        # and in a warning instead, and the subset check below protects the
+        # existing snapshot.
+        _dbtool([
+            "./bin/tmi-dbtool", "--export-config", "--explicit-only", "--allow-skips",
+            f"--config={args.config}",
+            "-f", args.config,
+            "--output", str(tmp),
+        ], cluster=args.cluster, with_settings_key=True)
+
+        new_keys = snapshot_keys(tmp)
+        if new_keys is None:
+            raise RuntimeError(f"dbtool wrote an unparseable snapshot to {tmp}")
+        skipped = snapshot_skipped(tmp)
+
+        rotate = out.exists()
+        if rotate:
+            existing = snapshot_keys(out)
+            if existing is None:
+                # Never let a corrupt file displace the good .prev.
+                stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+                corrupt = out.with_suffix(out.suffix + f".corrupt-{stamp}")
+                os.replace(out, corrupt)
+                log_warn(
+                    f"{out.relative_to(root)} is unreadable; moved aside to "
+                    f"{corrupt.relative_to(root)} and left .prev untouched."
+                )
+                rotate = False
+            elif not args.force and existing and _loses_to_skips(existing, new_keys, skipped):
+                lost = sorted((existing - new_keys) if new_keys else existing)
+                log_warn(
+                    f"The new export lacks {len(lost)} key(s) the existing snapshot "
+                    f"{out.relative_to(root)} has and the loss is not an admin deletion "
+                    f"(empty export or skipped rows): {', '.join(lost)}. Keeping the existing "
+                    "snapshot and its .prev unchanged. Re-run with --force "
+                    "(make dev-config-snapshot FORCE=1) to accept the new export."
+                )
+                return
+
+        if rotate:
+            # Keep one generation back.
+            backup = out.with_suffix(out.suffix + ".prev")
+            _write_private(backup, out.read_bytes())
+            log_info(f"Previous snapshot kept at {backup.relative_to(root)}")
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, out)
+    finally:
+        tmp.unlink(missing_ok=True)
+    note = f"; {len(skipped)} explicit rows skipped: {', '.join(skipped)}" if skipped else ""
+    msg = f"Snapshot written: {out.relative_to(root)} ({len(new_keys)} keys{note})"
+    (log_warn if skipped else log_success)(msg)
 
 
 def cmd_restore(args: argparse.Namespace) -> None:
@@ -228,25 +362,15 @@ def cmd_restore(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     build_dbtool()
-    mode = "overwriting existing keys" if args.overwrite else "filling in missing keys only"
-    log_info(f"Restoring operational settings into the {args.cluster} dev database ({mode})...")
-
-    # --output redirects the *-migrated.yml byproduct that --import-config
-    # otherwise drops next to the input file; we delete it afterwards rather
-    # than leaving litter in .local/.
-    byproduct = src.with_suffix(src.suffix + ".migrated")
-    argv = [
-        "./bin/tmi-dbtool", "--import-config",
+    log_info(
+        f"Restoring operational settings into the {args.cluster} dev database "
+        "(snapshot keys as explicit; existing explicit rows kept)..."
+    )
+    _dbtool([
+        "./bin/tmi-dbtool", "--restore-snapshot",
         f"--config={args.config}",
         "-f", str(src),
-        "--output", str(byproduct),
-    ]
-    if args.overwrite:
-        argv.append("--overwrite")
-    try:
-        _dbtool(argv, cluster=args.cluster)
-    finally:
-        byproduct.unlink(missing_ok=True)
+    ], cluster=args.cluster)
     log_success("Settings restored. Roll the server to pick up startup-read values:")
     log_success("    kubectl -n tmi-platform rollout restart deploy/tmi-server")
 
@@ -263,8 +387,8 @@ def cmd_status(args: argparse.Namespace) -> None:
 
     snap = Path(args.file) if args.file else snapshot_path(args.cluster)
     if snap.is_file():
-        age = datetime.now(timezone.utc) - datetime.fromtimestamp(
-            snap.stat().st_mtime, tz=timezone.utc)
+        age = datetime.now(UTC) - datetime.fromtimestamp(
+            snap.stat().st_mtime, tz=UTC)
         keys = sum(
             1 for line in snap.read_text().splitlines()
             if line.strip() and not line.lstrip().startswith("#") and ":" in line
@@ -307,16 +431,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("verb", choices=sorted(_DISPATCH), help="operation to perform")
     parser.add_argument(
+        "--force", action="store_true",
+        help="snapshot: accept an export that lacks keys the existing snapshot has "
+             "(empty export or skipped rows) instead of keeping the existing file",
+    )
+    parser.add_argument(
         "--cluster", choices=CLUSTERS, default="docker-desktop",
         help="which dev cluster's snapshot to act on (default: docker-desktop)",
     )
     parser.add_argument(
         "--file", metavar="FILE", default="",
         help=f"override the snapshot path (default: {SNAPSHOT_DIR}/dev-config-<cluster>.yaml)",
-    )
-    parser.add_argument(
-        "--overwrite", action="store_true",
-        help="restore: let the snapshot win for keys already present in the database",
     )
     add_config_arg(parser)
     add_verbosity_args(parser)

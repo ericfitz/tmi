@@ -130,7 +130,9 @@ func (c Consumer) String() string {
 // Delivery describes how an operational setting reaches a process that cannot
 // ask the monolith over HTTP. It is nil on bootstrap settings.
 type Delivery struct {
-	// StampedIntoEnvelope: the monolith copies this into job envelopes.
+	// StampedIntoEnvelope: the monolith copies this into job envelopes. This
+	// is a declaration; the keys actually stamped today are the three embedding
+	// keys (api.stampedConfigProvider, ExtractionPublisher).
 	StampedIntoEnvelope bool
 	// SharedInvariant: the monolith ALSO consumes this; ingest and the
 	// monolith must agree. The validation suite enforces that SharedInvariant

@@ -34,13 +34,6 @@ type RuntimeConfigReader interface {
 	//     falling back to YAML would defeat the open-redirect mitigation.
 	GetClientCallbackAllowList(ctx context.Context) (list []string, exists bool, err error)
 
-	// IsSAMLEnabled reports whether SAML auth is enabled.
-	IsSAMLEnabled(ctx context.Context) bool
-
-	// GetOAuthCallbackURL returns the configured OAuth callback URL used
-	// when redirecting back from an external provider.
-	GetOAuthCallbackURL(ctx context.Context) string
-
 	// IsEveryoneAReviewer reports whether every authenticated user should be
 	// auto-added to the Security Reviewers group.
 	//

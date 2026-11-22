@@ -33,9 +33,10 @@ func unsetSettingEnvVars(t *testing.T) {
 
 // TestUpdateSystemSetting_ExplicitnessGuard pins #1160: for a key the config
 // layer knows, PUT /admin/settings/{key} is allowed only when the setting is
-// Hot, Operational and not explicitly set by the config file or environment.
-// Static, bootstrap, explicit and provider-subtree keys keep 409; keys unknown
-// to config are unaffected.
+// Hot and Operational. An explicit config-file or environment value no longer
+// blocks it (#1168: the admin-set row wins on every read path). Static,
+// bootstrap and provider-subtree keys keep 409; keys unknown to config are
+// unaffected.
 func TestUpdateSystemSetting_ExplicitnessGuard(t *testing.T) {
 	hot := config.ConfigClass{Category: config.CategoryOperational, Mutability: config.MutabilityHot}
 	static := config.ConfigClass{Category: config.CategoryOperational, Mutability: config.MutabilityStatic}
@@ -60,15 +61,27 @@ func TestUpdateSystemSetting_ExplicitnessGuard(t *testing.T) {
 			wantStatus: http.StatusConflict,
 		},
 		{
-			name:       "explicit hot via config file is rejected",
+			name:       "explicit hot via config file is writable",
 			settings:   []MigratableSetting{{Key: "timmy.enabled", Value: "false", Type: "bool", Source: "config", Explicit: true, Class: hot}},
 			key:        "timmy.enabled",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "explicit hot via environment is writable",
+			settings:   []MigratableSetting{{Key: "timmy.enabled", Value: "false", Type: "bool", Source: "environment", Explicit: true, Class: hot}},
+			key:        "timmy.enabled",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "explicit static is still rejected",
+			settings:   []MigratableSetting{{Key: "websocket.inactivity_timeout_seconds", Value: "60", Type: "int", Source: "environment", Explicit: true, Class: static}},
+			key:        "websocket.inactivity_timeout_seconds",
 			wantStatus: http.StatusConflict,
 		},
 		{
-			name:       "explicit hot via environment is rejected",
-			settings:   []MigratableSetting{{Key: "timmy.enabled", Value: "false", Type: "bool", Source: "environment", Explicit: true, Class: hot}},
-			key:        "timmy.enabled",
+			name:       "explicit provider subtree key is still rejected",
+			settings:   []MigratableSetting{{Key: "auth.oauth.providers.google.client_id", Value: "x", Type: "string", Source: "environment", Explicit: true, Class: hot}},
+			key:        "auth.oauth.providers.google.client_id",
 			wantStatus: http.StatusConflict,
 		},
 		{
@@ -148,6 +161,11 @@ func TestUpdateSystemSetting_ExplicitnessGuard(t *testing.T) {
 
 func putSetting(t *testing.T, server *Server, key, value string) *httptest.ResponseRecorder {
 	t.Helper()
+	return putSettingTyped(t, server, key, value, "string")
+}
+
+func putSettingTyped(t *testing.T, server *Server, key, value, settingType string) *httptest.ResponseRecorder {
+	t.Helper()
 	originalAdminStore := GlobalGroupMemberRepository
 	t.Cleanup(func() { restoreConfigStores(originalAdminStore) })
 	GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
@@ -163,7 +181,7 @@ func putSetting(t *testing.T, server *Server, key, value string) *httptest.Respo
 	r.PUT("/admin/settings/:key", func(c *gin.Context) {
 		server.UpdateSystemSetting(c, c.Param("key"))
 	})
-	req, _ := http.NewRequest("PUT", "/admin/settings/"+key, strings.NewReader(`{"value": "`+value+`", "type": "string"}`))
+	req, _ := http.NewRequest("PUT", "/admin/settings/"+key, strings.NewReader(`{"value": "`+value+`", "type": "`+settingType+`"}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -210,14 +228,13 @@ func TestUpdateSystemSetting_RealConfigProvider(t *testing.T) {
 }
 
 // TestRuntimeWritableConfigSettings_ExactSet pins the set of config-known keys
-// the PUT guard lets through when nothing is explicit. A change to a def's
+// the PUT guard lets through (explicitness no longer matters, #1168). A change to a def's
 // Category or Mutability, or a new Hot operational def, must update this list
 // deliberately.
 func TestRuntimeWritableConfigSettings_ExactSet(t *testing.T) {
 	want := []string{
 		"auth.everyone_is_a_reviewer",
 		"auth.oauth.client_callback_allowlist",
-		"auth.oauth_callback_url",
 		"extraction.async_enabled",
 		"features.webhooks_enabled",
 		"features.websocket_enabled",
@@ -225,6 +242,33 @@ func TestRuntimeWritableConfigSettings_ExactSet(t *testing.T) {
 		"operator.jurisdiction",
 		"operator.name",
 		"timmy.enabled",
+		"timmy.chunk_overlap",
+		"timmy.chunk_size",
+		"timmy.code_embedding_api_key",
+		"timmy.code_embedding_base_url",
+		"timmy.code_embedding_model",
+		"timmy.code_embedding_provider",
+		"timmy.code_retrieval_top_k",
+		"timmy.embedding_dimension",
+		"timmy.llm_api_key",
+		"timmy.llm_base_url",
+		"timmy.llm_model",
+		"timmy.llm_provider",
+		"timmy.llm_timeout_seconds",
+		"timmy.max_concurrent_llm_requests",
+		"timmy.max_conversation_history",
+		"timmy.max_messages_per_user_per_hour",
+		"timmy.max_sessions_per_threat_model",
+		"timmy.operator_system_prompt",
+		"timmy.rerank_api_key",
+		"timmy.rerank_base_url",
+		"timmy.rerank_model",
+		"timmy.rerank_provider",
+		"timmy.text_embedding_api_key",
+		"timmy.text_embedding_base_url",
+		"timmy.text_embedding_model",
+		"timmy.text_embedding_provider",
+		"timmy.text_retrieval_top_k",
 		"ui.default_theme",
 		"upload.max_file_size_mb",
 		"websocket.max_participants",

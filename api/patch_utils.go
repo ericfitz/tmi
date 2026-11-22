@@ -100,6 +100,10 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 		}
 	}
 
+	if err := validatePatchedFields[T](originalBytes, processedOperations); err != nil {
+		return zero, err
+	}
+
 	// Deserialize back into entity. The patched document is caller-supplied
 	// content, so a value that no longer fits the schema (wrong type, failed
 	// format/regex validation) is the caller's error (#815). Only malformed

@@ -315,6 +315,12 @@ func StripResponseOnlyAuthFields(authList []Authorization) []Authorization {
 	return result
 }
 
+// Column limits for authorization subjects (groups.provider, groups.group_name).
+const (
+	maxAuthorizationProviderLen   = 100
+	maxAuthorizationProviderIDLen = 500
+)
+
 // ValidateSparseAuthorizationEntries validates authorization entries BEFORE enrichment
 // Requires: provider + (provider_id OR email)
 // Does NOT require: display_name (response-only field)
@@ -328,6 +334,23 @@ func ValidateSparseAuthorizationEntries(authList []Authorization) error {
 				Status:  http.StatusBadRequest,
 				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Authorization entry at index %d: 'provider' must be a valid identity provider name (e.g., \"tmi\", \"google\", \"github\")", i),
+			}
+		}
+
+		// Reject values that would overflow the groups/users columns
+		// (provider varchar(100), group_name/provider_user_id varchar(500)).
+		if len(auth.Provider) > maxAuthorizationProviderLen {
+			return &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    errcode.InvalidInput,
+				Message: fmt.Sprintf("Authorization entry at index %d: 'provider' exceeds maximum length of %d characters", i, maxAuthorizationProviderLen),
+			}
+		}
+		if len(auth.ProviderId) > maxAuthorizationProviderIDLen {
+			return &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    errcode.InvalidInput,
+				Message: fmt.Sprintf("Authorization entry at index %d: 'provider_id' exceeds maximum length of %d characters", i, maxAuthorizationProviderIDLen),
 			}
 		}
 

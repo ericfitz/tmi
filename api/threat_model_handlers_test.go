@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/ericfitz/tmi/api/validation"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -1788,4 +1789,86 @@ func TestPutThreatModel_RejectsAliasInBody(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "invalid_input", string(errResp.Error))
 	assert.Contains(t, errResp.ErrorDescription, "alias")
+}
+
+// threat_model_framework is an enum (CIA, STRIDE, LINDDUN, DIE, PLOT4ai) on every
+// write path (ADR 2026-11-21). These tests exercise the handlers directly, so
+// they cover the handler-level check independent of the OpenAPI middleware.
+
+func TestCreateThreatModel_RejectsInvalidFramework(t *testing.T) {
+	r := setupThreatModelRouter()
+	for _, fw := range []string{"ICFDENVPMLPYOVPQQIBZSXRAZSULJF", "stride", "PASTA"} {
+		body, _ := json.Marshal(map[string]any{"name": "Bad Framework TM", "threat_model_framework": fw})
+		req, _ := http.NewRequest("POST", "/threat_models", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code, "framework %q: %s", fw, w.Body.String())
+		assert.Contains(t, w.Body.String(), "threat_model_framework")
+	}
+}
+
+func TestCreateThreatModel_AcceptsEveryFrameworkAndOmitted(t *testing.T) {
+	r := setupThreatModelRouter()
+	for _, fw := range []string{"CIA", "STRIDE", "LINDDUN", "DIE", "PLOT4ai", ""} {
+		payload := map[string]any{"name": "Framework TM " + fw}
+		if fw != "" {
+			payload["threat_model_framework"] = fw
+		}
+		body, _ := json.Marshal(payload)
+		req, _ := http.NewRequest("POST", "/threat_models", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code, "framework %q: %s", fw, w.Body.String())
+	}
+}
+
+func TestPutThreatModel_RejectsInvalidFramework(t *testing.T) {
+	r := setupThreatModelRouter()
+	tm := createTestThreatModel(t, r, "Framework Put Test", "d")
+
+	body, _ := json.Marshal(map[string]any{"name": "Framework Put Test", "threat_model_framework": "NOPE"})
+	req, _ := http.NewRequest("PUT", "/threat_models/"+tm.Id.String(), bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "threat_model_framework")
+}
+
+func TestPatchThreatModel_RejectsInvalidFramework(t *testing.T) {
+	r := setupThreatModelRouter()
+	tm := createTestThreatModel(t, r, "Framework Patch Test", "d")
+
+	body, _ := json.Marshal([]PatchOperation{{Op: "replace", Path: "/threat_model_framework", Value: "NOPE"}})
+	req, _ := http.NewRequest("PATCH", "/threat_models/"+tm.Id.String(), bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "threat_model_framework")
+
+	// A valid value is still accepted.
+	body, _ = json.Marshal([]PatchOperation{{Op: "replace", Path: "/threat_model_framework", Value: "LINDDUN"}})
+	req, _ = http.NewRequest("PATCH", "/threat_models/"+tm.Id.String(), bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
+}
+
+// The OpenAPI enum and the validator list must stay in sync (one list of
+// frameworks; the spec additionally allows "" for "use the default").
+func TestThreatModelFrameworkEnumMatchesValidator(t *testing.T) {
+	swagger, err := GetSwagger()
+	require.NoError(t, err)
+	prop := swagger.Components.Schemas["ThreatModelInput"].Value.Properties["threat_model_framework"]
+	require.NotNil(t, prop)
+	var got []string
+	for _, v := range prop.Value.Enum {
+		got = append(got, v.(string))
+	}
+	want := append(append([]string{}, validation.ValidThreatModelFrameworks...), "")
+	assert.ElementsMatch(t, want, got)
 }

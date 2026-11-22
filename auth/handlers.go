@@ -202,25 +202,16 @@ func (h *Handlers) clientCallbackAllowList(ctx context.Context) []string {
 	return h.config.OAuth.ClientCallbackAllowList
 }
 
-// samlEnabled reports whether SAML auth is enabled, preferring the runtime
-// config (DB-backed) over the YAML snapshot.
-func (h *Handlers) samlEnabled(ctx context.Context) bool {
-	if h.runtimeCfg != nil {
-		return h.runtimeCfg.IsSAMLEnabled(ctx)
-	}
+// samlEnabled reports whether SAML auth is enabled. Startup-only (#1167): it
+// is the config value loaded at boot, never a database setting, matching the
+// SAML manager, which is only constructed at startup.
+func (h *Handlers) samlEnabled() bool {
 	return h.config.SAML.Enabled
 }
 
-// oauthCallbackURL returns the OAuth callback URL, preferring the runtime
-// config (DB-backed) over the YAML snapshot. An empty value from the
-// runtime reader falls through to the YAML snapshot so the YAML can still
-// supply the value in development before the DB row exists.
-func (h *Handlers) oauthCallbackURL(ctx context.Context) string {
-	if h.runtimeCfg != nil {
-		if v := h.runtimeCfg.GetOAuthCallbackURL(ctx); v != "" {
-			return v
-		}
-	}
+// oauthCallbackURL returns the OAuth callback URL. Startup-only (#1167): it is
+// the config/env value loaded at boot, never a database setting.
+func (h *Handlers) oauthCallbackURL() string {
 	return h.config.OAuth.CallbackURL
 }
 

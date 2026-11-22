@@ -693,15 +693,23 @@ func (s *GormSurveyResponseStore) UpdateAuthorization(ctx context.Context, id uu
 			case AuthorizationPrincipalTypeUser:
 				userUUID, err := s.resolveUserToUUID(tx, auth.ProviderId, auth.Provider)
 				if err != nil {
+					if errors.Is(err, ErrUserNotFound) {
+						return fmt.Errorf("authorization subject: %w", ErrInvalidAuthorizationSubject)
+					}
 					return err
 				}
 				access.UserInternalUUID = models.NewNullableDBVarchar(&userUUID)
 			case AuthorizationPrincipalTypeGroup:
 				groupUUID, err := resolveGroupUUID(tx, auth.ProviderId, &auth.Provider)
 				if err != nil {
+					if errors.Is(err, ErrGroupNotFound) {
+						return fmt.Errorf("authorization subject: %w", ErrInvalidAuthorizationSubject)
+					}
 					return err
 				}
 				access.GroupInternalUUID = models.NewNullableDBVarchar(&groupUUID)
+			default:
+				return fmt.Errorf("authorization subject: unsupported principal_type: %w", ErrInvalidAuthorizationSubject)
 			}
 
 			if err := tx.Create(&access).Error; err != nil {

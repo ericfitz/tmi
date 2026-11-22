@@ -247,6 +247,10 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 			logger.Debug("Request cancelled during credential create: %v", err)
 			return
 		}
+		if errors.Is(err, dberrors.ErrInvalidValue) {
+			HandleRequestError(c, invalidValueRequestError(err))
+			return
+		}
 		if errors.Is(err, dberrors.ErrDuplicate) || errors.Is(err, dberrors.ErrConstraint) {
 			logger.Warn("Client credential creation failed due to constraint: %v", err)
 			c.JSON(http.StatusConflict, Error{

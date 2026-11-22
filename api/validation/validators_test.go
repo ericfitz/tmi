@@ -252,6 +252,8 @@ func TestValidateStatusLength(t *testing.T) {
 		{"valid status", new("active"), false},
 		{"max length", new(string(make([]byte, 128))), false},
 		{"too long", new(string(make([]byte, 129))), true},
+		{"128 multibyte chars", new(strings.Repeat("é", 128)), false},
+		{"129 multibyte chars", new(strings.Repeat("é", 129)), true},
 	}
 
 	for _, tt := range tests {

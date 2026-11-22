@@ -7,6 +7,7 @@ import (
 
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 )
 
 // allKnownAuditFieldPaths returns every field path that the audit system can
@@ -232,5 +233,25 @@ func TestRedactor_BuildTimeGate_DenyListCoversSensitiveNames(t *testing.T) {
 		if out == probe {
 			t.Errorf("deny-list misses sensitive-named field %q", p)
 		}
+	}
+}
+
+// Every setting classified secret, and every provider secret field, is
+// redacted by the setting's classification, whatever its key is named. The
+// SAML SP private key (`...sp_private_key`) is not matched by the `*.private_key`
+// glob.
+func TestRedactor_SecretClassifiedSettingKeysAreRedacted(t *testing.T) {
+	r := NewRedactor()
+	const value = "-----BEGIN PRIVATE KEY-----MIIEvQIBADANBgkqhkiG9w0B"
+	for _, key := range []string{
+		"auth.saml.providers.corp.sp_private_key",
+		"auth.saml.providers.corp.idp_metadata_b64xml",
+		"auth.oauth.providers.google.client_secret",
+		"content_oauth.providers.box.client_secret",
+		"timmy.llm_api_key",
+	} {
+		got := r.Redact("system_settings."+key, value)
+		assert.NotContains(t, got, value, key)
+		assert.Contains(t, got, `"redacted":true`, key)
 	}
 }

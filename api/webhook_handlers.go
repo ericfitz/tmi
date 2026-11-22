@@ -199,7 +199,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 	})
 	if err != nil {
 		logger.Error("failed to create subscription: %v", err)
-		HandleRequestError(c, ServerError("failed to create subscription"))
+		HandleRequestError(c, WriteErrorToRequestError(err, "failed to create subscription"))
 		return
 	}
 
@@ -376,6 +376,10 @@ func (s *Server) PatchAdminWebhookSubscription(c *gin.Context, webhookId openapi
 		}
 		// The referenced threat model can be deleted between validation and
 		// write; the resulting FK violation is the caller's 400, not a 500.
+		if errors.Is(err, dberrors.ErrInvalidValue) {
+			HandleRequestError(c, invalidValueRequestError(err))
+			return
+		}
 		if errors.Is(err, dberrors.ErrConstraint) {
 			HandleRequestError(c, InvalidInputError("threat_model_id does not refer to an existing threat model"))
 			return

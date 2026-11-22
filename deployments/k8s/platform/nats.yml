@@ -34,8 +34,9 @@ metadata:
   name: nats
   namespace: tmi-platform
   annotations:
-    # A roll re-reads the renewed cert; JetStream is an emptyDir and is lost
-    # on any restart, as before.
+    # A roll re-reads the renewed cert. JetStream is an emptyDir here and is
+    # lost on any restart; the k3s overlay (deployments/k8s/dev/k3s/nats)
+    # swaps it for a longhorn PVC so it survives restarts and node drains.
     secret.reloader.stakater.com/reload: "nats-tls"
 spec:
   serviceName: nats

@@ -186,16 +186,14 @@ func TestDefaultOperationalSettings_OnlyOperational(t *testing.T) {
 }
 
 // A callback URL supplied via TMI_OAUTH_CALLBACK_URL must be reported as
-// Source "environment" so GetMigratableSettings marks it Explicit.
+// Source "environment" and Explicit, so the admin API reports where the
+// startup-only value came from (#1167). The setting used to hardcode
+// Source: "config", unlike the 130 others that route through settingSource().
 //
-// This is load-bearing, not cosmetic. SettingsService.getConfigSetting drops
-// any non-Explicit operational setting, so GetString("auth.oauth_callback_url")
-// falls through to the database. On AWS that meant a stale
-// http://localhost:8080/oauth2/callback row won over a correctly-set
-// TMI_OAUTH_CALLBACK_URL, and every provider's redirect_uri (Google, GitHub,
-// Microsoft) was advertised as localhost — OAuth sign-in could not complete.
-// The setting used to hardcode Source: "config", unlike the 130 others that
-// route through settingSource().
+// History: before it was startup-only, a stale seeded
+// http://localhost:8080/oauth2/callback row beat a correctly-set env value on
+// AWS (2026-08-20), and every provider's redirect_uri was advertised as
+// localhost. Startup-only removes the database from this read altogether.
 func TestGetMigratableSettings_OAuthCallbackURLHonorsEnvironment(t *testing.T) {
 	t.Setenv("TMI_OAUTH_CALLBACK_URL", "https://api.example.test/oauth2/callback")
 	cfg := &Config{Auth: AuthConfig{OAuth: OAuthConfig{
@@ -208,8 +206,8 @@ func TestGetMigratableSettings_OAuthCallbackURLHonorsEnvironment(t *testing.T) {
 	assert.Equal(t, "TMI_OAUTH_CALLBACK_URL", found.EnvVar)
 }
 
-// With no env var set, the struct default must stay non-Explicit so the
-// database remains reachable for this admin-only, hot-reloadable setting.
+// With no env var set, the struct default must stay non-Explicit so the admin
+// API can tell an operator-supplied value from the default.
 func TestGetMigratableSettings_OAuthCallbackURLDefaultDefersToDatabase(t *testing.T) {
 	t.Setenv("TMI_OAUTH_CALLBACK_URL", "")
 	t.Setenv("OAUTH_CALLBACK_URL", "")
@@ -219,7 +217,7 @@ func TestGetMigratableSettings_OAuthCallbackURLDefaultDefersToDatabase(t *testin
 	found := findSetting(cfg.GetMigratableSettings(), "auth.oauth_callback_url")
 	require.NotNil(t, found)
 	assert.Equal(t, "config", found.Source)
-	assert.False(t, found.Explicit, "an unset callback URL must not shadow the database")
+	assert.False(t, found.Explicit, "an unset callback URL is the default, not an operator-supplied value")
 }
 
 // The legacy OAUTH_CALLBACK_URL is honored by auth/config.go but is NOT bound by

@@ -575,6 +575,10 @@ func ServiceUnavailableError(message string) *RequestError {
 	}
 }
 
+// invalidAuthorizationSubjectMessage is the fixed 400 message for an
+// authorization entry whose user does not exist (no identifiers echoed, #725).
+const invalidAuthorizationSubjectMessage = "One or more users in the authorization list do not exist. Users must log in at least once before they can be added."
+
 // StoreErrorToRequestError converts a store error to an appropriate RequestError.
 // If the error is already a *RequestError, it is returned as-is (preserving its status code).
 // All store errors must use typed dberrors sentinels (#271 umbrella migration is complete).
@@ -594,9 +598,21 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 		return InvalidInputError(valErr.Error())
 	}
 
+	if errors.Is(err, ErrInvalidAuthorizationSubject) {
+		return InvalidInputError(invalidAuthorizationSubjectMessage)
+	}
+
 	// Typed error checks (from repositories using dberrors)
 	if errors.Is(err, dberrors.ErrNotFound) {
 		return NotFoundError(notFoundMsg)
+	}
+	// A tripped append-only trigger signals a code bug, never client input:
+	// keep it a 500 even though it wraps ErrConstraint.
+	if errors.Is(err, dberrors.ErrAppendOnlyViolation) {
+		return ServerError(serverErrorMsg)
+	}
+	if errors.Is(err, dberrors.ErrInvalidValue) {
+		return invalidValueRequestError(err)
 	}
 	if errors.Is(err, dberrors.ErrDuplicate) {
 		return ConflictError("resource already exists")
@@ -707,24 +723,59 @@ func QuotaExceededError(status int, message string) *RequestError {
 	return newRequestError(status, errcode.QuotaExceeded, message)
 }
 
-// WriteErrorToRequestError maps the error from a store write that has no
-// domain-specific outcome (create/update/delete fallbacks) to the response.
-// It only distinguishes the transient class: a serialization failure that
-// exhausted its retries (ORA-08177, SQLSTATE 40001), a deadlock, or an ADB
-// connection drop is a documented 503 with Retry-After, not a server bug, so
-// the client can retry instead of reporting a 500 (#900). Every operation
-// documents 503 (#665), so this is safe at any handler's fallback branch.
-// A GORM BeforeSave hook rejection is the caller's bad input, so it is a 400,
-// as in StoreErrorToRequestError (#921).
+// WriteErrorToRequestError maps the error from a store create/update that takes
+// client input and has no domain-specific outcome (the fallback branch).
+// Classes, in order:
+//   - A GORM BeforeSave hook rejection, an invalid authorization subject, a
+//     value-too-long/bad-encoding rejection (ErrInvalidValue) and any other
+//     classified constraint (NOT NULL, numeric overflow, FK, duplicate) are the
+//     caller's data: 400 with a fixed message (#921).
+//   - A transient fault (serialization failure that exhausted its retries,
+//     deadlock, ADB connection drop) is the documented 503 with Retry-After
+//     (#900). Every operation documents 503 (#665).
+//   - An append-only trigger violation and everything else is a 500.
+//
+// Duplicates are 400 here but 409 in StoreErrorToRequestError: 409 is not
+// documented on most create/update operations that use this mapper (for
+// example createThreatModel, createThreatModelThreat, createAddon), and the
+// server must not return an undocumented status.
+//
+// Delete and read paths have no client input to blame and must use
+// ServerSideErrorToRequestError instead.
 func WriteErrorToRequestError(err error, serverErrorMsg string) *RequestError {
 	var valErr *validation.ValidationError
 	if errors.As(err, &valErr) {
 		return InvalidInputError(valErr.Error())
 	}
+	if errors.Is(err, ErrInvalidAuthorizationSubject) {
+		return InvalidInputError(invalidAuthorizationSubjectMessage)
+	}
+	if errors.Is(err, dberrors.ErrAppendOnlyViolation) {
+		return ServerError(serverErrorMsg)
+	}
+	if errors.Is(err, dberrors.ErrInvalidValue) {
+		return invalidValueRequestError(err)
+	}
+	// Any other classified constraint (NOT NULL, numeric overflow, FK,
+	// duplicate) is the caller's data. 400 is documented on every operation
+	// that uses this mapper; 409 is not, so duplicates are 400 here too.
+	if errors.Is(err, dberrors.ErrConstraint) {
+		slogging.Get().Error("constraint violation returned to client as 400: %v", err)
+		return InvalidInputError("request violates a data constraint")
+	}
 	if errors.Is(err, dberrors.ErrTransient) {
 		return ServiceUnavailableError("Storage service temporarily unavailable - please retry")
 	}
 	return ServerError(serverErrorMsg)
+}
+
+// invalidValueRequestError is the 400 for a database value-too-long or
+// bad-encoding rejection (backstop behind request validation). The message is
+// fixed so neither the driver text nor column names reach the caller; the
+// error is logged instead.
+func invalidValueRequestError(err error) *RequestError {
+	slogging.Get().Warn("database rejected a client-supplied value, returned as 400: %v", err)
+	return InvalidInputError("a field value is too long or contains characters that cannot be stored")
 }
 
 // NotFoundErrorWithDetails creates a RequestError for resource not found with additional context
@@ -875,4 +926,16 @@ func truncateBeforeStackTrace(errMsg string) string {
 
 	// No stack trace markers found, return original message
 	return errMsg
+}
+
+// ServerSideErrorToRequestError maps the error from a store delete, read, or
+// server-derived write that carries no client-supplied data. A constraint or invalid-value failure there
+// is a server bug (for example an incomplete cascade), not bad input, so it
+// stays a visible 500; only a transient fault is the documented 503 with
+// Retry-After.
+func ServerSideErrorToRequestError(err error, serverErrorMsg string) *RequestError {
+	if errors.Is(err, dberrors.ErrTransient) {
+		return ServiceUnavailableError("Storage service temporarily unavailable - please retry")
+	}
+	return ServerError(serverErrorMsg)
 }

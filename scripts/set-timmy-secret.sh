@@ -22,12 +22,13 @@
 # embedding dimension) is not here — on AWS it lives in the Terraform-owned
 # tmi-server-config ConfigMap, and for local dev in deployments/k8s/dev/.
 # Two of those values are load-bearing and easy to get wrong:
-#   * TMI_TIMMY_TEXT_EMBEDDING_MODEL must equal TMI_EMBEDDING_MODEL on the
-#     tmi-chunk-embed worker, or documents are embedded at one dimension and
-#     queried at another and retrieval silently returns nothing.
-#   * TMI_TIMMY_EMBEDDING_DIMENSION must match what the model really returns
-#     (text-embedding-3-large = 3072) and be > 0, or EmbeddingProfile.Validate
-#     rejects every job envelope.
+#   * The monolith stamps the effective embedding model, base URL and
+#     dimension into every job envelope and the tmi-chunk-embed worker follows
+#     them (#1179); the worker's TMI_EMBEDDING_MODEL is only a fallback. A new
+#     base URL host must be in the worker's TMI_EMBEDDING_ALLOWED_HOSTS.
+#   * TMI_TIMMY_EMBEDDING_DIMENSION should match what the model really returns
+#     (text-embedding-3-large = 3072); it feeds the worker's dimension-mismatch
+#     warning, and 0 disables that check.
 set -euo pipefail
 
 NS=tmi-platform

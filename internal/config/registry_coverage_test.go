@@ -104,7 +104,6 @@ func TestRegistry_PassesValidation(t *testing.T) {
 // database initialisation. Changing this list changes what every NEW database
 // gets seeded with, so it is pinned deliberately rather than derived.
 var seededKeys = []string{
-	"features.saml_enabled",
 	"features.webhooks_enabled",
 	"features.websocket_enabled",
 	"session.timeout_minutes",
