@@ -220,8 +220,6 @@ func validatePatchedFieldsFor(typ reflect.Type, originalJSON []byte, operations 
 		if work, err = patch.Apply(work); err != nil {
 			return InvalidInputError("Patch operation could not be applied")
 		}
-		// The same normalization ApplyPatchOperations runs on the final document.
-		work = fixOwnerField(fixImageField(fixMetadataField(work, originalJSON), originalJSON), originalJSON)
 		// Only values the patch writes: add/replace targets and the destination
 		// of copy/move. Sources (from), test and remove are never validated.
 		switch op.Op {
@@ -243,8 +241,11 @@ func validatePatchedFieldsFor(typ reflect.Type, originalJSON []byte, operations 
 		if prop == nil || prop.Value == nil {
 			continue // not a request field
 		}
+		// work stays raw, exactly as the real apply sees it; only this copy gets
+		// the normalization ApplyPatchOperations runs on the final document.
+		normalized := fixOwnerField(fixImageField(fixMetadataField(work, originalJSON), originalJSON), originalJSON)
 		var doc map[string]any
-		if err := json.Unmarshal(work, &doc); err != nil {
+		if err := json.Unmarshal(normalized, &doc); err != nil {
 			return InvalidInputError("Patched entity must be a JSON object")
 		}
 		target, consumed := patchSchemaAt(prop.Value, tokens[1:])
