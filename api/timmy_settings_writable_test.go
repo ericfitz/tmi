@@ -20,7 +20,6 @@ import (
 
 // timmyStaticKeys are the timmy.* keys that must stay Static (PUT returns 409)
 // because no live runtime reader honors a database value (#1163):
-//   - llm_max_tokens: TimmyConfigProvider.Current never reads it.
 //   - query_decomposition_enabled, rerank_top_k, max_memory_mb,
 //     inactivity_timeout_seconds: read only while building the runtime
 //     (cmd/server/main.go timmyBuilder), and absent from
@@ -29,7 +28,6 @@ import (
 //     embedding_idle_days_closed, dump_extracted_text_to_note: read once at
 //     startup from the boot config (cmd/server/main.go).
 var timmyStaticKeys = []string{
-	"timmy.llm_max_tokens",
 	"timmy.query_decomposition_enabled",
 	"timmy.rerank_top_k",
 	"timmy.max_memory_mb",

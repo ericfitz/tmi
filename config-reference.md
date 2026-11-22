@@ -164,7 +164,7 @@ DB-backed, seeded from defaults on first run, editable at runtime via `/admin/se
 | `timmy.inactivity_timeout_seconds` | `TMI_TIMMY_INACTIVITY_TIMEOUT_SECONDS` | int | `3600` | static | admin-only | no | explicit row, else config; PUT 409 | Session inactivity timeout in seconds |
 | `timmy.llm_api_key` | `TMI_TIMMY_LLM_API_KEY` | string | _(secret)_ | hot | admin-only | yes | explicit row, else config | LLM API key |
 | `timmy.llm_base_url` | `TMI_TIMMY_LLM_BASE_URL` | string | _(none)_ | hot | admin-only | no | explicit row, else config | LLM API base URL |
-| `timmy.llm_max_tokens` | `TMI_TIMMY_LLM_MAX_TOKENS` | int | `4096` | static | admin-only | no | explicit row, else config; PUT 409 | Max tokens per chat completion (required by Anthropic; optional for OpenAI) |
+| `timmy.llm_max_tokens` | `TMI_TIMMY_LLM_MAX_TOKENS` | int | `4096` | hot | admin-only | no | explicit row, else config | Max tokens per chat completion (required by Anthropic; optional for OpenAI) |
 | `timmy.llm_model` | `TMI_TIMMY_LLM_MODEL` | string | _(none)_ | hot | admin-only | no | explicit row, else config | LLM model |
 | `timmy.llm_provider` | `TMI_TIMMY_LLM_PROVIDER` | string | _(none)_ | hot | admin-only | no | explicit row, else config | LLM provider |
 | `timmy.llm_timeout_seconds` | `TMI_TIMMY_LLM_TIMEOUT_SECONDS` | int | `120` | hot | admin-only | no | explicit row, else config | LLM request timeout in seconds |

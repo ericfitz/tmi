@@ -14,7 +14,7 @@ var contentSettingDefs = []SettingDef{
 	// database value, and Static otherwise (#1163). TimmyConfigProvider
 	// (api/timmy_config_provider.go) reads timmy.* from the settings service on
 	// every request; a key is Hot only if the value it yields is acted on live:
-	//   - client-wiring keys (provider/model/api_key/base_url, embedding
+	//   - client-wiring keys (provider/model/api_key/base_url, max tokens, embedding
 	//     dimension, operator_system_prompt, llm_timeout_seconds) are in
 	//     TimmyConfigProvider.WiringHash, so a change rebuilds the runtime;
 	//   - tuning knobs (top-k, conversation history, chunk size/overlap, rate
@@ -22,7 +22,6 @@ var contentSettingDefs = []SettingDef{
 	//     closures wired in cmd/server/main.go (timmyBuilder);
 	//   - timmy.enabled is also overlaid by main.go's content-source cfgReader.
 	// Static keys, each wrapped in withMutability(..., MutabilityStatic):
-	//   - llm_max_tokens is never read by TimmyConfigProvider;
 	//   - query_decomposition_enabled, rerank_top_k, max_memory_mb and
 	//     inactivity_timeout_seconds are consumed only while building the
 	//     runtime and are not in the wiring hash, so a change would not apply;
@@ -89,7 +88,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.llm_max_tokens",
-		Class:        withMutability(classificationFor("timmy.llm_max_tokens"), MutabilityStatic),
+		Class:        classificationFor("timmy.llm_max_tokens"),
 		Type:         "int",
 		Description:  "Max tokens per chat completion (required by Anthropic; optional for OpenAI)",
 		Default:      "4096",
