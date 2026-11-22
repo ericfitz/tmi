@@ -879,12 +879,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 	if config.ClassificationCategoryFor(key) == config.CategoryBootstrap {
 		has, hasErr := s.settingsService.HasRow(ctx, key)
 		if hasErr != nil {
-			logger.Error("Failed to check system setting %s: %v", key, hasErr)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusInternalServerError,
-				Code:    errcode.ServerError,
-				Message: "Failed to check setting",
-			})
+			handleSettingDeleteDBError(c, key, "Failed to check setting", hasErr)
 			return
 		}
 		if has {
@@ -900,12 +895,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		setting, err = &models.SystemSetting{SettingKey: models.DBVarchar(key)}, nil
 	}
 	if err != nil {
-		logger.Error("Failed to check system setting %s: %v", key, err)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    errcode.ServerError,
-			Message: "Failed to check setting",
-		})
+		handleSettingDeleteDBError(c, key, "Failed to check setting", err)
 		return
 	}
 
@@ -921,12 +911,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 
 	// Delete the setting
 	if err := s.settingsService.Delete(ctx, key); err != nil {
-		logger.Error("Failed to delete system setting %s: %v", key, err)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    errcode.ServerError,
-			Message: "Failed to delete setting",
-		})
+		handleSettingDeleteDBError(c, key, "Failed to delete setting", err)
 		return
 	}
 
@@ -934,6 +919,28 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 
 	logger.Info("Deleted system setting: %s", key)
 	c.Status(http.StatusNoContent)
+}
+
+// handleSettingDeleteDBError answers a database failure while DeleteSystemSetting
+// looks up or deletes a row: a transient fault (ADB connection drop, deadlock,
+// serialization failure) is the documented 503, anything else a 500.
+func handleSettingDeleteDBError(c *gin.Context, key, serverMsg string, err error) {
+	logger := slogging.Get().WithContext(c)
+	if errors.Is(dberrors.Classify(err), dberrors.ErrTransient) {
+		logger.Warn("Transient database error deleting system setting %s: %v", key, err)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusServiceUnavailable,
+			Code:    errcode.ServiceUnavailable,
+			Message: "Settings temporarily unavailable; retry",
+		})
+		return
+	}
+	logger.Error("%s %s: %v", serverMsg, key, err)
+	HandleRequestError(c, &RequestError{
+		Status:  http.StatusInternalServerError,
+		Code:    errcode.ServerError,
+		Message: serverMsg,
+	})
 }
 
 // ReencryptSystemSettings re-encrypts all system settings with the current encryption key (admin only)

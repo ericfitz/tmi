@@ -28,6 +28,8 @@ var _ SettingsServiceInterface = (*MockSettingsService)(nil)
 type MockSettingsService struct {
 	reencryptErr error // returned by ReEncryptAll; nil = success
 	getErr       error // returned by Get when set
+	hasRowErr    error // returned by HasRow when set
+	deleteErr    error // returned by Delete when set
 	settings     map[string]*models.SystemSetting
 }
 
@@ -92,6 +94,9 @@ func (m *MockSettingsService) Set(ctx context.Context, setting *models.SystemSet
 }
 
 func (m *MockSettingsService) Delete(ctx context.Context, key string) error {
+	if m.deleteErr != nil {
+		return m.deleteErr
+	}
 	delete(m.settings, key)
 	return nil
 }
@@ -107,6 +112,9 @@ func (m *MockSettingsService) ListByPrefix(ctx context.Context, prefix string) (
 }
 
 func (m *MockSettingsService) HasRow(ctx context.Context, key string) (bool, error) {
+	if m.hasRowErr != nil {
+		return false, m.hasRowErr
+	}
 	_, ok := m.settings[key]
 	return ok, nil
 }
@@ -1666,4 +1674,51 @@ func TestUpdateSystemSetting_TimmyValidation(t *testing.T) {
 		w := put(t, "dev", "timmy.llm_provider", `{"value": "openai", "type": "string"}`)
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
+}
+
+// A database error while DeleteSystemSetting looks up or deletes the row is
+// classified: a transient fault is the documented 503, anything else a 500.
+func TestDeleteSystemSetting_DatabaseErrorClassification(t *testing.T) {
+	transient := fmt.Errorf("failed to check setting: %w", dberrors.ErrTransient)
+	other := errors.New("boom")
+
+	cases := []struct {
+		name   string
+		key    string // bootstrap key exercises HasRow; operational key exercises Get
+		mutate func(m *MockSettingsService, err error)
+		err    error
+		want   int
+	}{
+		{"HasRow transient", "server.base_url", func(m *MockSettingsService, e error) { m.hasRowErr = e }, transient, http.StatusServiceUnavailable},
+		{"HasRow other", "server.base_url", func(m *MockSettingsService, e error) { m.hasRowErr = e }, other, http.StatusInternalServerError},
+		{"Get transient", "websocket.inactivity_timeout_seconds", func(m *MockSettingsService, e error) { m.getErr = e }, transient, http.StatusServiceUnavailable},
+		{"Get other", "websocket.inactivity_timeout_seconds", func(m *MockSettingsService, e error) { m.getErr = e }, other, http.StatusInternalServerError},
+		{"Delete transient", "websocket.inactivity_timeout_seconds", func(m *MockSettingsService, e error) { m.deleteErr = e }, transient, http.StatusServiceUnavailable},
+		{"Delete other", "websocket.inactivity_timeout_seconds", func(m *MockSettingsService, e error) { m.deleteErr = e }, other, http.StatusInternalServerError},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			original := GlobalGroupMemberRepository
+			defer restoreConfigStores(original)
+			GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+
+			mock := NewMockSettingsService()
+			mock.AddSetting(tc.key, "1", "string")
+			tc.mutate(mock, tc.err)
+			server := &Server{settingsService: mock}
+
+			gin.SetMode(gin.TestMode)
+			r := gin.New()
+			r.Use(func(c *gin.Context) {
+				c.Set("userEmail", "test@example.com")
+				c.Set("userInternalUUID", uuid.New().String())
+				c.Set("userProvider", "test")
+				c.Next()
+			})
+			r.DELETE("/admin/settings/:key", func(c *gin.Context) { server.DeleteSystemSetting(c, c.Param("key")) })
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/admin/settings/"+tc.key, nil))
+			assert.Equal(t, tc.want, w.Code, w.Body.String())
+		})
+	}
 }
