@@ -85,7 +85,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 	items, total, err := ThreatModelStore.ListWithCounts(offset, limit, filter, filters)
 	if err != nil {
 		slogging.Get().WithContext(c).Error("Failed to list threat models: %v", err)
-		HandleRequestError(c, WriteErrorToRequestError(err, "Failed to list threat models"))
+		HandleRequestError(c, DeleteErrorToRequestError(err, "Failed to list threat models"))
 		return
 	}
 
@@ -906,7 +906,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	// disconnect or shutdown).
 	if err := ThreatModelStore.SoftDelete(c.Request.Context(), id); err != nil {
 		slogging.Get().WithContext(c).Error("Failed to delete threat model %s from store (user: %s, name: %s): %v", id, user.Email, tm.Name, err)
-		HandleRequestError(c, WriteErrorToRequestError(err, "Failed to delete threat model"))
+		HandleRequestError(c, DeleteErrorToRequestError(err, "Failed to delete threat model"))
 		return
 	}
 

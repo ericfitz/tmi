@@ -379,7 +379,7 @@ func (s *Server) DeleteAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 			HandleRequestError(c, WithDetailCode(ForbiddenError("Built-in groups cannot be deleted."), errcode.DetailProtectedGroup))
 		default:
 			logger.Error("Failed to delete group: %v", err)
-			HandleRequestError(c, WriteErrorToRequestError(err, "Failed to delete group"))
+			HandleRequestError(c, DeleteErrorToRequestError(err, "Failed to delete group"))
 		}
 		return
 	}
