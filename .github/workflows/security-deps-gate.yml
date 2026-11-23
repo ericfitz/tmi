@@ -32,7 +32,14 @@ jobs:
     # only inspects main's Dependabot-alert state (alerts are not computed per
     # PR branch), so it is redundant on a PR anyway. Skip on Dependabot; the
     # push-to-main and daily schedule runs still enforce the gate.
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    # Pull requests from forks get no Actions secrets either (#1208), so the
+    # same reasoning applies: skip them and let push/schedule enforce.
+    if: >-
+      ${{
+        github.actor != 'dependabot[bot]' &&
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.head.repo.full_name == github.repository)
+      }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
