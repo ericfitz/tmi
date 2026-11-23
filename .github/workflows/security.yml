@@ -72,6 +72,14 @@ jobs:
       - name: Build server
         run: go build -o bin/tmiserver ./cmd/server
 
+      # test/integration and wstest replace the root module, so a root bump
+      # leaves them stale unless someone tidies them (#1212).
+      - name: Self-test nested module check
+        run: bash scripts/check-nested-modules_test.sh
+
+      - name: Check nested modules are tidy and build
+        run: bash scripts/check-nested-modules.sh
+
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
