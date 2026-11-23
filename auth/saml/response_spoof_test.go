@@ -279,10 +279,12 @@ func TestParseResponse_IncompleteAssertionRejectedByPrecheck(t *testing.T) {
 	}
 }
 
-// TestLibraryPanicsOnIncompleteAssertion_RecoverCatchesIt proves, independent of
-// the pre-check, that the library panics on these inputs and recoverToError
-// turns the panic into an error.
-func TestLibraryPanicsOnIncompleteAssertion_RecoverCatchesIt(t *testing.T) {
+// TestLibraryRejectsIncompleteAssertion proves, independent of the pre-check,
+// that the library never accepts these inputs. crewjam/saml up to v0.5.x
+// panicked on them (recoverToError turns that into an error); v0.6.x returns
+// an error instead. Either rejection is fine; a nil error is not.
+// recoverToError's own panic handling is covered in response_guard_test.go.
+func TestLibraryRejectsIncompleteAssertion(t *testing.T) {
 	f := newSpoofFixture(t)
 	for name, o := range map[string]assertionOpts{
 		"no subject":                   {omitSubject: true},
@@ -294,11 +296,14 @@ func TestLibraryPanicsOnIncompleteAssertion_RecoverCatchesIt(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = recoverToError("test", func() (*saml.Assertion, error) {
+			assertion, err := recoverToError("test", func() (*saml.Assertion, error) {
 				return f.provider.serviceProvider.ParseXMLResponse(raw, []string{}, url.URL{})
 			})
-			if err == nil || !strings.Contains(err.Error(), "internal error") {
-				t.Fatalf("expected a recovered-panic error, got %v", err)
+			if err == nil {
+				t.Fatalf("library accepted an incomplete assertion: %+v", assertion)
+			}
+			if assertion != nil {
+				t.Fatalf("library returned an assertion alongside error %v", err)
 			}
 		})
 	}
