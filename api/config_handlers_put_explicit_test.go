@@ -252,6 +252,7 @@ func TestRuntimeWritableConfigSettings_ExactSet(t *testing.T) {
 		"timmy.embedding_dimension",
 		"timmy.llm_api_key",
 		"timmy.llm_base_url",
+		"timmy.llm_max_tokens",
 		"timmy.llm_model",
 		"timmy.llm_provider",
 		"timmy.llm_timeout_seconds",

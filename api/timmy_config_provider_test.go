@@ -16,6 +16,7 @@ func TestTimmyConfigProvider_Current_AssemblesFromSettings(t *testing.T) {
 	ms.AddSetting("timmy.llm_provider", "openai", "string")
 	ms.AddSetting("timmy.llm_model", "gpt-5.5", "string")
 	ms.AddSetting("timmy.llm_base_url", "https://api.openai.com/v1", "string")
+	ms.AddSetting("timmy.llm_max_tokens", "2048", "int")
 	ms.AddSetting("timmy.llm_api_key", "sk-test", "string")
 	ms.AddSetting("timmy.text_embedding_provider", "openai", "string")
 	ms.AddSetting("timmy.text_embedding_model", "text-embedding-3-large", "string")
@@ -33,6 +34,7 @@ func TestTimmyConfigProvider_Current_AssemblesFromSettings(t *testing.T) {
 	assert.Equal(t, "openai", cfg.LLMProvider)
 	assert.Equal(t, "gpt-5.5", cfg.LLMModel)
 	assert.Equal(t, "sk-test", cfg.LLMAPIKey)
+	assert.Equal(t, 2048, cfg.LLMMaxTokens)
 	assert.Equal(t, "text-embedding-3-large", cfg.TextEmbeddingModel)
 	assert.Equal(t, "sk-embed", cfg.TextEmbeddingAPIKey)
 	assert.Equal(t, 3072, cfg.EmbeddingDimension)
@@ -86,4 +88,10 @@ func TestTimmyConfigProvider_WiringHash_StableForKnobs(t *testing.T) {
 	remodel := base
 	remodel.LLMModel = "gpt-6"
 	assert.NotEqual(t, h1, p.WiringHash(remodel), "model change must change wiring hash")
+
+	// Changing the configured output limit DOES change the hash because the
+	// LLM client bakes it into each request.
+	retoken := base
+	retoken.LLMMaxTokens = 2048
+	assert.NotEqual(t, h1, p.WiringHash(retoken), "max-token change must change wiring hash")
 }

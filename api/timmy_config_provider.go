@@ -72,6 +72,7 @@ func (p *TimmyConfigProvider) Current(ctx context.Context) config.TimmyConfig {
 	getStr("timmy.llm_model", &cfg.LLMModel)
 	getStr("timmy.llm_api_key", &cfg.LLMAPIKey)
 	getStr("timmy.llm_base_url", &cfg.LLMBaseURL)
+	getInt("timmy.llm_max_tokens", &cfg.LLMMaxTokens)
 	getStr("timmy.text_embedding_provider", &cfg.TextEmbeddingProvider)
 	getStr("timmy.text_embedding_model", &cfg.TextEmbeddingModel)
 	getStr("timmy.text_embedding_api_key", &cfg.TextEmbeddingAPIKey)
@@ -118,6 +119,7 @@ func (p *TimmyConfigProvider) Current(ctx context.Context) config.TimmyConfig {
 func (p *TimmyConfigProvider) WiringHash(cfg config.TimmyConfig) string {
 	fields := []string{
 		cfg.LLMProvider, cfg.LLMModel, cfg.LLMAPIKey, cfg.LLMBaseURL,
+		strconv.Itoa(cfg.LLMMaxTokens),
 		cfg.TextEmbeddingProvider, cfg.TextEmbeddingModel, cfg.TextEmbeddingAPIKey, cfg.TextEmbeddingBaseURL,
 		strconv.Itoa(cfg.EmbeddingDimension),
 		cfg.CodeEmbeddingProvider, cfg.CodeEmbeddingModel, cfg.CodeEmbeddingAPIKey, cfg.CodeEmbeddingBaseURL,
