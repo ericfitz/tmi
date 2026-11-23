@@ -11,12 +11,14 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
-// Mitigation for GO-2026-6909 (crewjam/saml v0.5.1, no fixed release; upstream
-// PR crewjam/saml#674), tracked in #1138. The library:
+// Mitigation for GO-2026-6909 (reported against crewjam/saml v0.5.1 and still
+// flagged by govulncheck on v0.6.3; upstream PR crewjam/saml#674), tracked in
+// #1138. The library:
 //   - unmarshals Subject.NameID / LogoutRequest.NameID with a namespace-blind
 //     tag, so a <NameID> in a foreign namespace is accepted as the subject, and
-//   - dereferences optional assertion children (Subject, Conditions) without nil
-//     checks in validateAssertion, so a signed but incomplete assertion panics.
+//   - in v0.5.x dereferenced optional assertion children (Subject, Conditions)
+//     without nil checks, so a signed but incomplete assertion panicked (v0.6.x
+//     returns an error instead).
 //
 // The checks here are reject-only pre-checks that run before the library sees
 // the document. Remove them once a fixed crewjam/saml release is adopted.
