@@ -37,6 +37,9 @@ const (
 	wsReasonSaveFailed            = "save_failed"
 	wsReasonCellNotFoundInDiagram = "cell_not_found_in_diagram"
 	wsReasonInvalidOperationType  = "invalid_operation_type"
+	// wsReasonCellSchemaInvalid is the documented AsyncAPI rejection reason for a
+	// cell that violates the Node/Edge schema (#1219).
+	wsReasonCellSchemaInvalid = "validation_failed"
 )
 
 // WebSocketHub maintains active connections and broadcasts messages
@@ -2886,6 +2889,10 @@ func (cop *CellOperationProcessor) processAndValidateCellOperations(diagram *Dfd
 func (cop *CellOperationProcessor) validateAndProcessCellOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) *OperationValidationResult {
 	result := &OperationValidationResult{Valid: true}
 
+	if rejected := rejectSchemaInvalidCell(cellOp); rejected != nil {
+		return rejected
+	}
+
 	switch cellOp.Operation {
 	case "add":
 		return cop.validateAddOperation(diagram, currentState, cellOp)
@@ -3128,6 +3135,10 @@ func (s *DiagramSession) processAndValidateCellOperations(diagram *DfdDiagram, c
 // validateAndProcessCellOperation validates and processes a single cell operation
 func (s *DiagramSession) validateAndProcessCellOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) OperationValidationResult {
 	result := OperationValidationResult{Valid: true}
+
+	if rejected := rejectSchemaInvalidCell(cellOp); rejected != nil {
+		return *rejected
+	}
 
 	switch cellOp.Operation {
 	case "add":

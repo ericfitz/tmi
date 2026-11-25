@@ -51,7 +51,10 @@ func TestCellOperationProcessor_AdvancesModifiedAt(t *testing.T) {
 	backdate(t, db, &models.Diagram{}, id, tsOld)
 
 	cellID := uuid.New()
-	node := makeNodeCellItem(cellID)
+	// A schema-valid cell: WebSocket add/update now rejects cells that violate
+	// the Node/Edge schema (#1219).
+	node, err := CreateNode(cellID.String(), NodeShapeProcess, 10, 10, 120, 80)
+	require.NoError(t, err)
 	op := CellPatchOperation{Type: cellOperationTypePatch, Cells: []CellOperation{{ID: cellID.String(), Operation: "add", Data: &node}}}
 	result, err := NewCellOperationProcessor(ds).ProcessCellOperations(id, op)
 	require.NoError(t, err)
