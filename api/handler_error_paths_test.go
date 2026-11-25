@@ -243,52 +243,6 @@ func TestSanitizeErrorMessage(t *testing.T) {
 	})
 }
 
-// --- Tests for truncateBeforeStackTrace ---
-
-func TestTruncateBeforeStackTrace(t *testing.T) {
-	t.Run("empty_string_returns_unknown", func(t *testing.T) {
-		result := truncateBeforeStackTrace("")
-		assert.Equal(t, "Unknown error", result)
-	})
-
-	t.Run("no_markers_returns_original", func(t *testing.T) {
-		msg := "Simple error without stack trace"
-		result := truncateBeforeStackTrace(msg)
-		assert.Equal(t, msg, result)
-	})
-
-	t.Run("truncates_at_STACK_TRACE_START", func(t *testing.T) {
-		msg := "panic: runtime error--- STACK_TRACE_START ---\ngoroutine 1 [running]:\nmain.go:42"
-		result := truncateBeforeStackTrace(msg)
-		assert.Equal(t, "panic: runtime error", result)
-	})
-
-	t.Run("truncates_at_Stack_trace_newline", func(t *testing.T) {
-		msg := "something failed\nStack trace:\n  at main.go:42\n  at caller.go:10"
-		result := truncateBeforeStackTrace(msg)
-		assert.Equal(t, "something failed", result)
-	})
-
-	t.Run("truncates_at_goroutine_marker", func(t *testing.T) {
-		msg := "unexpected error goroutine 1 [running]:\nmain.main()\n\t/app/main.go:42"
-		result := truncateBeforeStackTrace(msg)
-		assert.Equal(t, "unexpected error", result)
-	})
-
-	t.Run("first_marker_wins", func(t *testing.T) {
-		// Multiple markers — the first one encountered in the markers list should win
-		msg := "error--- STACK_TRACE_START ---more\nStack trace:\ngoroutine"
-		result := truncateBeforeStackTrace(msg)
-		assert.Equal(t, "error", result)
-	})
-
-	t.Run("marker_at_start_returns_empty_trimmed", func(t *testing.T) {
-		msg := "--- STACK_TRACE_START ---\ngoroutine 1"
-		result := truncateBeforeStackTrace(msg)
-		assert.Equal(t, "", result, "Marker at start should produce empty string after TrimSpace")
-	})
-}
-
 // --- Tests for HandleRequestError extended paths ---
 
 func TestHandleRequestError_Extended(t *testing.T) {

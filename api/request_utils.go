@@ -897,37 +897,6 @@ func isUserAccountConfirmedDeleted(ctx context.Context, provider, providerID str
 	return errors.Is(err, ErrUserNotFound)
 }
 
-// truncateBeforeStackTrace removes stack trace information from error messages
-// by truncating at stack trace markers to prevent disclosure in HTTP responses.
-//
-// SECURITY: This function is a critical security control that prevents stack trace
-// information exposure in HTTP error responses. It works in conjunction with:
-// - Panic recovery middleware that tags stack traces with markers
-// - Error handling paths that use this function before sending responses
-// - Response logging that filters stack traces from captured data
-// This provides defense-in-depth against CWE-209 (Information Exposure Through Stack Traces).
-func truncateBeforeStackTrace(errMsg string) string {
-	if errMsg == "" {
-		return "Unknown error"
-	}
-
-	// Look for stack trace markers and truncate before them
-	stackTraceMarkers := []string{
-		"--- STACK_TRACE_START ---",
-		"\nStack trace:",
-		"goroutine ",
-	}
-
-	for _, marker := range stackTraceMarkers {
-		if before, _, ok := strings.Cut(errMsg, marker); ok {
-			return strings.TrimSpace(before)
-		}
-	}
-
-	// No stack trace markers found, return original message
-	return errMsg
-}
-
 // ServerSideErrorToRequestError maps the error from a store delete, read, or
 // server-derived write that carries no client-supplied data. A constraint or invalid-value failure there
 // is a server bug (for example an incomplete cascade), not bad input, so it
