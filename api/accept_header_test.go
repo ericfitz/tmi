@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -17,6 +18,8 @@ func acceptTestRouter() *gin.Engine {
 	ok := func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) }
 	r.GET("/test", ok)
 	r.GET("/saml/:provider/metadata", ok)
+	r.POST("/threat_models/:threat_model_id/chat/sessions", ok)
+	r.POST("/threat_models/:threat_model_id/chat/sessions/:session_id/messages", ok)
 	return r
 }
 
@@ -44,7 +47,11 @@ func TestAcceptHeaderStrictParsing(t *testing.T) {
 		{"wildcard", "*/*", 200},
 		{"wildcard with q", "*/*;q=0.8", 200},
 		{"application wildcard", "application/*", 200},
-		{"event stream", "text/event-stream", 200},
+		{"browser", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", 200},
+		{"tmi-ux", "application/json, text/plain, */*", 200},
+		{"curl", "*/*", 200},
+		{"trailing semicolon", "application/json;", 200},
+		{"empty parameter between", "application/json; ;q=0.5", 200},
 		{"list with json", "text/html, application/json;q=0.9, */*;q=0.1", 200},
 		{"list extra whitespace", "  text/html ,\tapplication/json  ;  q=0.5 ", 200},
 		{"empty list elements tolerated", "text/html,,application/json", 200},
@@ -61,6 +68,9 @@ func TestAcceptHeaderStrictParsing(t *testing.T) {
 		{"q=0 wildcard", "*/*;q=0", 406},
 		{"specific q=0 beats wildcard for json only", "application/json;q=0, application/*;q=0, text/event-stream;q=0, */*", 406},
 		{"unsupported type", "text/xml", 406},
+		{"event stream on JSON-only route", "text/event-stream", 406},
+		{"text wildcard on JSON-only route", "text/*", 406},
+		{"over 4KB header", "application/json, " + strings.Repeat("text/html, ", 400) + "*/*", 406},
 		{"text/csv on ordinary route", "text/csv", 406},
 		{"malformed q word", "*/*; q=invalid", 406},
 		{"q above 1", "application/json;q=1.5", 406},
@@ -121,4 +131,25 @@ func TestAcceptHeaderSAMLMetadata(t *testing.T) {
 		assert.Equal(t, 404, doAccept(r, "GET", "/nope", "text/xml", true))
 		assert.Equal(t, 404, doAccept(r, "GET", "/nope", "*/*; q=invalid", true))
 	})
+}
+
+func TestAcceptHeaderEventStreamRoutes(t *testing.T) {
+	r := acceptTestRouter()
+	for _, path := range []string{
+		"/threat_models/tm1/chat/sessions",
+		"/threat_models/tm1/chat/sessions/s1/messages",
+	} {
+		assert.Equal(t, 200, doAccept(r, "POST", path, "text/event-stream", true), path)
+		assert.Equal(t, 200, doAccept(r, "POST", path, "text/*", true), path)
+		assert.Equal(t, 200, doAccept(r, "POST", path, "application/json", true), path)
+		assert.Equal(t, 406, doAccept(r, "POST", path, "text/event-stream;q=0", true), path)
+		assert.Equal(t, 406, doAccept(r, "POST", path, "text/csv", true), path)
+	}
+}
+
+func TestAcceptHeaderSizeBoundary(t *testing.T) {
+	r := acceptTestRouter()
+	pad := func(n int) string { return "application/json;x=" + strings.Repeat("a", n-len("application/json;x=")) }
+	assert.Equal(t, 200, doAccept(r, "GET", "/test", pad(4096), true))
+	assert.Equal(t, 406, doAccept(r, "GET", "/test", pad(4097), true))
 }

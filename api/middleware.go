@@ -1041,7 +1041,16 @@ var negotiatedMediaTypeRoutes = map[string]map[string]bool{
 	"application/samlmetadata+xml": {
 		"GET /saml/:provider/metadata": true,
 	},
+	// Chat endpoints that stream their 200 response as server-sent events.
+	"text/event-stream": {
+		"POST /threat_models/:threat_model_id/chat/sessions":                      true,
+		"POST /threat_models/:threat_model_id/chat/sessions/:session_id/messages": true,
+	},
 }
+
+// maxAcceptHeaderBytes caps the Accept header the gate will parse; longer
+// headers are rejected with 406 before parsing.
+const maxAcceptHeaderBytes = 4096
 
 // acceptRange is one media range from an Accept header (RFC 9110 section 12.5.1).
 type acceptRange struct {
@@ -1139,6 +1148,9 @@ func parseAcceptHeader(header string) (ranges []acceptRange, ok bool) {
 		}
 		r := acceptRange{mainType: strings.ToLower(mainType), subType: strings.ToLower(subType), q: 1}
 		for _, param := range fields[1:] {
+			if strings.TrimSpace(param) == "" {
+				continue // RFC 9110 permits empty parameters
+			}
 			name, value, hasValue := strings.Cut(strings.TrimSpace(param), "=")
 			name = strings.TrimSpace(name)
 			value = strings.TrimSpace(value)
@@ -1193,8 +1205,13 @@ func acceptsAnyOf(ranges []acceptRange, mediaTypes []string) bool {
 	return false
 }
 
-// AcceptHeaderValidation middleware validates that the Accept header is application/json
-// Returns 406 Not Acceptable for unsupported media types
+// AcceptHeaderValidation rejects requests whose Accept header cannot be
+// satisfied, with 406 Not Acceptable. The header is parsed strictly per RFC 9110
+// section 12.5.1 (malformed ranges or q values, q=0 exclusions, and headers over
+// 4096 bytes are 406; an absent or empty header means */*). A request passes if
+// it accepts application/json, or a media type that the matched route is
+// registered for in negotiatedMediaTypeRoutes. OPTIONS requests and unrouted
+// paths (404/405) are skipped.
 func AcceptHeaderValidation() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get logger from context
@@ -1214,10 +1231,15 @@ func AcceptHeaderValidation() gin.HandlerFunc {
 
 		// Parse strictly (RFC 9110 section 12.5.1): any malformed media range or
 		// q value is 406. An absent or empty header means */*.
-		ranges, wellFormed := parseAcceptHeader(c.GetHeader("Accept"))
+		acceptHeader := c.GetHeader("Accept")
+		var ranges []acceptRange
+		wellFormed := len(acceptHeader) <= maxAcceptHeaderBytes
+		if wellFormed {
+			ranges, wellFormed = parseAcceptHeader(acceptHeader)
+		}
 
-		// Media types every operation can produce.
-		supportedAcceptTypes := []string{"application/json", "text/event-stream"}
+		// Media type every operation can produce.
+		supportedAcceptTypes := []string{"application/json"}
 		acceptable := wellFormed && acceptsAnyOf(ranges, supportedAcceptTypes)
 		// Representations only specific operations offer. These used to sit in
 		// the list above, which made the gate accept them server-wide: an

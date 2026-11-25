@@ -624,11 +624,11 @@ func TestAcceptHeaderValidation(t *testing.T) {
 	t.Run("accepts text/event-stream for SSE endpoints", func(t *testing.T) {
 		router := gin.New()
 		router.Use(AcceptHeaderValidation())
-		router.POST("/test", func(c *gin.Context) {
+		router.POST("/threat_models/:threat_model_id/chat/sessions", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
 		})
 
-		req := httptest.NewRequest("POST", "/test", nil)
+		req := httptest.NewRequest("POST", "/threat_models/tm1/chat/sessions", nil)
 		req.Header.Set("Accept", "text/event-stream")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
