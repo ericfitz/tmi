@@ -497,7 +497,7 @@
             "type": "string",
             "description": "Name of the diagram",
             "maxLength": 256,
-            "pattern": "^[^<>\"'&]*$",
+            "pattern": "^[^\\x00-\\x1F]*$",
             "minLength": 1
           },
           "type": {
@@ -684,7 +684,7 @@
             "type": "string",
             "description": "Name of the diagram",
             "maxLength": 256,
-            "pattern": "^[^<>\"'&]*$",
+            "pattern": "^[^\\x00-\\x1F]*$",
             "minLength": 1
           },
           "type": {
@@ -1838,7 +1838,7 @@
             "type": "string",
             "description": "Name of the threat model",
             "maxLength": 256,
-            "pattern": "^[^<>\"'&]*$",
+            "pattern": "^[^\\x00-\\x1F]*$",
             "minLength": 1
           },
           "description": {
@@ -2738,7 +2738,7 @@
             "description": "Name of the threat model",
             "minLength": 1,
             "maxLength": 256,
-            "pattern": "^[^<>\"'&]*$",
+            "pattern": "^[^\\x00-\\x1F]*$",
             "x-oapi-codegen-extra-tags": {
               "binding": "required"
             }

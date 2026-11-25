@@ -247,7 +247,29 @@ func SanitizePlainText(s string) string {
 	stripped := strictPolicy.Sanitize(decoded)
 	// Unescape again so that bluemonday's entity-encoding of legitimate
 	// characters (e.g., & → &amp;, > in "->") is reversed for storage.
-	return html.UnescapeString(stripped)
+	return dropDecodedControlChars(s, html.UnescapeString(stripped))
+}
+
+// dropDecodedControlChars removes C0 control characters from out unless the
+// raw input already contained that character. Decoding turns a numeric
+// reference such as "&#1;" or "&#10;" into a control character that the
+// field's request pattern never saw, and the response pattern then rejects
+// the stored value (#1222). A raw tab, newline or carriage return already
+// passed the request pattern, so those survive; any other control character
+// cannot have passed it and is always removed.
+func dropDecodedControlChars(raw, out string) string {
+	if strings.IndexFunc(out, func(r rune) bool { return r < 0x20 }) < 0 {
+		return out
+	}
+	return strings.Map(func(r rune) rune {
+		if r >= 0x20 {
+			return r
+		}
+		if (r == '\t' || r == '\n' || r == '\r') && strings.ContainsRune(raw, r) {
+			return r
+		}
+		return -1
+	}, out)
 }
 
 // SanitizeMetadataSlice sanitizes all values in a metadata slice using SanitizePlainText.
