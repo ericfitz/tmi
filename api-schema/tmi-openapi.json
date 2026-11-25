@@ -497,7 +497,7 @@
             "type": "string",
             "description": "Name of the diagram",
             "maxLength": 256,
-            "pattern": "^[^<>\"'&]*$",
+            "pattern": "^[^\\x00-\\x1F]*$",
             "minLength": 1
           },
           "type": {
@@ -566,7 +566,7 @@
             "maxLength": 2048,
             "nullable": true,
             "description": "Optional description of the diagram",
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
           "include_in_report": {
             "type": "boolean",
@@ -684,7 +684,7 @@
             "type": "string",
             "description": "Name of the diagram",
             "maxLength": 256,
-            "pattern": "^[^<>\"'&]*$",
+            "pattern": "^[^\\x00-\\x1F]*$",
             "minLength": 1
           },
           "type": {
@@ -1736,7 +1736,7 @@
             "maxLength": 2048,
             "nullable": true,
             "description": "Optional description of the diagram",
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
           "created_at": {
             "type": "string",
@@ -1838,7 +1838,7 @@
             "type": "string",
             "description": "Name of the threat model",
             "maxLength": 256,
-            "pattern": "^[^<>\"'&]*$",
+            "pattern": "^[^\\x00-\\x1F]*$",
             "minLength": 1
           },
           "description": {
@@ -2738,7 +2738,7 @@
             "description": "Name of the threat model",
             "minLength": 1,
             "maxLength": 256,
-            "pattern": "^[^<>\"'&]*$",
+            "pattern": "^[^\\x00-\\x1F]*$",
             "x-oapi-codegen-extra-tags": {
               "binding": "required"
             }
@@ -2747,7 +2747,7 @@
             "type": "string",
             "description": "Description of the threat model",
             "maxLength": 2048,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
             "nullable": true
           },
           "owner": {
@@ -2952,7 +2952,7 @@
             "type": "string",
             "description": "Description of the threat and risk to the organization",
             "maxLength": 2048,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
             "nullable": true
           },
           "mitigation": {
@@ -3601,7 +3601,7 @@
             "description": "Description of the asset",
             "maxLength": 2048,
             "nullable": true,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
           "type": {
             "type": "string",
@@ -3702,7 +3702,7 @@
             "description": "Description of document purpose or content",
             "maxLength": 2048,
             "nullable": true,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
           "uri": {
             "type": "string",
@@ -3805,7 +3805,7 @@
             "description": "Description of note purpose or context",
             "maxLength": 2048,
             "nullable": true,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
           "include_in_report": {
             "type": "boolean",
@@ -3954,7 +3954,7 @@
             "description": "Description of the referenced source code",
             "maxLength": 2048,
             "nullable": true,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
           "type": {
             "type": "string",
@@ -8238,7 +8238,7 @@
             "type": "string",
             "description": "Description of the survey and its purpose",
             "maxLength": 2048,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
             "nullable": true
           },
           "version": {
@@ -10409,7 +10409,7 @@
             "description": "Description of note purpose or context",
             "maxLength": 2048,
             "nullable": true,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
             "example": "Notes from the quarterly security review meeting"
           },
           "timmy_enabled": {
@@ -10559,7 +10559,7 @@
             "description": "Description of note purpose or context",
             "maxLength": 2048,
             "nullable": true,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
           "timmy_enabled": {
             "type": "boolean",
@@ -10625,7 +10625,7 @@
             "description": "Description of note purpose or context",
             "maxLength": 2048,
             "nullable": true,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
           "timmy_enabled": {
             "type": "boolean",
@@ -10865,7 +10865,7 @@
             "type": "string",
             "description": "Optional session title",
             "maxLength": 256,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
             "example": "Payment flow threat analysis"
           },
           "source_snapshot": {
@@ -10878,7 +10878,7 @@
                   "type": "string",
                   "description": "Type of the source entity",
                   "maxLength": 64,
-                  "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+                  "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
                 },
                 "entity_id": {
                   "type": "string",
@@ -10999,7 +10999,7 @@
             "type": "string",
             "description": "Optional session title",
             "maxLength": 256,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
             "example": "Payment flow threat analysis"
           }
         }
