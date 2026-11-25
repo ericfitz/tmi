@@ -149,7 +149,7 @@ spec:
             # Secret rather than tmi-secrets (which Terraform owns) for the same
             # reason as tmi-embedding: the provider key is rotated by the
             # operator and must not land in Terraform state. Create/rotate with
-            # scripts/set-timmy-secret.sh. The non-secret Timmy settings
+            # scripts/rotate-openai-keys.sh. The non-secret Timmy settings
             # (provider, model, base URL, dimension) come from the
             # tmi-server-config ConfigMap via envFrom above.
             #
