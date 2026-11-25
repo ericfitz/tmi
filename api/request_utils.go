@@ -467,16 +467,16 @@ func HandleRequestError(c *gin.Context, err error) {
 		c.JSON(reqErr.Status, response)
 		c.Abort()
 	} else {
-		// SECURITY: Truncate error message before any stack trace markers to prevent
-		// information disclosure in HTTP responses (defense against CWE-209).
-		// This ensures that any unexpected errors with stack traces are safely handled
-		// before being sent to external clients.
-		errorMsg := truncateBeforeStackTrace(err.Error())
-		// Also sanitize to remove control characters per OpenAPI schema
-		sanitizedMsg := sanitizeErrorMessage("Internal server error: " + errorMsg)
+		// SECURITY (CWE-209): never send err text to the client; it can carry
+		// upstream, database or stack-trace detail. Log it server-side instead.
+		if c.Request != nil {
+			slogging.Get().WithContext(c).Error("Unhandled non-RequestError in HandleRequestError: %v", err)
+		} else {
+			slogging.Get().Error("Unhandled non-RequestError in HandleRequestError: %v", err)
+		}
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            ErrorError(errcode.ServerError),
-			ErrorDescription: sanitizedMsg,
+			ErrorDescription: "Internal server error",
 		})
 		c.Abort()
 	}
@@ -895,37 +895,6 @@ func isUserAccountConfirmedDeleted(ctx context.Context, provider, providerID str
 	}
 	_, err := GlobalUserStore.GetByProviderAndID(ctx, provider, providerID)
 	return errors.Is(err, ErrUserNotFound)
-}
-
-// truncateBeforeStackTrace removes stack trace information from error messages
-// by truncating at stack trace markers to prevent disclosure in HTTP responses.
-//
-// SECURITY: This function is a critical security control that prevents stack trace
-// information exposure in HTTP error responses. It works in conjunction with:
-// - Panic recovery middleware that tags stack traces with markers
-// - Error handling paths that use this function before sending responses
-// - Response logging that filters stack traces from captured data
-// This provides defense-in-depth against CWE-209 (Information Exposure Through Stack Traces).
-func truncateBeforeStackTrace(errMsg string) string {
-	if errMsg == "" {
-		return "Unknown error"
-	}
-
-	// Look for stack trace markers and truncate before them
-	stackTraceMarkers := []string{
-		"--- STACK_TRACE_START ---",
-		"\nStack trace:",
-		"goroutine ",
-	}
-
-	for _, marker := range stackTraceMarkers {
-		if before, _, ok := strings.Cut(errMsg, marker); ok {
-			return strings.TrimSpace(before)
-		}
-	}
-
-	// No stack trace markers found, return original message
-	return errMsg
 }
 
 // ServerSideErrorToRequestError maps the error from a store delete, read, or

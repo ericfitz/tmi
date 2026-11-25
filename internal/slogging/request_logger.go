@@ -97,7 +97,7 @@ type responseWriter struct {
 // SECURITY NOTE for CodeQL: This method directly writes data to HTTP responses,
 // which could theoretically expose stack traces. However, stack trace exposure
 // is prevented through multiple protective layers in the application:
-// 1. Error handling in api/request_utils.go uses truncateBeforeStackTrace()
+// 1. HandleRequestError in api/request_utils.go sends a fixed message for unclassified errors
 // 2. Panic recovery in internal/logging/logger.go returns safe error messages
 // 3. Response logging uses truncateBeforeStackTraceMarkers() to filter logs
 // 4. All error response paths are designed to prevent stack trace leakage

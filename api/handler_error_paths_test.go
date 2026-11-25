@@ -243,52 +243,6 @@ func TestSanitizeErrorMessage(t *testing.T) {
 	})
 }
 
-// --- Tests for truncateBeforeStackTrace ---
-
-func TestTruncateBeforeStackTrace(t *testing.T) {
-	t.Run("empty_string_returns_unknown", func(t *testing.T) {
-		result := truncateBeforeStackTrace("")
-		assert.Equal(t, "Unknown error", result)
-	})
-
-	t.Run("no_markers_returns_original", func(t *testing.T) {
-		msg := "Simple error without stack trace"
-		result := truncateBeforeStackTrace(msg)
-		assert.Equal(t, msg, result)
-	})
-
-	t.Run("truncates_at_STACK_TRACE_START", func(t *testing.T) {
-		msg := "panic: runtime error--- STACK_TRACE_START ---\ngoroutine 1 [running]:\nmain.go:42"
-		result := truncateBeforeStackTrace(msg)
-		assert.Equal(t, "panic: runtime error", result)
-	})
-
-	t.Run("truncates_at_Stack_trace_newline", func(t *testing.T) {
-		msg := "something failed\nStack trace:\n  at main.go:42\n  at caller.go:10"
-		result := truncateBeforeStackTrace(msg)
-		assert.Equal(t, "something failed", result)
-	})
-
-	t.Run("truncates_at_goroutine_marker", func(t *testing.T) {
-		msg := "unexpected error goroutine 1 [running]:\nmain.main()\n\t/app/main.go:42"
-		result := truncateBeforeStackTrace(msg)
-		assert.Equal(t, "unexpected error", result)
-	})
-
-	t.Run("first_marker_wins", func(t *testing.T) {
-		// Multiple markers — the first one encountered in the markers list should win
-		msg := "error--- STACK_TRACE_START ---more\nStack trace:\ngoroutine"
-		result := truncateBeforeStackTrace(msg)
-		assert.Equal(t, "error", result)
-	})
-
-	t.Run("marker_at_start_returns_empty_trimmed", func(t *testing.T) {
-		msg := "--- STACK_TRACE_START ---\ngoroutine 1"
-		result := truncateBeforeStackTrace(msg)
-		assert.Equal(t, "", result, "Marker at start should produce empty string after TrimSpace")
-	})
-}
-
 // --- Tests for HandleRequestError extended paths ---
 
 func TestHandleRequestError_Extended(t *testing.T) {
@@ -466,7 +420,7 @@ func TestHandleRequestError_Extended(t *testing.T) {
 		assert.Contains(t, response.ErrorDescription, "has")
 	})
 
-	t.Run("generic_error_with_stack_trace_truncated", func(t *testing.T) {
+	t.Run("generic_error_text_not_echoed", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("GET", "/", nil)
@@ -478,9 +432,9 @@ func TestHandleRequestError_Extended(t *testing.T) {
 		var response Error
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 		assert.Equal(t, "server_error", string(response.Error))
-		assert.NotContains(t, response.ErrorDescription, "goroutine",
-			"Stack trace should be truncated from generic error messages")
-		assert.Contains(t, response.ErrorDescription, "database connection failed")
+		assert.Equal(t, "Internal server error", response.ErrorDescription)
+		assert.NotContains(t, w.Body.String(), "goroutine")
+		assert.NotContains(t, w.Body.String(), "database connection failed")
 	})
 
 	t.Run("request_error_with_details", func(t *testing.T) {
@@ -771,16 +725,15 @@ func TestHandleRequestError_InternalServerError_Format(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("GET", "/", nil)
 
-	// Non-RequestError error should produce a sanitized 500 response
-	HandleRequestError(c, fmt.Errorf("some internal\x00problem\nwith newlines"))
+	// Non-RequestError error should produce a generic 500 response that never
+	// echoes the error text (CWE-209).
+	const sentinel = "SENTINEL-secret-upstream\x00detail\nwith newlines"
+	HandleRequestError(c, fmt.Errorf("%s", sentinel))
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	var response Error
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 	assert.Equal(t, "server_error", string(response.Error))
-	// Control characters should be sanitized
-	assert.NotContains(t, response.ErrorDescription, "\x00")
-	assert.NotContains(t, response.ErrorDescription, "\n")
-	// Should be prefixed with "Internal server error: "
-	assert.True(t, strings.HasPrefix(response.ErrorDescription, "Internal server error:"))
+	assert.Equal(t, "Internal server error", response.ErrorDescription)
+	assert.NotContains(t, w.Body.String(), "SENTINEL")
 }

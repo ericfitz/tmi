@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -624,4 +626,61 @@ func mustParseTimmyUUID(s string) openapi_types.UUID {
 	var u openapi_types.UUID
 	_ = u.UnmarshalText([]byte(s))
 	return u
+}
+
+// TestSendTimmyError_DoesNotLeakUpstreamError verifies #1231: an upstream
+// provider error must never reach the client, either as an SSE error event or
+// as a pre-stream JSON error body.
+func TestSendTimmyError_DoesNotLeakUpstreamError(t *testing.T) {
+	const sentinel = "SENTINEL-OpenAI API error: 401 Unauthorized"
+	upstream := fmt.Errorf("LLM generation failed: %w", errors.New(sentinel))
+
+	t.Run("committed stream", func(t *testing.T) {
+		c, w := timmyTestContext("POST", "/", timmyTestUserAlice)
+		sse := NewSSEWriter(c)
+		require.NoError(t, sse.SendEvent("message_start", map[string]string{"status": "processing"}))
+
+		sendTimmyError(c, sse, "message_failed", upstream)
+
+		body := w.Body.String()
+		assert.NotContains(t, body, "SENTINEL")
+		assert.NotContains(t, body, "OpenAI")
+		assert.NotContains(t, body, "401")
+		assert.Contains(t, body, "event: error")
+		assert.Contains(t, body, "message_failed")
+		assert.Contains(t, body, "The assistant could not generate a response")
+	})
+
+	t.Run("pre-stream JSON", func(t *testing.T) {
+		c, w := timmyTestContext("POST", "/", timmyTestUserAlice)
+		sse := NewSSEWriter(c)
+
+		sendTimmyError(c, sse, "message_failed", upstream)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.NotContains(t, w.Body.String(), "SENTINEL")
+		assert.NotContains(t, w.Body.String(), "LLM generation failed")
+		assert.Contains(t, w.Body.String(), "The assistant could not generate a response")
+	})
+
+	t.Run("curated RequestError is preserved", func(t *testing.T) {
+		c, w := timmyTestContext("POST", "/", timmyTestUserAlice)
+		sse := NewSSEWriter(c)
+
+		sendTimmyError(c, sse, "message_failed", ConflictError("session is not active"))
+
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), "session is not active")
+	})
+
+	t.Run("unknown code gets default message", func(t *testing.T) {
+		c, w := timmyTestContext("POST", "/", timmyTestUserAlice)
+		sse := NewSSEWriter(c)
+		require.NoError(t, sse.SendEvent("message_start", map[string]string{"status": "processing"}))
+
+		sendTimmyError(c, sse, "something_else", upstream)
+
+		assert.NotContains(t, w.Body.String(), "SENTINEL")
+		assert.Contains(t, w.Body.String(), timmyDefaultClientErrorMessage)
+	})
 }

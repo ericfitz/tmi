@@ -449,6 +449,50 @@ func TestHasProblematicUnicode(t *testing.T) {
 	}
 }
 
+// TestContentTypeValidationMiddleware_Charset verifies that JSON bodies
+// declaring a non-UTF-8 charset are rejected with 415 (issue #1228).
+func TestContentTypeValidationMiddleware_Charset(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cases := []struct {
+		name        string
+		method      string
+		contentType string
+		want        int
+	}{
+		{"utf-7 rejected", "POST", "application/json; charset=UTF-7", http.StatusUnsupportedMediaType},
+		{"iso-8859-1 rejected", "POST", "application/json; charset=ISO-8859-1", http.StatusUnsupportedMediaType},
+		{"utf-16 rejected", "POST", "application/json;charset=utf-16", http.StatusUnsupportedMediaType},
+		{"empty charset rejected", "POST", "application/json; charset=", http.StatusUnsupportedMediaType},
+		{"lowercase utf-8 accepted", "POST", "application/json; charset=utf-8", http.StatusOK},
+		{"uppercase UTF-8 accepted", "POST", "application/json; charset=UTF-8", http.StatusOK},
+		{"quoted utf-8 accepted", "POST", `application/json; charset="utf-8"`, http.StatusOK},
+		{"quoted utf-7 rejected", "POST", `application/json; charset="utf-7"`, http.StatusUnsupportedMediaType},
+		{"no charset accepted", "POST", "application/json", http.StatusOK},
+		{"other params accepted", "POST", "application/json; foo=bar", http.StatusOK},
+		{"malformed params rejected", "POST", "application/json; charset", http.StatusUnsupportedMediaType},
+		{"malformed params rejected 2", "POST", "application/json; ;;=", http.StatusUnsupportedMediaType},
+		{"json-patch utf-7 rejected", "PATCH", "application/json-patch+json; charset=UTF-7", http.StatusUnsupportedMediaType},
+		{"json-patch utf-8 accepted", "PATCH", "application/json-patch+json; charset=utf-8", http.StatusOK},
+		{"json-patch no charset accepted", "PATCH", "application/json-patch+json", http.StatusOK},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			router := gin.New()
+			router.Use(ContentTypeValidationMiddleware())
+			router.Handle(tc.method, "/test", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
+
+			req := httptest.NewRequest(tc.method, "/test", bytes.NewBufferString(`{"key":"value"}`))
+			req.Header.Set("Content-Type", tc.contentType)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tc.want, w.Code)
+		})
+	}
+}
+
 func TestContentTypeValidationMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

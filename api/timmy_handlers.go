@@ -6,6 +6,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -651,19 +652,53 @@ func (s *Server) RequestDocumentAccess(c *gin.Context, threatModelId ThreatModel
 
 // --- Helper functions ---
 
+// timmyClientErrorMessages maps an SSE error code to the fixed message sent to
+// clients when the underlying error is not a curated RequestError. Upstream
+// LLM, embedding, and storage errors can name the provider or reveal
+// credential state (CWE-209), so their text is logged server-side only.
+var timmyClientErrorMessages = map[string]string{
+	"message_failed":          "The assistant could not generate a response",
+	"session_creation_failed": "The chat session could not be created",
+}
+
+const timmyDefaultClientErrorMessage = "The request could not be completed"
+
 // sendTimmyError reports a handler failure on an SSE endpoint. Before any
 // byte is written the HTTP status is still ours to set (#652): strip the
 // SSE headers and return a normal JSON error. Once the stream is committed
 // (progress/token events), fall back to an SSE error event.
+//
+// Only RequestErrors (curated, client-safe messages) reach the client as-is.
+// Any other error is replaced by a fixed code-specific message; the full
+// error is logged with identifiers only.
 func sendTimmyError(c *gin.Context, sse *SSEWriter, code string, err error) {
+	logger := slogging.Get().WithContext(c)
+	var reqErr *RequestError
+	curated := errors.As(err, &reqErr)
+
+	clientMsg := timmyClientErrorMessages[code]
+	if clientMsg == "" {
+		clientMsg = timmyDefaultClientErrorMessage
+	}
+	if curated {
+		clientMsg = reqErr.Message
+	} else {
+		logger.Error("Timmy: %s: session_id=%s threat_model_id=%s error=%v",
+			code, c.Param("session_id"), c.Param("threat_model_id"), err)
+	}
+
 	if !c.Writer.Written() {
 		c.Writer.Header().Del("X-Accel-Buffering")
 		c.Writer.Header().Set("Content-Type", "application/json")
-		HandleRequestError(c, err)
+		if curated {
+			HandleRequestError(c, err)
+		} else {
+			HandleRequestError(c, ServerError(clientMsg))
+		}
 		return
 	}
-	if sendErr := sse.SendError(code, err.Error()); sendErr != nil {
-		slogging.Get().WithContext(c).Warn("Timmy: could not deliver %s: %v", code, sendErr)
+	if sendErr := sse.SendError(code, clientMsg); sendErr != nil {
+		logger.Warn("Timmy: could not deliver %s: %v", code, sendErr)
 	}
 }
 

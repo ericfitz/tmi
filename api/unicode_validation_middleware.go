@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"slices"
 	"strings"
@@ -209,8 +210,40 @@ func ContentTypeValidationMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// JSON bodies are decoded as UTF-8 only (RFC 8259). A declared charset
+		// other than utf-8 (e.g. UTF-7, ISO-8859-1) would let the body bypass
+		// Unicode validation, so reject it. A JSON media type with an
+		// unparseable parameter list is treated the same way (415), matching
+		// how an unsupported media type is already handled above.
+		if isJSONMediaType(baseContentType) && !jsonCharsetAllowed(contentType) {
+			logger.Warn("Unsupported charset in Content-Type: %s for %s %s", contentType, c.Request.Method, c.Request.URL.Path)
+			c.Header("Accept", "application/json")
+			c.JSON(http.StatusUnsupportedMediaType, Error{
+				Error:            ErrorError(errcode.UnsupportedMediaType),
+				ErrorDescription: "JSON request bodies must be UTF-8; the Content-Type charset parameter is unsupported or malformed",
+			})
+			c.Abort()
+			return
+		}
+
 		c.Next()
 	}
+}
+
+// isJSONMediaType reports whether the media type is JSON or a +json variant.
+func isJSONMediaType(mediaType string) bool {
+	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
+}
+
+// jsonCharsetAllowed reports whether the Content-Type header parses and either
+// has no charset parameter or declares utf-8 (case-insensitive).
+func jsonCharsetAllowed(contentType string) bool {
+	_, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return false
+	}
+	charset, ok := params["charset"]
+	return !ok || strings.EqualFold(charset, "utf-8")
 }
 
 // DuplicateHeaderValidationMiddleware rejects requests with duplicate critical security headers
