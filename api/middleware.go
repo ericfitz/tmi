@@ -8,7 +8,9 @@ import (
 	"errors"
 	"html"
 	"net/http"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1035,14 +1037,156 @@ var negotiatedMediaTypeRoutes = map[string]map[string]bool{
 	"application/graphml+xml": {
 		"GET /threat_models/:threat_model_id/diagrams/:diagram_id/model": true,
 	},
+	// SAML service provider metadata (the 200 media type in the spec).
+	"application/samlmetadata+xml": {
+		"GET /saml/:provider/metadata": true,
+	},
 }
 
-// acceptsAnyOf reports whether the Accept header mentions any of the media
-// types. Substring matching, so it tolerates quality parameters and multi-type
-// headers.
-func acceptsAnyOf(acceptHeader string, mediaTypes []string) bool {
-	for _, t := range mediaTypes {
-		if strings.Contains(acceptHeader, t) {
+// acceptRange is one media range from an Accept header (RFC 9110 section 12.5.1).
+type acceptRange struct {
+	mainType string // lower-case type, or "*"
+	subType  string // lower-case subtype, or "*"
+	q        float64
+}
+
+// acceptQValueRe is the RFC 9110 qvalue grammar: "0" ["." 0*3DIGIT] or "1" ["." 0*3("0")].
+var acceptQValueRe = regexp.MustCompile(`^(?:0(?:\.[0-9]{0,3})?|1(?:\.0{0,3})?)$`)
+
+// splitOutsideQuotes splits s on sep, ignoring separators inside quoted strings.
+func splitOutsideQuotes(s string, sep byte) []string {
+	var parts []string
+	inQuotes, escaped, start := false, false, 0
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		switch {
+		case escaped:
+			escaped = false
+		case inQuotes && ch == '\\':
+			escaped = true
+		case ch == '"':
+			inQuotes = !inQuotes
+		case ch == sep && !inQuotes:
+			parts = append(parts, s[start:i])
+			start = i + 1
+		}
+	}
+	return append(parts, s[start:])
+}
+
+// isHTTPToken reports whether s is a non-empty RFC 9110 token.
+func isHTTPToken(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		switch {
+		case ch >= '0' && ch <= '9', ch >= 'a' && ch <= 'z', ch >= 'A' && ch <= 'Z':
+		case strings.IndexByte("!#$%&'*+-.^_`|~", ch) >= 0:
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// isQuotedString reports whether s is a well-formed RFC 9110 quoted-string.
+func isQuotedString(s string) bool {
+	if len(s) < 2 || s[0] != '"' || s[len(s)-1] != '"' {
+		return false
+	}
+	for i := 1; i < len(s)-1; i++ {
+		switch s[i] {
+		case '\\':
+			i++
+			if i >= len(s)-1 {
+				return false
+			}
+		case '"':
+			return false
+		}
+	}
+	return true
+}
+
+// parseAcceptHeader parses an Accept header into media ranges. It returns
+// ok=false if any entry is malformed: a bad media range, a bad parameter, or a
+// q value outside the RFC grammar. An empty header (or one holding only empty
+// list elements) means "*/*". Empty list elements are tolerated per RFC 9110
+// section 5.6.1.
+func parseAcceptHeader(header string) (ranges []acceptRange, ok bool) {
+	for _, entry := range splitOutsideQuotes(header, ',') {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		fields := splitOutsideQuotes(entry, ';')
+		mediaRange := strings.TrimSpace(fields[0])
+		mainType, subType, found := strings.Cut(mediaRange, "/")
+		if !found {
+			return nil, false
+		}
+		switch {
+		case mainType == "*":
+			if subType != "*" {
+				return nil, false // "*/subtype" is invalid
+			}
+		case !isHTTPToken(mainType):
+			return nil, false
+		case subType != "*" && !isHTTPToken(subType):
+			return nil, false
+		}
+		r := acceptRange{mainType: strings.ToLower(mainType), subType: strings.ToLower(subType), q: 1}
+		for _, param := range fields[1:] {
+			name, value, hasValue := strings.Cut(strings.TrimSpace(param), "=")
+			name = strings.TrimSpace(name)
+			value = strings.TrimSpace(value)
+			if !hasValue || !isHTTPToken(name) || (!isHTTPToken(value) && !isQuotedString(value)) {
+				return nil, false
+			}
+			if strings.EqualFold(name, "q") {
+				if !acceptQValueRe.MatchString(value) {
+					return nil, false
+				}
+				q, err := strconv.ParseFloat(value, 64)
+				if err != nil {
+					return nil, false
+				}
+				r.q = q
+			}
+		}
+		ranges = append(ranges, r)
+	}
+	if len(ranges) == 0 {
+		ranges = []acceptRange{{mainType: "*", subType: "*", q: 1}}
+	}
+	return ranges, true
+}
+
+// acceptsAnyOf reports whether the parsed Accept ranges accept at least one of
+// the concrete media types. For each media type the most specific matching
+// range decides (exact, then type/*, then */*), and a q of 0 means "not
+// acceptable".
+func acceptsAnyOf(ranges []acceptRange, mediaTypes []string) bool {
+	for _, mt := range mediaTypes {
+		mainType, subType, _ := strings.Cut(strings.ToLower(mt), "/")
+		bestSpecificity, bestQ := -1, 0.0
+		for _, r := range ranges {
+			specificity := -1
+			switch {
+			case r.mainType == mainType && r.subType == subType:
+				specificity = 2
+			case r.mainType == mainType && r.subType == "*":
+				specificity = 1
+			case r.mainType == "*":
+				specificity = 0
+			}
+			if specificity > bestSpecificity {
+				bestSpecificity, bestQ = specificity, r.q
+			}
+		}
+		if bestSpecificity >= 0 && bestQ > 0 {
 			return true
 		}
 	}
@@ -1062,23 +1206,19 @@ func AcceptHeaderValidation() gin.HandlerFunc {
 			return
 		}
 
-		// Get Accept header
-		acceptHeader := c.GetHeader("Accept")
-
-		// If no Accept header, default to */* which we'll treat as acceptable
-		if acceptHeader == "" {
+		// Unrouted request: let the router answer 404/405 rather than 406.
+		if c.FullPath() == "" {
 			c.Next()
 			return
 		}
 
-		// Media types every operation can produce. Substring matching keeps this
-		// lenient about quality parameters and multi-type Accept headers.
-		supportedAcceptTypes := []string{
-			"application/json",
-			"*/*",
-			"application/*",
-			"text/event-stream",
-		}
+		// Parse strictly (RFC 9110 section 12.5.1): any malformed media range or
+		// q value is 406. An absent or empty header means */*.
+		ranges, wellFormed := parseAcceptHeader(c.GetHeader("Accept"))
+
+		// Media types every operation can produce.
+		supportedAcceptTypes := []string{"application/json", "text/event-stream"}
+		acceptable := wellFormed && acceptsAnyOf(ranges, supportedAcceptTypes)
 		// Representations only specific operations offer. These used to sit in
 		// the list above, which made the gate accept them server-wide: an
 		// endpoint that does no negotiation of its own passed the check and then
@@ -1090,19 +1230,18 @@ func AcceptHeaderValidation() gin.HandlerFunc {
 		// there call negotiateContentType and return 406 themselves for a type
 		// they don't offer, so this gate only has to stop the type from being
 		// waved through everywhere else.
-		if !acceptsAnyOf(acceptHeader, supportedAcceptTypes) {
+		if wellFormed && !acceptable {
 			route := c.Request.Method + " " + c.FullPath()
 			for mediaType, routes := range negotiatedMediaTypeRoutes {
-				if strings.Contains(acceptHeader, mediaType) && routes[route] {
-					c.Next()
-					return
+				if routes[route] && acceptsAnyOf(ranges, []string{mediaType}) {
+					acceptable = true
+					break
 				}
 			}
 		}
-		acceptsSupported := acceptsAnyOf(acceptHeader, supportedAcceptTypes)
 
-		if !acceptsSupported {
-			logger.Debug("Rejecting request with unsupported Accept header: %s", acceptHeader)
+		if !acceptable {
+			logger.Debug("Rejecting request with unsupported or malformed Accept header")
 			c.AbortWithStatusJSON(http.StatusNotAcceptable, Error{
 				Error:            ErrorError(errcode.NotAcceptable),
 				ErrorDescription: "The requested Accept header media type is not supported by this server.",
