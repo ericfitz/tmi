@@ -98,13 +98,26 @@ class TestDdBaseImages(unittest.TestCase):
     reference them, or the pre-imported copy won't match what the pods request."""
 
     def test_includes_postgres_and_redis(self):
-        self.assertIn("cgr.dev/chainguard/postgres:latest", deploy.DD_BASE_IMAGES)
+        self.assertIn(deploy.DD_POSTGRES_IMAGE, deploy.DD_BASE_IMAGES)
         self.assertIn("cgr.dev/chainguard/redis:latest", deploy.DD_BASE_IMAGES)
 
     def test_postgres_ref_matches_docker_desktop_manifest(self):
         text = (_DEV_DIR / "docker-desktop" / "postgres.yml").read_text()
-        self.assertIn("cgr.dev/chainguard/postgres:latest", deploy.DD_BASE_IMAGES)
-        self.assertIn("image: cgr.dev/chainguard/postgres:latest", text)
+        self.assertIn(f"image: {deploy.DD_POSTGRES_IMAGE}", text)
+
+    def test_postgres_ref_matches_k3s_manifest_and_dockerfile(self):
+        text = (_DEV_DIR / "k3s" / "postgres.yml").read_text()
+        self.assertIn(f"image: {deploy.DD_POSTGRES_IMAGE}", text)
+        dockerfile = (_REPO_ROOT / "Dockerfile.postgres").read_text()
+        self.assertIn(f"FROM {deploy.DD_POSTGRES_IMAGE}", dockerfile)
+
+    def test_postgres_image_is_digest_pinned(self):
+        # A floating tag lets a reschedule pull a new major version that cannot
+        # open the existing data directory (PG18 -> PG19 crash loop, 2026-11-25).
+        self.assertRegex(deploy.DD_POSTGRES_IMAGE, r"^cgr\.dev/chainguard/postgres@sha256:[0-9a-f]{64}$")
+        for manifest in ("k3s", "docker-desktop"):
+            text = (_DEV_DIR / manifest / "postgres.yml").read_text()
+            self.assertNotIn("postgres:latest", text, manifest)
 
     def test_redis_ref_matches_shared_manifest(self):
         text = (_DEV_DIR / "redis.yml").read_text()

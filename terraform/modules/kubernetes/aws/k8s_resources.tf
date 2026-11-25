@@ -155,7 +155,7 @@ resource "kubernetes_config_map_v1" "tmi" {
 
       # ---- Timmy AI assistant (non-secret half) --------------------------
       # The two API keys live in the out-of-band `tmi-timmy` Secret
-      # (scripts/set-timmy-secret.sh), referenced from the overlay's
+      # (scripts/rotate-openai-keys.sh), referenced from the overlay's
       # server-config.yaml patch — they are deliberately not here, so the
       # provider credential never lands in Terraform state.
       #

@@ -76,7 +76,7 @@ clean targets — a second retention policy races the plugin's and destroys corp
 TMI uses [Chainguard](https://chainguard.dev/) images for minimal attack surface:
 - **Builder**: `cgr.dev/chainguard/go:latest` - Go build environment
 - **Runtime**: `cgr.dev/chainguard/static:latest` - Minimal static runtime (~57MB)
-- **PostgreSQL**: `cgr.dev/chainguard/postgres:latest` - Secure database
+- **PostgreSQL**: `cgr.dev/chainguard/postgres@sha256:0926ac7262a2c1963179eb939cd5d610e1be3ecca90b4b5cad8db8df16fab87e` - Secure database, pinned to PostgreSQL 18.6 (`:latest` is PG19 and cannot open PG18 data)
 - Static binaries built with `CGO_ENABLED=0` (Oracle support excluded)
 
 ## Directory Structure

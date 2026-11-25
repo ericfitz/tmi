@@ -110,7 +110,9 @@ POSTGRES_PORT = 5432
 # the postgres/redis manifests so the imported copy is used and no cgr.dev pull is
 # attempted. KEEP THESE IN SYNC with the image refs in
 # deployments/k8s/dev/docker-desktop/postgres.yml and deployments/k8s/dev/redis.yml.
-DD_POSTGRES_IMAGE = "cgr.dev/chainguard/postgres:latest"
+# Pinned by digest to PostgreSQL 18.6: Chainguard's :latest moved to PG19, which
+# cannot open a PG18 data directory. Move it only within 18.x.
+DD_POSTGRES_IMAGE = "cgr.dev/chainguard/postgres@sha256:0926ac7262a2c1963179eb939cd5d610e1be3ecca90b4b5cad8db8df16fab87e"
 DD_REDIS_IMAGE = "cgr.dev/chainguard/redis:latest"
 DD_BASE_IMAGES = (DD_POSTGRES_IMAGE, DD_REDIS_IMAGE)
 

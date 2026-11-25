@@ -204,7 +204,7 @@ Work is NOT complete until `git push` succeeds. When ending a work session:
 Secret _values_ must never reach a command line, environment variable, log, or the model's context. Use the sanctioned patterns rather than inventing one:
 
 - **Never** echo, `cat`, `printf`, or interpolate a secret into a shell command, and never `set -x` in a script that handles one.
-- Injecting a secret into the cluster: follow `scripts/set-oauth-secret.sh` / `scripts/set-embedding-secret.sh` — the operator writes the value to a `umask 077` file and `kubectl --from-file` reads it from disk, so it never appears in argv or the environment.
+- Injecting a secret into the cluster: follow `scripts/set-oauth-secret.sh` / `scripts/rotate-openai-keys.sh` — the operator writes the value to a `umask 077` file and `kubectl --from-file` reads it from disk, so it never appears in argv or the environment.
 - Reading a secret for a deploy: `scripts/deploy-aws.sh` is the sanctioned caller of `aws secretsmanager get-secret-value`; it fetches DB credentials into a `umask 077` temp config and never prints them. Extend that script rather than adding ad-hoc callers.
 - Terraform-managed secrets (`terraform/modules/secrets/aws`, `random_password`) land in remote state, which is why `encrypt = true` is pinned in `terraform/environments/aws-public/main.tf` while bucket/table come per-deployer from the gitignored `backend.hcl`. Never write state locally or paste it anywhere; mark secret outputs `sensitive`.
 
