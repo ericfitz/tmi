@@ -467,16 +467,16 @@ func HandleRequestError(c *gin.Context, err error) {
 		c.JSON(reqErr.Status, response)
 		c.Abort()
 	} else {
-		// SECURITY: Truncate error message before any stack trace markers to prevent
-		// information disclosure in HTTP responses (defense against CWE-209).
-		// This ensures that any unexpected errors with stack traces are safely handled
-		// before being sent to external clients.
-		errorMsg := truncateBeforeStackTrace(err.Error())
-		// Also sanitize to remove control characters per OpenAPI schema
-		sanitizedMsg := sanitizeErrorMessage("Internal server error: " + errorMsg)
+		// SECURITY (CWE-209): never send err text to the client; it can carry
+		// upstream, database or stack-trace detail. Log it server-side instead.
+		if c.Request != nil {
+			slogging.Get().WithContext(c).Error("Unhandled non-RequestError in HandleRequestError: %v", err)
+		} else {
+			slogging.Get().Error("Unhandled non-RequestError in HandleRequestError: %v", err)
+		}
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            ErrorError(errcode.ServerError),
-			ErrorDescription: sanitizedMsg,
+			ErrorDescription: "Internal server error",
 		})
 		c.Abort()
 	}

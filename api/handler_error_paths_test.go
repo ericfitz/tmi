@@ -466,7 +466,7 @@ func TestHandleRequestError_Extended(t *testing.T) {
 		assert.Contains(t, response.ErrorDescription, "has")
 	})
 
-	t.Run("generic_error_with_stack_trace_truncated", func(t *testing.T) {
+	t.Run("generic_error_text_not_echoed", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("GET", "/", nil)
@@ -478,9 +478,9 @@ func TestHandleRequestError_Extended(t *testing.T) {
 		var response Error
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 		assert.Equal(t, "server_error", string(response.Error))
-		assert.NotContains(t, response.ErrorDescription, "goroutine",
-			"Stack trace should be truncated from generic error messages")
-		assert.Contains(t, response.ErrorDescription, "database connection failed")
+		assert.Equal(t, "Internal server error", response.ErrorDescription)
+		assert.NotContains(t, w.Body.String(), "goroutine")
+		assert.NotContains(t, w.Body.String(), "database connection failed")
 	})
 
 	t.Run("request_error_with_details", func(t *testing.T) {
@@ -771,16 +771,15 @@ func TestHandleRequestError_InternalServerError_Format(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("GET", "/", nil)
 
-	// Non-RequestError error should produce a sanitized 500 response
-	HandleRequestError(c, fmt.Errorf("some internal\x00problem\nwith newlines"))
+	// Non-RequestError error should produce a generic 500 response that never
+	// echoes the error text (CWE-209).
+	const sentinel = "SENTINEL-secret-upstream\x00detail\nwith newlines"
+	HandleRequestError(c, fmt.Errorf("%s", sentinel))
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	var response Error
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 	assert.Equal(t, "server_error", string(response.Error))
-	// Control characters should be sanitized
-	assert.NotContains(t, response.ErrorDescription, "\x00")
-	assert.NotContains(t, response.ErrorDescription, "\n")
-	// Should be prefixed with "Internal server error: "
-	assert.True(t, strings.HasPrefix(response.ErrorDescription, "Internal server error:"))
+	assert.Equal(t, "Internal server error", response.ErrorDescription)
+	assert.NotContains(t, w.Body.String(), "SENTINEL")
 }
