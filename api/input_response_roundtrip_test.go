@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -127,4 +128,40 @@ func TestSanitizePlainText_DropsDecodedControlChars(t *testing.T) {
 			require.Equal(t, tc.want, SanitizePlainText(tc.in))
 		})
 	}
+}
+
+// TestSanitizePlainText_NoReassembledMarkup: stripping one layer of markup and
+// then unescaping must never leave a live tag behind, whether the outer tag is
+// built by nesting, by entity encoding, or by a control character that is
+// dropped after decoding (security review of #1222/#1223).
+func TestSanitizePlainText_NoReassembledMarkup(t *testing.T) {
+	payloads := []string{
+		"<<b>img src=x onerror=alert(1)>",
+		"<<b>script>alert(1)<</b>/script>",
+		"&lt;&lt;b&gt;img src=x onerror=alert(1)&gt;",
+		"<&#1;img src=x o&#1;nerror=alert(1)>",
+		"<&#1;script>alert(1)</&#1;script>",
+		"<&#10;img src=x onerror=alert(1)>",
+		"<<<b>b>img src=x onerror=alert(1)>",
+		"&amp;lt;&amp;lt;b&amp;gt;img src=x onerror=alert(1)&amp;gt;",
+	}
+	for _, p := range payloads {
+		out := SanitizePlainText(p)
+		assert.NotRegexp(t, `<[A-Za-z/!?]`, out, "input %q left markup %q", p, out)
+		assert.Equal(t, out, SanitizePlainText(out), "sanitizing must be idempotent for %q", p)
+	}
+	// Ordinary text with comparison operators still survives unchanged.
+	for _, s := range angleBracketTexts {
+		assert.Equal(t, s, SanitizePlainText(s))
+	}
+}
+
+func TestSanitizePlainText_DeepNestingNeverLeavesMarkup(t *testing.T) {
+	// Each layer of "<b>" nesting costs one pass; nest past the pass bound.
+	p := "img src=x onerror=alert(1)>"
+	for i := 0; i < 25; i++ {
+		p = "<<b>" + p
+	}
+	out := SanitizePlainText(p)
+	assert.NotRegexp(t, `<[A-Za-z/!?]`, out)
 }

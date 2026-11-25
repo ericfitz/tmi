@@ -227,27 +227,52 @@ func SanitizeRequiredMarkdownContent(field, content string) (string, *RequestErr
 // become real tags before sanitization strips them. The result is then unescaped
 // again so that legitimate text like "0.0.0.0/0 -> NAT" is stored verbatim rather
 // than as "0.0.0.0/0 -&gt; NAT".
+//
+// One pass can leave markup behind: stripping the inner tag of
+// "<<b>img onerror=...>" leaves "<img onerror=...>". So the pass is repeated
+// until its output stops changing; at that fixed point the value contains no
+// tag the strict policy would strip. If it does not settle within the bound,
+// the still-escaped sanitizer output is returned, never live markup.
 func SanitizePlainText(s string) string {
 	if s == "" {
 		return s
 	}
+	cur := s
+	for i := 0; i < 10; i++ {
+		next := sanitizePlainTextPass(s, cur)
+		if next == cur {
+			return cur
+		}
+		cur = next
+	}
+	return strictPolicy.Sanitize(dropDecodedControlChars(s, fullyUnescape(cur)))
+}
+
+// sanitizePlainTextPass runs one decode, strip, unescape cycle. raw is the
+// original input, used to decide which control characters may stay.
+func sanitizePlainTextPass(raw, s string) string {
 	// Fully decode HTML entities before sanitization so that entity-encoded
 	// tags (e.g., &lt;script&gt; or multi-layer &amp;lt;script&amp;gt;)
-	// become real tags that bluemonday can strip. This prevents a
-	// double-decode bypass where entities survive sanitization and are
-	// later decoded into live HTML.
-	decoded := s
-	for i := 0; i < 10; i++ {
-		next := html.UnescapeString(decoded)
-		if next == decoded {
-			break
-		}
-		decoded = next
-	}
+	// become real tags that bluemonday can strip. Control characters that
+	// decoding produced are dropped before stripping, so they cannot hide a
+	// tag from the tokenizer and then vanish afterwards ("<&#1;img ...>").
+	decoded := dropDecodedControlChars(raw, fullyUnescape(s))
 	stripped := strictPolicy.Sanitize(decoded)
 	// Unescape again so that bluemonday's entity-encoding of legitimate
 	// characters (e.g., & → &amp;, > in "->") is reversed for storage.
-	return dropDecodedControlChars(s, html.UnescapeString(stripped))
+	return html.UnescapeString(stripped)
+}
+
+// fullyUnescape decodes HTML entities until the text stops changing, with a bound.
+func fullyUnescape(s string) string {
+	for i := 0; i < 10; i++ {
+		next := html.UnescapeString(s)
+		if next == s {
+			return s
+		}
+		s = next
+	}
+	return s
 }
 
 // dropDecodedControlChars removes C0 control characters from out unless the
