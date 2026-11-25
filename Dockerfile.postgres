@@ -1,5 +1,6 @@
 # Chainguard PostgreSQL build
-FROM cgr.dev/chainguard/postgres:latest
+# Pinned to PostgreSQL 18.6; keep in sync with deployments/k8s/dev/*/postgres.yml.
+FROM cgr.dev/chainguard/postgres@sha256:0926ac7262a2c1963179eb939cd5d610e1be3ecca90b4b5cad8db8df16fab87e
 
 # Metadata for tracking
 LABEL security.base="chainguard"

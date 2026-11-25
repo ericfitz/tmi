@@ -2,10 +2,15 @@
 # cluster default storageclass (hostpath).
 #
 # Uses the same vanilla Chainguard image as the kind dev DB (Dockerfile.postgres
-# is just `FROM cgr.dev/chainguard/postgres:latest` + PGDATA/locale env, with no
+# is just `FROM <the pinned image below>` + PGDATA/locale env, with no
 # extensions), so the node pulls it straight from cgr.dev — no build/push to the
 # in-cluster registry is needed. Schema is created by the server's GORM
 # AutoMigrate at startup (same as kind).
+#
+# The image is pinned by digest to PostgreSQL 18.6. Chainguard's free tier only
+# publishes :latest, which moved to PostgreSQL 19 on 2026-11-24; a PG19 server
+# cannot open this PG18 data directory, and the pod crash-looped on reschedule.
+# Move the digest only within 18.x; a major upgrade needs pg_upgrade on the PVC.
 #
 # Credentials MUST match database.url in config-development.yml
 # (postgres://tmi_dev:dev123@.../tmi_dev). The server reaches this DB via the
@@ -49,7 +54,7 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: cgr.dev/chainguard/postgres:latest
+          image: cgr.dev/chainguard/postgres@sha256:0926ac7262a2c1963179eb939cd5d610e1be3ecca90b4b5cad8db8df16fab87e
           # The image is pre-imported into the node's containerd by deploy.py
           # (build_and_push), so use the imported copy and never re-pull from
           # cgr.dev (a :latest tag would otherwise default to Always). See #517.
