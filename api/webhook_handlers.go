@@ -722,8 +722,8 @@ func dbWebhookSubscriptionToAPI(db DBWebhookSubscription, includeSecret bool) We
 		Url:                 url,
 		Events:              events,
 		Status:              WebhookSubscriptionStatus(db.Status),
-		CreatedAt:           db.CreatedAt,
-		ModifiedAt:          db.ModifiedAt,
+		CreatedAt:           truncateAPITime(db.CreatedAt),
+		ModifiedAt:          truncateAPITime(db.ModifiedAt),
 		ChallengesSent:      &db.ChallengesSent,
 		PublicationFailures: &db.PublicationFailures,
 	}
@@ -740,7 +740,7 @@ func dbWebhookSubscriptionToAPI(db DBWebhookSubscription, includeSecret bool) We
 
 	// Include last successful use if present
 	if db.LastSuccessfulUse != nil {
-		response.LastSuccessfulUse = db.LastSuccessfulUse
+		response.LastSuccessfulUse = truncateAPITimePtr(db.LastSuccessfulUse)
 	}
 
 	return response

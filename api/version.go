@@ -147,6 +147,9 @@ const rootPageHTML = `<!DOCTYPE html>
 // Must be generous enough for cross-AZ VPC round-trips on Fargate/cloud.
 const healthCheckTimeout = 3 * time.Second
 
+// apiInfoNow is the clock used for the root endpoint status time (overridable in tests).
+var apiInfoNow = time.Now
+
 // GetApiInfo returns service, API, and operator information
 func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 	// Get logger from context
@@ -221,7 +224,7 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 			Time time.Time         `json:"time"`
 		}{
 			Code: healthResult.Overall,
-			Time: time.Now().UTC(),
+			Time: apiInfoNow().UTC().Truncate(time.Microsecond),
 		},
 		Service: struct {
 			Build string `json:"build"`
