@@ -85,3 +85,45 @@ func validateURIPatchOperationsWith(validator *URIValidator, operations []PatchO
 
 	return nil
 }
+
+// NormalizeOptionalURI normalizes an optional URI field: nil, empty and
+// whitespace-only values become nil (field absent), and any other value is
+// returned with surrounding whitespace trimmed. Apply it after sanitizing and
+// before validating, so an empty string is never stored or echoed (it is not a
+// valid format: uri value) and a padded value does not leak its padding.
+func NormalizeOptionalURI(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*s)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+// NormalizeURIPatchOperations applies the NormalizeOptionalURI rule to JSON
+// Patch operations: for "replace" and "add" on the given paths, a string value
+// that is blank becomes null (clearing the field) and any other string value is
+// trimmed. Non-string values are left for the applier to reject.
+func NormalizeURIPatchOperations(operations []PatchOperation, uriPaths []string) {
+	pathSet := make(map[string]bool, len(uriPaths))
+	for _, p := range uriPaths {
+		pathSet[p] = true
+	}
+	for i := range operations {
+		op := &operations[i]
+		if (op.Op != string(Replace) && op.Op != string(Add)) || !pathSet[op.Path] {
+			continue
+		}
+		str, ok := op.Value.(string)
+		if !ok {
+			continue
+		}
+		if normalized := NormalizeOptionalURI(&str); normalized == nil {
+			op.Value = nil
+		} else {
+			op.Value = *normalized
+		}
+	}
+}

@@ -98,7 +98,7 @@ func (s *Server) CreateTeam(c *gin.Context) {
 	// Sanitize text fields (defense-in-depth)
 	req.Name = SanitizePlainText(req.Name)
 	req.Description = SanitizeOptionalString(req.Description)
-	req.Uri = SanitizeOptionalString(req.Uri)
+	req.Uri = NormalizeOptionalURI(SanitizeOptionalString(req.Uri))
 
 	team := Team{
 		Name:               req.Name,
@@ -219,7 +219,7 @@ func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID, _ UpdateT
 	// Sanitize text fields (defense-in-depth)
 	req.Name = SanitizePlainText(req.Name)
 	req.Description = SanitizeOptionalString(req.Description)
-	req.Uri = SanitizeOptionalString(req.Uri)
+	req.Uri = NormalizeOptionalURI(SanitizeOptionalString(req.Uri))
 
 	id := teamId
 	team := Team{
@@ -317,6 +317,9 @@ func (s *Server) PatchTeam(c *gin.Context, teamId openapi_types.UUID, _ PatchTea
 		return
 	}
 
+	// A blank uri clears the field; padding is trimmed (#1233).
+	NormalizeURIPatchOperations(operations, []string{"/uri"})
+
 	// Get existing team
 	existing, err := GlobalTeamStore.Get(ctx, teamId.String())
 	if err != nil {
@@ -335,7 +338,7 @@ func (s *Server) PatchTeam(c *gin.Context, teamId openapi_types.UUID, _ PatchTea
 	// Sanitize text fields on the patched result (defense-in-depth)
 	patched.Name = SanitizePlainText(patched.Name)
 	patched.Description = SanitizeOptionalString(patched.Description)
-	patched.Uri = SanitizeOptionalString(patched.Uri)
+	patched.Uri = NormalizeOptionalURI(SanitizeOptionalString(patched.Uri))
 
 	// Optimistic locking (T14 / #385): the CAS runs inside the same
 	// transaction as the content write (#594).

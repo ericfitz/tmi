@@ -110,7 +110,7 @@ func (s *Server) CreateProject(c *gin.Context) {
 	// Sanitize text fields (defense-in-depth)
 	req.Name = SanitizePlainText(req.Name)
 	req.Description = SanitizeOptionalString(req.Description)
-	req.Uri = SanitizeOptionalString(req.Uri)
+	req.Uri = NormalizeOptionalURI(SanitizeOptionalString(req.Uri))
 
 	project := Project{
 		Name:               req.Name,
@@ -230,7 +230,7 @@ func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID, _ U
 	// Sanitize text fields (defense-in-depth)
 	req.Name = SanitizePlainText(req.Name)
 	req.Description = SanitizeOptionalString(req.Description)
-	req.Uri = SanitizeOptionalString(req.Uri)
+	req.Uri = NormalizeOptionalURI(SanitizeOptionalString(req.Uri))
 
 	id := projectId
 	project := Project{
@@ -327,6 +327,9 @@ func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID, _ Pa
 		return
 	}
 
+	// A blank uri clears the field; padding is trimmed (#1233).
+	NormalizeURIPatchOperations(operations, []string{"/uri"})
+
 	// Get existing project
 	existing, err := GlobalProjectStore.Get(ctx, projectId.String())
 	if err != nil {
@@ -345,7 +348,7 @@ func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID, _ Pa
 	// Sanitize text fields on the patched result (defense-in-depth)
 	patched.Name = SanitizePlainText(patched.Name)
 	patched.Description = SanitizeOptionalString(patched.Description)
-	patched.Uri = SanitizeOptionalString(patched.Uri)
+	patched.Uri = NormalizeOptionalURI(SanitizeOptionalString(patched.Uri))
 
 	// Optimistic locking (T14 / #385): the CAS runs inside the same
 	// transaction as the content write (#594).

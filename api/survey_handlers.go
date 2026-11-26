@@ -1315,7 +1315,7 @@ func processMappedAnswers(answers []SurveyAnswerRow) mappedAnswerResult {
 
 		case field == tmFieldIssueURI:
 			val := flattenAndSanitize(row.AnswerValue)
-			result.issueURI = &val
+			result.issueURI = NormalizeOptionalURI(&val)
 
 		case strings.HasPrefix(field, "metadata."):
 			key := strings.TrimPrefix(field, "metadata.")
