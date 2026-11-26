@@ -121,6 +121,9 @@ func NormalizeURIPatchOperations(operations []PatchOperation, uriPaths []string)
 			continue
 		}
 		if normalized := NormalizeOptionalURI(&str); normalized == nil {
+			// PatchOperation.Value is tagged json:"value,omitempty", so a nil
+			// value is dropped on marshal and the applier treats the value-less
+			// replace/add as setting null (verified by the threat PATCH tests).
 			op.Value = nil
 		} else {
 			op.Value = *normalized

@@ -957,6 +957,19 @@ func TestPatchAdminWebhookSubscription(t *testing.T) {
 		return w
 	}
 
+	t.Run("Events_UnknownRejectedWildcardAccepted", func(t *testing.T) {
+		_, sub := seedSubscription(t)
+		w := sendPatch(t, sub.Id.String(), []map[string]any{
+			{"op": "replace", "path": "/events", "value": []string{"not.a.real.event"}},
+		})
+		assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+
+		w = sendPatch(t, sub.Id.String(), []map[string]any{
+			{"op": "replace", "path": "/events", "value": []string{"*"}},
+		})
+		assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	})
+
 	t.Run("Success_UpdatesNameAndEvents", func(t *testing.T) {
 		mockSubStore, sub := seedSubscription(t)
 
@@ -1750,7 +1763,7 @@ func TestCreateWebhookSubscription_RejectsUnknownEvents(t *testing.T) {
 		want   int
 	}{
 		{"unknown", []string{"not.a.real.event"}, http.StatusBadRequest},
-		{"wildcard", []string{"*"}, http.StatusBadRequest},
+		{"wildcard", []string{"*"}, http.StatusCreated},
 		{"valid_plus_unknown", []string{"threat.created", "bogus"}, http.StatusBadRequest},
 		{"empty", []string{}, http.StatusBadRequest},
 		{"too_many", tooMany, http.StatusBadRequest},

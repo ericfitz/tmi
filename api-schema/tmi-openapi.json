@@ -5500,9 +5500,10 @@
           "survey_response.created",
           "survey_response.updated",
           "survey_response.deleted",
-          "system_audit.admin_write"
+          "system_audit.admin_write",
+          "*"
         ],
-        "description": "Webhook event type following {resource}.{action} pattern. CRUD events are emitted for resource lifecycle changes (created, updated, deleted). The addon.invoked event is emitted when an add-on is invoked.",
+        "description": "Webhook event type following {resource}.{action} pattern. CRUD events are emitted for resource lifecycle changes (created, updated, deleted). The addon.invoked event is emitted when an add-on is invoked. The wildcard `*` subscribes to all events (subscriptions only; a test delivery requires a concrete event type).",
         "maxLength": 1000,
         "x-event-categories": {
           "threat_model": [

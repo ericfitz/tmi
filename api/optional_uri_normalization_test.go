@@ -116,6 +116,8 @@ func TestTeamUri_BlankNormalizedOnWrite(t *testing.T) {
 		t.Run("blank="+blank, func(t *testing.T) {
 			store := newMockTeamStore()
 			seedTeamInStore(store, testTeamID, "Team")
+			existingURI := "https://example.com/team"
+			store.teams[testTeamID].Uri = &existingURI
 			saveTeamProjectStores(t, store, nil)
 			db := setupTestTeamAuthDB(t)
 			seedTeamAuthData(t, db, testTeamID, testUserUUID)
@@ -135,6 +137,8 @@ func TestTeamUri_BlankNormalizedOnWrite(t *testing.T) {
 			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 			v, present = uriFromRecorder(t, w)
 			assert.True(t, !present || v == nil, "update echoed uri=%v", v)
+			assert.Nil(t, store.teams[testTeamID].Uri, "update must hand the store nil")
+			store.teams[testTeamID].Uri = &existingURI
 
 			patch, _ := json.Marshal([]map[string]any{{"op": "replace", "path": "/uri", "value": blank}})
 			c, w = CreateTestGinContextWithBody("PATCH", "/teams/"+testTeamID, "application/json-patch+json", patch)
@@ -143,6 +147,7 @@ func TestTeamUri_BlankNormalizedOnWrite(t *testing.T) {
 			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 			v, present = uriFromRecorder(t, w)
 			assert.True(t, !present || v == nil, "patch echoed uri=%v", v)
+			assert.Nil(t, store.teams[testTeamID].Uri, "patch must hand the store nil")
 		})
 	}
 }
@@ -156,6 +161,8 @@ func TestProjectUri_BlankNormalizedOnWrite(t *testing.T) {
 			teamStore.isMember = true
 			projectStore := newMockProjectStore()
 			seedProjectInStore(projectStore, testProjectID, "Proj", testTeamID)
+			existingURI := "https://example.com/project"
+			projectStore.projects[testProjectID].Uri = &existingURI
 			saveTeamProjectStores(t, teamStore, projectStore)
 			db := setupTestTeamAuthDB(t)
 			seedTeamAuthData(t, db, testTeamID, testUserUUID)
@@ -176,6 +183,8 @@ func TestProjectUri_BlankNormalizedOnWrite(t *testing.T) {
 			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 			v, present = uriFromRecorder(t, w)
 			assert.True(t, !present || v == nil, "update echoed uri=%v", v)
+			assert.Nil(t, projectStore.projects[testProjectID].Uri, "update must hand the store nil")
+			projectStore.projects[testProjectID].Uri = &existingURI
 
 			patch, _ := json.Marshal([]map[string]any{{"op": "replace", "path": "/uri", "value": blank}})
 			c, w = CreateTestGinContextWithBody("PATCH", "/projects/"+testProjectID, "application/json-patch+json", patch)
@@ -184,6 +193,7 @@ func TestProjectUri_BlankNormalizedOnWrite(t *testing.T) {
 			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 			v, present = uriFromRecorder(t, w)
 			assert.True(t, !present || v == nil, "patch echoed uri=%v", v)
+			assert.Nil(t, projectStore.projects[testProjectID].Uri, "patch must hand the store nil")
 		})
 	}
 }
