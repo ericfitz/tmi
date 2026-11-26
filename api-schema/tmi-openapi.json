@@ -82,8 +82,8 @@
               "build": {
                 "type": "string",
                 "description": "Current build number",
-                "maxLength": 32,
-                "pattern": "^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}(-[a-zA-Z0-9]{7})?$"
+                "maxLength": 64,
+                "pattern": "^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?( \\(production\\))?$"
               }
             },
             "required": [
@@ -4214,9 +4214,7 @@
           "events": {
             "type": "array",
             "items": {
-              "type": "string",
-              "pattern": "^[^\\x00-\\x1F]*$",
-              "maxLength": 1000
+              "$ref": "#/components/schemas/WebhookEventType"
             },
             "minItems": 1,
             "maxItems": 50,
@@ -5502,9 +5500,10 @@
           "survey_response.created",
           "survey_response.updated",
           "survey_response.deleted",
-          "system_audit.admin_write"
+          "system_audit.admin_write",
+          "*"
         ],
-        "description": "Webhook event type following {resource}.{action} pattern. CRUD events are emitted for resource lifecycle changes (created, updated, deleted). The addon.invoked event is emitted when an add-on is invoked.",
+        "description": "Webhook event type following {resource}.{action} pattern. CRUD events are emitted for resource lifecycle changes (created, updated, deleted). The addon.invoked event is emitted when an add-on is invoked. The wildcard `*` subscribes to all events (subscriptions only; a test delivery requires a concrete event type).",
         "maxLength": 1000,
         "x-event-categories": {
           "threat_model": [

@@ -474,16 +474,17 @@ func sanitizePinnedLastError(lastError, pinnedURL string) string {
 // sub is the owning subscription, used to redact the LastError field for operator-pinned
 // subscriptions. Pass nil to skip redaction (fail-open).
 func deliveryRecordToWebhookDelivery(r *WebhookDeliveryRecord, sub *DBWebhookSubscription) WebhookDelivery {
+	lastActivity := truncateAPITime(r.LastActivityAt)
 	delivery := WebhookDelivery{
 		Id:             r.ID,
 		SubscriptionId: r.SubscriptionID,
 		EventType:      WebhookEventType(r.EventType),
 		Status:         WebhookDeliveryStatus(r.Status),
 		Attempts:       r.Attempts,
-		CreatedAt:      r.CreatedAt,
-		DeliveredAt:    r.DeliveredAt,
-		LastActivityAt: &r.LastActivityAt,
-		NextRetryAt:    r.NextRetryAt,
+		CreatedAt:      truncateAPITime(r.CreatedAt),
+		DeliveredAt:    truncateAPITimePtr(r.DeliveredAt),
+		LastActivityAt: &lastActivity,
+		NextRetryAt:    truncateAPITimePtr(r.NextRetryAt),
 		AddonId:        r.AddonID,
 		StatusPercent:  intPtr(r.StatusPercent),
 	}
@@ -640,4 +641,20 @@ func intPtr(i int) *int {
 		return nil
 	}
 	return &i
+}
+
+// truncateAPITime truncates t to microseconds: the API's date-time patterns
+// allow at most six fractional digits, and Go marshals up to nine.
+func truncateAPITime(t time.Time) time.Time {
+	return t.Truncate(time.Microsecond)
+}
+
+// truncateAPITimePtr is truncateAPITime for optional timestamps; it returns a
+// copy and never mutates the input.
+func truncateAPITimePtr(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+	v := truncateAPITime(*t)
+	return &v
 }

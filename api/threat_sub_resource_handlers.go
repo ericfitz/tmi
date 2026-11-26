@@ -344,7 +344,7 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 	// Sanitize text fields (defense-in-depth)
 	threat.Name = SanitizePlainText(threat.Name)
 	threat.Description = SanitizeOptionalString(threat.Description)
-	threat.IssueUri = SanitizeOptionalString(threat.IssueUri)
+	threat.IssueUri = NormalizeOptionalURI(SanitizeOptionalString(threat.IssueUri))
 	threat.Mitigation = SanitizeOptionalString(threat.Mitigation)
 	if err := SanitizeMetadataSlice(threat.Metadata); err != nil {
 		HandleRequestError(c, err)
@@ -434,7 +434,7 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 	// Sanitize text fields (defense-in-depth)
 	threat.Name = SanitizePlainText(threat.Name)
 	threat.Description = SanitizeOptionalString(threat.Description)
-	threat.IssueUri = SanitizeOptionalString(threat.IssueUri)
+	threat.IssueUri = NormalizeOptionalURI(SanitizeOptionalString(threat.IssueUri))
 	threat.Mitigation = SanitizeOptionalString(threat.Mitigation)
 	if err := SanitizeMetadataSlice(threat.Metadata); err != nil {
 		HandleRequestError(c, err)
@@ -552,6 +552,7 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 
 	// Sanitize text values in patch operations (defense-in-depth)
 	SanitizePatchOperations(operations, []string{"/name", "/description", "/issue_uri", "/mitigation"})
+	NormalizeURIPatchOperations(operations, []string{"/issue_uri"})
 	if err := ValidateReferenceURIPatchOperations(h.issueURIValidator, operations, []string{"/issue_uri"}); err != nil {
 		HandleRequestError(c, err)
 		return
@@ -716,7 +717,7 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 		// Sanitize text fields (defense-in-depth)
 		threat.Name = SanitizePlainText(threat.Name)
 		threat.Description = SanitizeOptionalString(threat.Description)
-		threat.IssueUri = SanitizeOptionalString(threat.IssueUri)
+		threat.IssueUri = NormalizeOptionalURI(SanitizeOptionalString(threat.IssueUri))
 		threat.Mitigation = SanitizeOptionalString(threat.Mitigation)
 		if err := SanitizeMetadataSlice(threat.Metadata); err != nil {
 			HandleRequestError(c, err)
@@ -823,7 +824,7 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 		// Sanitize text fields (defense-in-depth)
 		threat.Name = SanitizePlainText(threat.Name)
 		threat.Description = SanitizeOptionalString(threat.Description)
-		threat.IssueUri = SanitizeOptionalString(threat.IssueUri)
+		threat.IssueUri = NormalizeOptionalURI(SanitizeOptionalString(threat.IssueUri))
 		threat.Mitigation = SanitizeOptionalString(threat.Mitigation)
 		if err := SanitizeMetadataSlice(threat.Metadata); err != nil {
 			HandleRequestError(c, err)
@@ -935,6 +936,7 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 
 		// Sanitize text values in patch operations (defense-in-depth)
 		SanitizePatchOperations(patch.Operations, []string{"/name", "/description", "/issue_uri", "/mitigation"})
+		NormalizeURIPatchOperations(patch.Operations, []string{"/issue_uri"})
 		if err := ValidateReferenceURIPatchOperations(h.issueURIValidator, patch.Operations, []string{"/issue_uri"}); err != nil {
 			HandleRequestError(c, err)
 			return

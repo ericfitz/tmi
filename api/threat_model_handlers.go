@@ -209,7 +209,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	// Sanitize text fields (defense-in-depth)
 	request.Name = SanitizePlainText(request.Name)
 	request.Description = SanitizeOptionalString(request.Description)
-	request.IssueUri = SanitizeOptionalString(request.IssueUri)
+	request.IssueUri = NormalizeOptionalURI(SanitizeOptionalString(request.IssueUri))
 	if err := validateOptionalReferenceURI(h.issueURIValidator, "issue_uri", request.IssueUri); err != nil {
 		HandleRequestError(c, err)
 		return
@@ -456,7 +456,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	// Sanitize text fields (defense-in-depth)
 	request.Name = SanitizePlainText(request.Name)
 	request.Description = SanitizeOptionalString(request.Description)
-	request.IssueUri = SanitizeOptionalString(request.IssueUri)
+	request.IssueUri = NormalizeOptionalURI(SanitizeOptionalString(request.IssueUri))
 	if err := validateOptionalReferenceURI(h.issueURIValidator, "issue_uri", request.IssueUri); err != nil {
 		HandleRequestError(c, err)
 		return
@@ -647,6 +647,9 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		return
 	}
 
+	// A blank issue_uri clears the field; padding is trimmed (#1233).
+	NormalizeURIPatchOperations(operations, []string{"/issue_uri"})
+
 	// Phase 2: Get existing threat model
 	existingTM, err := h.getExistingThreatModel(c, id)
 	if err != nil {
@@ -674,7 +677,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	// Sanitize text fields on the patched result (defense-in-depth)
 	modifiedTM.Name = SanitizePlainText(modifiedTM.Name)
 	modifiedTM.Description = SanitizeOptionalString(modifiedTM.Description)
-	modifiedTM.IssueUri = SanitizeOptionalString(modifiedTM.IssueUri)
+	modifiedTM.IssueUri = NormalizeOptionalURI(SanitizeOptionalString(modifiedTM.IssueUri))
 	if err := validateOptionalReferenceURI(h.issueURIValidator, "issue_uri", modifiedTM.IssueUri); err != nil {
 		HandleRequestError(c, err)
 		return
