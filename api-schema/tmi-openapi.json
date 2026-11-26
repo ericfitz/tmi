@@ -4214,9 +4214,7 @@
           "events": {
             "type": "array",
             "items": {
-              "type": "string",
-              "pattern": "^[^\\x00-\\x1F]*$",
-              "maxLength": 1000
+              "$ref": "#/components/schemas/WebhookEventType"
             },
             "minItems": 1,
             "maxItems": 50,

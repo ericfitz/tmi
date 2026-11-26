@@ -1725,3 +1725,52 @@ func TestTestWebhookSubscription_PinnedReturns403(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
+
+// TestCreateWebhookSubscription_RejectsUnknownEvents covers #1230: the handler
+// itself (not only the OpenAPI middleware) must reject unknown event names.
+func TestCreateWebhookSubscription_RejectsUnknownEvents(t *testing.T) {
+	origSubStore := GlobalWebhookSubscriptionStore
+	origQuotaStore := GlobalWebhookQuotaStore
+	origDenyListStore := GlobalWebhookUrlDenyListStore
+	defer func() {
+		GlobalWebhookSubscriptionStore = origSubStore
+		GlobalWebhookQuotaStore = origQuotaStore
+		GlobalWebhookUrlDenyListStore = origDenyListStore
+	}()
+	GlobalWebhookUrlDenyListStore = &mockDenyListStore{entries: []WebhookUrlDenyListEntry{}}
+
+	tooMany := make([]string, 51)
+	for i := range tooMany {
+		tooMany[i] = "threat.created"
+	}
+
+	cases := []struct {
+		name   string
+		events []string
+		want   int
+	}{
+		{"unknown", []string{"not.a.real.event"}, http.StatusBadRequest},
+		{"wildcard", []string{"*"}, http.StatusBadRequest},
+		{"valid_plus_unknown", []string{"threat.created", "bogus"}, http.StatusBadRequest},
+		{"empty", []string{}, http.StatusBadRequest},
+		{"too_many", tooMany, http.StatusBadRequest},
+		{"valid", []string{"threat.created"}, http.StatusCreated},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			GlobalWebhookSubscriptionStore = newMockWebhookSubscriptionStore()
+			GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
+			r, _ := setupWebhookRouter("admin@example.com", uuid.New().String(), true)
+			body, _ := json.Marshal(map[string]any{
+				"name":   "Test Webhook",
+				"url":    "https://example.com/webhook",
+				"events": tc.events,
+			})
+			req, _ := http.NewRequest("POST", "/admin/webhooks/subscriptions", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			assert.Equal(t, tc.want, w.Code, w.Body.String())
+		})
+	}
+}

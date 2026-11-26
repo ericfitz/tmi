@@ -141,8 +141,12 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 		HandleRequestError(c, InvalidInputError("url is required"))
 		return
 	}
-	if len(input.Events) == 0 {
-		HandleRequestError(c, InvalidInputError("at least one event type is required"))
+	events := make([]string, len(input.Events))
+	for i, e := range input.Events {
+		events[i] = string(e)
+	}
+	if reqErr := validateWebhookEvents(events); reqErr != nil {
+		HandleRequestError(c, reqErr)
 		return
 	}
 
@@ -185,7 +189,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 		ThreatModelId:  threatModelID,
 		Name:           input.Name,
 		Url:            input.Url,
-		Events:         input.Events,
+		Events:         events,
 		Secret:         secret,
 		Status:         "pending_verification",
 		Challenge:      challenge,
@@ -445,16 +449,8 @@ func (s *Server) validatePatchedWebhookSubscription(ctx context.Context, patched
 	}
 
 	if touched["/events"] {
-		if len(patched.Events) == 0 {
-			return InvalidInputError("at least one event type is required")
-		}
-		if len(patched.Events) > 50 {
-			return InvalidInputError("at most 50 event types are allowed")
-		}
-		for _, event := range patched.Events {
-			if !WebhookEventType(event).Valid() {
-				return InvalidInputError(fmt.Sprintf("unknown event type: %s", event))
-			}
+		if reqErr := validateWebhookEvents(patched.Events); reqErr != nil {
+			return reqErr
 		}
 	}
 
@@ -682,6 +678,23 @@ func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUI
 	response := deliveryRecordToWebhookDelivery(record, sub)
 
 	c.JSON(http.StatusOK, response)
+}
+
+// validateWebhookEvents enforces the documented event list contract shared by
+// create and patch: 1..50 entries, each a known WebhookEventType (no wildcard).
+func validateWebhookEvents(events []string) *RequestError {
+	if len(events) == 0 {
+		return InvalidInputError("at least one event type is required")
+	}
+	if len(events) > 50 {
+		return InvalidInputError("at most 50 event types are allowed")
+	}
+	for _, event := range events {
+		if !WebhookEventType(event).Valid() {
+			return InvalidInputError(fmt.Sprintf("unknown event type: %s", event))
+		}
+	}
+	return nil
 }
 
 // Helper functions for type conversion
