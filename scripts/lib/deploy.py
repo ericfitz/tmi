@@ -16,7 +16,6 @@ import shlex
 import signal
 import subprocess
 import sys
-import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -624,20 +623,14 @@ def ensure_redis_password_secret() -> None:
     redis-data PVC together, so the next start() regenerates the password
     against an empty Redis; `dev-down` keeps both.
 
-    The value is written to a 0600 file in a private temp dir and handed to
-    kubectl with --from-file, so it never appears on a command line, in the
-    environment, in a log, or on this script's stdout."""
+    The manifest is built in memory and piped to kubectl on stdin, so the value
+    never touches disk, a command line, the environment, a log, or this
+    script's stdout."""
     if kubectl(["-n", NS, "get", "secret", "tmi-secrets"], check=False, capture=True).returncode == 0:
         return
-    old_umask = os.umask(0o077)
-    try:
-        with tempfile.TemporaryDirectory() as tmp:
-            pw_file = Path(tmp) / "TMI_REDIS_PASSWORD"
-            pw_file.write_text(secrets.token_urlsafe(32))
-            kubectl(["-n", NS, "create", "secret", "generic", "tmi-secrets",
-                     f"--from-file=TMI_REDIS_PASSWORD={pw_file}"], capture=True)
-    finally:
-        os.umask(old_umask)
+    kubectl(["create", "-f", "-"], capture=True,
+            input_text=_secret_manifest("tmi-secrets",
+                                        {"TMI_REDIS_PASSWORD": secrets.token_urlsafe(32)}))
     log_success("Secret/tmi-secrets created with a random TMI_REDIS_PASSWORD")
 
 
@@ -661,9 +654,9 @@ def seed_tmi_secret_keys(cluster_target: str = "docker-desktop", db: str = "post
     """Merge the keys tmi-rotator (#965) needs into Secret/tmi-secrets on a dev
     cluster: the settings-encryption key (id 1) and TMI_DATABASE_URL (from
     config-development.yml, host rewritten to the in-cluster Postgres). Only
-    absent keys are written; present values are never touched. Values go
-    through a 0600 temp file and --patch-file, so nothing is printed or put on
-    a command line. tmi-rotator owns every later change."""
+    absent keys are written; present values are never touched. The patch is
+    piped to kubectl on stdin, so nothing is written to disk, printed, or put
+    on a command line. tmi-rotator owns every later change."""
     wanted: dict[str, Callable[[], str | None]] = {
         "TMI_SECRET_SETTINGS_ENCRYPTION_KEY": lambda: secrets.token_hex(32),
         "TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID": lambda: "1",
@@ -683,15 +676,9 @@ def seed_tmi_secret_keys(cluster_target: str = "docker-desktop", db: str = "post
         data[key] = base64.b64encode(val.encode()).decode()
     if not data:
         return
-    old_umask = os.umask(0o077)
-    try:
-        with tempfile.TemporaryDirectory() as tmp:
-            patch = Path(tmp) / "patch.json"
-            patch.write_text(json.dumps({"data": data}))
-            kubectl(["-n", NS, "patch", "secret", "tmi-secrets", "--type=merge",
-                     f"--patch-file={patch}"], capture=True)
-    finally:
-        os.umask(old_umask)
+    kubectl(["-n", NS, "patch", "secret", "tmi-secrets", "--type=merge",
+             "--patch-file=/dev/stdin"], capture=True,
+            input_text=json.dumps({"data": data}))
     log_success(f"Secret/tmi-secrets seeded with missing keys: {', '.join(sorted(data))}")
 
 
@@ -728,25 +715,24 @@ def deliver_config(cluster_target: str = "docker-desktop") -> None:
     log_success(f"Config delivered as ConfigMap/{CONFIGMAP_NAME}")
 
 
-def _apply_secret_from_values(name: str, values: dict[str, str]) -> None:
-    """Create or update Secret/<name> in NS with `values` (key -> value).
+def _secret_manifest(name: str, values: dict[str, str]) -> str:
+    """Opaque Secret/<name> in NS holding `values` (key -> value), as JSON (pure).
 
-    Each value is written to a 0600 file in a private temp dir and handed to
-    kubectl with --from-file, so no value ever reaches argv (visible in `ps`),
-    the environment, a log, or stdout. Rendered with --dry-run=client and
-    applied, so it works whether or not the Secret already exists."""
-    old_umask = os.umask(0o077)
-    try:
-        with tempfile.TemporaryDirectory() as tmp:
-            args = ["create", "secret", "generic", name, "-n", NS]
-            for key, value in values.items():
-                f = Path(tmp) / key
-                f.write_text(value)
-                args.append(f"--from-file={key}={f}")
-            rendered = kubectl([*args, "--dry-run=client", "-o", "yaml"], capture=True).stdout
-    finally:
-        os.umask(old_umask)
-    kubectl(["apply", "-f", "-"], input_text=rendered)
+    Built in memory and handed to kubectl on stdin by the callers, so no value
+    reaches disk, argv (visible in `ps`), the environment, a log, or stdout."""
+    return json.dumps({
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "type": "Opaque",
+        "metadata": {"name": name, "namespace": NS},
+        "data": {k: base64.b64encode(v.encode()).decode() for k, v in values.items()},
+    })
+
+
+def _apply_secret_from_values(name: str, values: dict[str, str]) -> None:
+    """Create or update Secret/<name> in NS with `values` (key -> value) via
+    `kubectl apply -f -`, so it works whether or not the Secret exists."""
+    kubectl(["apply", "-f", "-"], input_text=_secret_manifest(name, values))
 
 
 EMBEDDING_PLACEHOLDER_KEY = "sk-e2e-placeholder"

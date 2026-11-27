@@ -44,4 +44,7 @@ regexes = [
   '''^ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789$''',
   # Elided placeholder PEM in docs ("-----BEGIN ... KEY-----\n...\n").
   '''-----BEGIN [A-Z ]*KEY-----\\n\.\.\.\\n''',
+  # Non-secret embedding-key placeholder written when no real key exists
+  # (scripts/lib/deploy.py EMBEDDING_PLACEHOLDER_KEY, deploy-aws.sh, Makefile).
+  '''^sk-e2e-placeholder$''',
 ]
