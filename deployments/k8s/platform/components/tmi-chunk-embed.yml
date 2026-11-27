@@ -54,7 +54,7 @@ spec:
     # The embedding API key is mounted from a K8s Secret as the env var
     # TMI_EMBEDDING_API_KEY. The Secret object is created out of band:
     #   kubectl -n tmi-platform create secret generic tmi-embedding \
-    #     --from-literal=api-key=sk-...
+    #     --from-file=api-key=<umask-077 file holding the key>
     - name: TMI_EMBEDDING_API_KEY
       secretName: tmi-embedding
       secretKey: api-key

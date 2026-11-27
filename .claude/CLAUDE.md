@@ -205,6 +205,7 @@ Secret _values_ must never reach a command line, environment variable, log, or t
 
 - **Never** echo, `cat`, `printf`, or interpolate a secret into a shell command, and never `set -x` in a script that handles one.
 - Injecting a secret into the cluster: follow `scripts/set-oauth-secret.sh` / `scripts/rotate-openai-keys.sh` — the operator writes the value to a `umask 077` file and `kubectl --from-file` reads it from disk, so it never appears in argv or the environment.
+- That umask-file pattern exists to keep secrets out of agent sessions; it is not universal. Deterministic code that already holds the value (e.g. `scripts/lib/deploy.py`) builds the Secret manifest or patch in memory and pipes it to `kubectl ... -f -` / `--patch-file=/dev/stdin`, writing nothing to disk (human decision, Eric 2026-11-27, PR #1247).
 - Reading a secret for a deploy: `scripts/deploy-aws.sh` is the sanctioned caller of `aws secretsmanager get-secret-value`; it fetches DB credentials into a `umask 077` temp config and never prints them. Extend that script rather than adding ad-hoc callers.
 - Terraform-managed secrets (`terraform/modules/secrets/aws`, `random_password`) land in remote state, which is why `encrypt = true` is pinned in `terraform/environments/aws-public/main.tf` while bucket/table come per-deployer from the gitignored `backend.hcl`. Never write state locally or paste it anywhere; mark secret outputs `sensitive`.
 

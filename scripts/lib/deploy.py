@@ -16,7 +16,6 @@ import shlex
 import signal
 import subprocess
 import sys
-import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -624,20 +623,14 @@ def ensure_redis_password_secret() -> None:
     redis-data PVC together, so the next start() regenerates the password
     against an empty Redis; `dev-down` keeps both.
 
-    The value is written to a 0600 file in a private temp dir and handed to
-    kubectl with --from-file, so it never appears on a command line, in the
-    environment, in a log, or on this script's stdout."""
+    The manifest is built in memory and piped to kubectl on stdin, so the value
+    never touches disk, a command line, the environment, a log, or this
+    script's stdout."""
     if kubectl(["-n", NS, "get", "secret", "tmi-secrets"], check=False, capture=True).returncode == 0:
         return
-    old_umask = os.umask(0o077)
-    try:
-        with tempfile.TemporaryDirectory() as tmp:
-            pw_file = Path(tmp) / "TMI_REDIS_PASSWORD"
-            pw_file.write_text(secrets.token_urlsafe(32))
-            kubectl(["-n", NS, "create", "secret", "generic", "tmi-secrets",
-                     f"--from-file=TMI_REDIS_PASSWORD={pw_file}"], capture=True)
-    finally:
-        os.umask(old_umask)
+    kubectl(["create", "-f", "-"], capture=True,
+            input_text=_secret_manifest("tmi-secrets",
+                                        {"TMI_REDIS_PASSWORD": secrets.token_urlsafe(32)}))
     log_success("Secret/tmi-secrets created with a random TMI_REDIS_PASSWORD")
 
 
@@ -661,9 +654,9 @@ def seed_tmi_secret_keys(cluster_target: str = "docker-desktop", db: str = "post
     """Merge the keys tmi-rotator (#965) needs into Secret/tmi-secrets on a dev
     cluster: the settings-encryption key (id 1) and TMI_DATABASE_URL (from
     config-development.yml, host rewritten to the in-cluster Postgres). Only
-    absent keys are written; present values are never touched. Values go
-    through a 0600 temp file and --patch-file, so nothing is printed or put on
-    a command line. tmi-rotator owns every later change."""
+    absent keys are written; present values are never touched. The patch is
+    piped to kubectl on stdin, so nothing is written to disk, printed, or put
+    on a command line. tmi-rotator owns every later change."""
     wanted: dict[str, Callable[[], str | None]] = {
         "TMI_SECRET_SETTINGS_ENCRYPTION_KEY": lambda: secrets.token_hex(32),
         "TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID": lambda: "1",
@@ -683,15 +676,9 @@ def seed_tmi_secret_keys(cluster_target: str = "docker-desktop", db: str = "post
         data[key] = base64.b64encode(val.encode()).decode()
     if not data:
         return
-    old_umask = os.umask(0o077)
-    try:
-        with tempfile.TemporaryDirectory() as tmp:
-            patch = Path(tmp) / "patch.json"
-            patch.write_text(json.dumps({"data": data}))
-            kubectl(["-n", NS, "patch", "secret", "tmi-secrets", "--type=merge",
-                     f"--patch-file={patch}"], capture=True)
-    finally:
-        os.umask(old_umask)
+    kubectl(["-n", NS, "patch", "secret", "tmi-secrets", "--type=merge",
+             "--patch-file=/dev/stdin"], capture=True,
+            input_text=json.dumps({"data": data}))
     log_success(f"Secret/tmi-secrets seeded with missing keys: {', '.join(sorted(data))}")
 
 
@@ -728,14 +715,49 @@ def deliver_config(cluster_target: str = "docker-desktop") -> None:
     log_success(f"Config delivered as ConfigMap/{CONFIGMAP_NAME}")
 
 
+def _secret_manifest(name: str, values: dict[str, str]) -> str:
+    """Opaque Secret/<name> in NS holding `values` (key -> value), as JSON (pure).
+
+    Built in memory and handed to kubectl on stdin by the callers, so no value
+    reaches disk, argv (visible in `ps`), the environment, a log, or stdout."""
+    return json.dumps({
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "type": "Opaque",
+        "metadata": {"name": name, "namespace": NS},
+        "data": {k: base64.b64encode(v.encode()).decode() for k, v in values.items()},
+    })
+
+
+def _apply_secret_from_values(name: str, values: dict[str, str]) -> None:
+    """Create or update Secret/<name> in NS with `values` (key -> value) via
+    `kubectl apply -f -`, so it works whether or not the Secret exists."""
+    kubectl(["apply", "-f", "-"], input_text=_secret_manifest(name, values))
+
+
+EMBEDDING_PLACEHOLDER_KEY = "sk-e2e-placeholder"
+
+
 def create_embedding_secret() -> None:
-    key = os.environ.get("TMI_EMBEDDING_API_KEY", "sk-e2e-placeholder")
-    rendered = kubectl(
-        ["create", "secret", "generic", "tmi-embedding", "-n", NS,
-         f"--from-literal=api-key={key}", "--dry-run=client", "-o", "yaml"],
-        capture=True,
-    ).stdout
-    kubectl(["apply", "-f", "-"], input_text=rendered)
+    """Deliver Secret/tmi-embedding (key api-key) for the tmi-chunk-embed worker.
+
+    - TMI_EMBEDDING_API_KEY set: create or update the Secret with it.
+    - Unset and the Secret exists: keep it unchanged. It may hold a real key
+      rotated by scripts/rotate-openai-keys.sh, which a redeploy must not
+      clobber (#1243). Mirrors create_embedding_secret() in deploy-aws.sh.
+    - Unset and the Secret is missing: create it with a placeholder so the
+      worker pod can start on a fresh (e.g. docker-desktop e2e) cluster.
+    """
+    key = os.environ.get("TMI_EMBEDDING_API_KEY", "")
+    if not key:
+        if kubectl(["-n", NS, "get", "secret", "tmi-embedding"],
+                   check=False, capture=True).returncode == 0:
+            log_info("TMI_EMBEDDING_API_KEY not set; keeping the existing Secret/tmi-embedding")
+            return
+        log_warn("TMI_EMBEDDING_API_KEY not set; creating Secret/tmi-embedding with a "
+                 "placeholder key (embedding calls will fail until a real key is set)")
+        key = EMBEDDING_PLACEHOLDER_KEY
+    _apply_secret_from_values("tmi-embedding", {"api-key": key})
 
 
 def create_oauth_providers_secret() -> None:
@@ -848,14 +870,8 @@ def create_oracle_db_secret() -> None:
     if not password:
         log_error("DB=oracle requires ORACLE_PASSWORD to be set (run: source scripts/oci-env.sh)")
         sys.exit(1)
-    rendered = kubectl(
-        ["create", "secret", "generic", "tmi-oracle-db", "-n", NS,
-         f"--from-literal=database-url={url}",
-         f"--from-literal=oracle-password={password}",
-         "--dry-run=client", "-o", "yaml"],
-        capture=True,
-    ).stdout
-    kubectl(["apply", "-f", "-"], input_text=rendered)
+    _apply_secret_from_values("tmi-oracle-db",
+                              {"database-url": url, "oracle-password": password})
     log_success("oracle DB connection delivered as Secret/tmi-oracle-db")
 
 

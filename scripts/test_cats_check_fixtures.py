@@ -68,3 +68,104 @@ def test_main_reports_malformed_manifest_and_does_not_fail_run(tmp_path, monkeyp
     monkeypatch.setattr("sys.argv", ["x", "--server", "http://x", "--fixtures", str(p)])
     assert mod.main() == 0
     assert "cats-check-fixtures:" in capsys.readouterr().err
+
+
+def _db(tmp_path, rows):
+    """Minimal CATS results DB with the tables report_consumed() joins."""
+    import sqlite3
+    p = tmp_path / "cats.db"
+    con = sqlite3.connect(p)
+    con.executescript("""
+        CREATE TABLE fuzzers (id INTEGER PRIMARY KEY, name TEXT);
+        CREATE TABLE http_methods (id INTEGER PRIMARY KEY, method TEXT);
+        CREATE TABLE tests (id INTEGER PRIMARY KEY, test_number INTEGER, fuzzer_id INTEGER);
+        CREATE TABLE requests (test_id INTEGER, http_method_id INTEGER, url TEXT);
+        CREATE TABLE responses (test_id INTEGER, response_code INTEGER);
+    """)
+    fz, mt = {}, {}
+    for i, (number, fuzzer, method, url, code) in enumerate(rows, start=1):
+        fid = fz.setdefault(fuzzer, len(fz) + 1)
+        mid = mt.setdefault(method, len(mt) + 1)
+        con.execute("INSERT OR IGNORE INTO fuzzers VALUES (?, ?)", (fid, fuzzer))
+        con.execute("INSERT OR IGNORE INTO http_methods VALUES (?, ?)", (mid, method))
+        con.execute("INSERT INTO tests VALUES (?, ?, ?)", (i, number, fid))
+        con.execute("INSERT INTO requests VALUES (?, ?, ?)", (i, mid, url))
+        con.execute("INSERT INTO responses VALUES (?, ?)", (i, code))
+    con.commit()
+    con.close()
+    return p
+
+
+S = "http://rp2:30080"
+DECOY = "/threat_models/decoy"
+
+
+def test_consumed_counts_later_404s_on_resource_and_children():
+    rows = [
+        (1, "HappyPath", "GET", S + DECOY, 200),
+        (2, "DummyContentTypeHeaders", "DELETE", S + DECOY + "?x=1", 204),
+        (3, "HappyPath", "GET", S + DECOY, 404),
+        (4, "HappyPath", "PUT", S + DECOY + "/assets/a", 404),
+        (5, "HappyPath", "GET", S + DECOY + "x", 404),     # sibling prefix, not nested
+        (6, "HappyPath", "GET", S + "/threat_models/other", 404),
+    ]
+    assert mod.consumed_mid_run(rows) == [(DECOY, 2, "DummyContentTypeHeaders", 2)]
+
+
+def test_consumed_ignores_expected_404_and_404_before_delete():
+    rows = [
+        (1, "HappyPath", "GET", S + DECOY, 404),
+        (2, "HappyPath", "DELETE", S + DECOY, 204),
+        (3, "CheckDeletedResourcesNotAvailable", "GET", S + DECOY, 404),
+    ]
+    assert mod.consumed_mid_run(rows) == []
+
+
+def test_consumed_ignores_failed_delete():
+    rows = [
+        (1, "DummyContentTypeHeaders", "DELETE", S + DECOY, 415),
+        (2, "HappyPath", "GET", S + DECOY, 404),
+    ]
+    assert mod.consumed_mid_run(rows) == []
+
+
+def test_consumed_ranks_by_damage():
+    rows = [
+        (1, "A", "DELETE", S + "/a", 204),
+        (2, "B", "DELETE", S + "/b", 200),
+        (3, "X", "GET", S + "/a", 404),
+        (4, "X", "GET", S + "/b", 404),
+        (5, "X", "GET", S + "/b/c", 404),
+    ]
+    assert [r[0] for r in mod.consumed_mid_run(rows)] == ["/b", "/a"]
+
+
+def test_report_consumed_reads_db_and_prints(tmp_path, capsys):
+    db = _db(tmp_path, [
+        (1, "DummyContentTypeHeaders", "DELETE", S + DECOY, 204),
+        (2, "HappyPath", "GET", S + DECOY, 404),
+    ])
+    assert mod.report_consumed(db) == [(DECOY, 1, "DummyContentTypeHeaders", 1)]
+    out = capsys.readouterr().out
+    assert "deleted at test 1 by DummyContentTypeHeaders: " + DECOY in out
+
+
+def test_report_consumed_unreadable_db_does_not_raise(tmp_path, capsys):
+    bad = tmp_path / "not-a-db"
+    bad.write_text("garbage")
+    assert mod.report_consumed(bad) == []
+    assert "cannot read" in capsys.readouterr().err
+
+
+def test_main_reports_consumed_without_server(tmp_path, monkeypatch, capsys):
+    db = _db(tmp_path, [
+        (1, "D", "DELETE", S + DECOY, 204),
+        (2, "H", "GET", S + DECOY, 404),
+    ])
+    monkeypatch.setattr(mod.sys, "argv", ["cats-check-fixtures.py"])
+    monkeypatch.setenv("CATS_DB", str(db))
+    monkeypatch.delenv("CATS_SERVER", raising=False)
+    assert mod.main() == 0
+    captured = capsys.readouterr()
+    assert DECOY in captured.out
+    assert "no --server" in captured.err
