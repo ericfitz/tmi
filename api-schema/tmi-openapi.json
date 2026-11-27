@@ -37546,7 +37546,9 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy add-on. refData binds one id per path, so a DELETE that succeeds here removes the add-on every later GET/PATCH on this path depends on. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issues #651 and #1235."
       },
       "patch": {
         "summary": "Partially update add-on",

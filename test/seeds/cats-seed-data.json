@@ -37,6 +37,15 @@
         "is_admin": false
       },
       "oauth_provider": "tmi"
+    },
+    {
+      "id": "cats-transfer-target",
+      "email": "cats-transfer-target@tmi.local",
+      "display_name": "CATS Transfer Target (Throwaway User)",
+      "roles": {
+        "is_admin": false
+      },
+      "oauth_provider": "tmi"
     }
   ],
   "teams": [
@@ -301,6 +310,10 @@
         "members": [
           "cats-target"
         ]
+      },
+      {
+        "name": "CATS Member Group",
+        "_comment": "Group-subject member for POST /admin/groups/{group_id}/members (member_group_internal_uuid, #1235). No anchor points at it, so no DELETE consumes it."
       }
     ],
     "webhooks": [
@@ -338,12 +351,24 @@
         "name": "CATS Test Addon",
         "webhook": "CATS Test Webhook",
         "threat_model": "CATS Test Threat Model"
+      },
+      {
+        "name": "CATS Throwaway Addon",
+        "webhook": "CATS Test Webhook",
+        "threat_model": "CATS Test Threat Model"
       }
     ],
     "client_credentials": [
       {
         "name": "CATS Test Credential",
         "description": "Test credential for CATS fuzzing"
+      }
+    ],
+    "usability_feedback": [
+      {
+        "sentiment": "up",
+        "surface": "cats.seed",
+        "client_id": "cats-seed"
       }
     ]
   },

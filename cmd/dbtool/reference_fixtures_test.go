@@ -133,7 +133,7 @@ func TestFixtureManifestExcludesUnseededIDs(t *testing.T) {
 	}
 	// Fixtures with no individual GET in the spec are permanently unverifiable
 	// and must be named, not silently dropped.
-	for _, key := range []string{"credential_id", "addon_id"} {
+	for _, key := range []string{"credential_id"} {
 		if _, ok := m.Unverifiable[key]; !ok {
 			t.Errorf("%q must be recorded as unverifiable", key)
 		}

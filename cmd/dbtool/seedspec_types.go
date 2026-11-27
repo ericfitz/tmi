@@ -238,13 +238,14 @@ type SeedSpecSurveyResp struct {
 
 // SeedSpecAdmin groups admin-only entities.
 type SeedSpecAdmin struct {
-	Groups                []SeedSpecGroup       `json:"groups,omitempty"`
-	Quotas                []SeedSpecAdminQuota  `json:"quotas,omitempty"`
-	Webhooks              []SeedSpecWebhook     `json:"webhooks,omitempty"`
-	Addons                []SeedSpecAddon       `json:"addons,omitempty"`
-	Settings              []SeedSpecKV          `json:"settings,omitempty"`
-	ClientCredentials     []SeedSpecClientCred  `json:"client_credentials,omitempty"`
-	WebhookTestDeliveries []SeedSpecWebhookTest `json:"webhook_test_deliveries,omitempty"`
+	Groups                []SeedSpecGroup             `json:"groups,omitempty"`
+	Quotas                []SeedSpecAdminQuota        `json:"quotas,omitempty"`
+	Webhooks              []SeedSpecWebhook           `json:"webhooks,omitempty"`
+	Addons                []SeedSpecAddon             `json:"addons,omitempty"`
+	Settings              []SeedSpecKV                `json:"settings,omitempty"`
+	ClientCredentials     []SeedSpecClientCred        `json:"client_credentials,omitempty"`
+	WebhookTestDeliveries []SeedSpecWebhookTest       `json:"webhook_test_deliveries,omitempty"`
+	UsabilityFeedback     []SeedSpecUsabilityFeedback `json:"usability_feedback,omitempty"`
 }
 
 // SeedSpecGroup defines a group with members.
@@ -280,6 +281,15 @@ type SeedSpecAddon struct {
 	Name        string `json:"name"`
 	Webhook     string `json:"webhook,omitempty"`
 	ThreatModel string `json:"threat_model,omitempty"`
+}
+
+// SeedSpecUsabilityFeedback defines a usability feedback record (thumbs up or
+// down on a UI surface). It has no name, so the seeder matches an existing
+// record on client_id and surface to stay idempotent.
+type SeedSpecUsabilityFeedback struct {
+	Sentiment string `json:"sentiment"`
+	Surface   string `json:"surface"`
+	ClientID  string `json:"client_id"`
 }
 
 // SeedSpecClientCred defines a client credential.
