@@ -927,6 +927,76 @@ class TestSecretCreatorsRun(unittest.TestCase):
 
 
 
+class TestCreateEmbeddingSecret(unittest.TestCase):
+    """create_embedding_secret never clobbers an existing key (#1243) and never
+    puts a key value on kubectl's argv."""
+
+    def _run(self, *, exists, env_key=None):
+        calls = []
+        file_values = {}
+
+        def fake_kubectl(args, **kw):
+            calls.append(list(args))
+            if args[:3] == ["-n", deploy.NS, "get"]:
+                return mock.Mock(returncode=0 if exists else 1, stdout="")
+            if args[:1] == ["create"]:
+                for a in args:
+                    if a.startswith("--from-file="):
+                        k, path = a[len("--from-file="):].split("=", 1)
+                        st = os.stat(path)
+                        self.assertEqual(st.st_mode & 0o077, 0, "key file must be 0600")
+                        file_values[k] = Path(path).read_text()
+                return mock.Mock(returncode=0, stdout="kind: Secret\n")
+            return mock.Mock(returncode=0, stdout="")
+
+        env = {"TMI_EMBEDDING_API_KEY": env_key} if env_key is not None else {}
+        with mock.patch.object(deploy, "kubectl", side_effect=fake_kubectl), \
+             mock.patch.dict(os.environ, env, clear=False), \
+             mock.patch.object(deploy, "log_info"), mock.patch.object(deploy, "log_warn"):
+            if env_key is None:
+                os.environ.pop("TMI_EMBEDDING_API_KEY", None)
+            deploy.create_embedding_secret()
+        return calls, file_values
+
+    def test_unset_and_existing_secret_is_left_unchanged(self):
+        calls, values = self._run(exists=True)
+        self.assertEqual(calls, [["-n", deploy.NS, "get", "secret", "tmi-embedding"]])
+        self.assertEqual(values, {})
+
+    def test_unset_and_missing_secret_gets_placeholder(self):
+        calls, values = self._run(exists=False)
+        self.assertEqual(values, {"api-key": deploy.EMBEDDING_PLACEHOLDER_KEY})
+        self.assertEqual(calls[-1], ["apply", "-f", "-"])
+
+    def test_set_key_overwrites_existing_secret_via_file(self):
+        secret = "sk-real-" + "x" * 40
+        calls, values = self._run(exists=True, env_key=secret)
+        self.assertEqual(values, {"api-key": secret})
+        self.assertFalse(any(secret in a for c in calls for a in c), "key leaked to argv")
+        self.assertEqual(calls[-1], ["apply", "-f", "-"])
+
+    def test_empty_key_is_treated_as_unset(self):
+        _calls, values = self._run(exists=True, env_key="")
+        self.assertEqual(values, {})
+
+
+class TestOracleDbSecretArgv(unittest.TestCase):
+    def test_values_never_on_argv(self):
+        seen = []
+
+        def fake_kubectl(args, **kw):
+            seen.append(list(args))
+            return mock.Mock(returncode=0, stdout="kind: Secret\n")
+
+        env = {"TMI_DATABASE_URL": "oracle://u@h/svc", "ORACLE_PASSWORD": "s3cret-pw"}
+        with mock.patch.object(deploy, "kubectl", side_effect=fake_kubectl), \
+             mock.patch.dict(os.environ, env), mock.patch.object(deploy, "log_success"):
+            deploy.create_oracle_db_secret()
+        flat = [a for c in seen for a in c]
+        self.assertFalse(any("s3cret-pw" in a or "oracle://" in a for a in flat))
+        self.assertIn("--from-file=oracle-password=", " ".join(flat))
+
+
 class TestSeedTmiSecretKeys(unittest.TestCase):
     """seed_tmi_secret_keys merges missing keys and never overwrites (#965)."""
 

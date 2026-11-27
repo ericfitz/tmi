@@ -914,9 +914,12 @@ test-e2e-workers:  ## Build worker images, load into kind, deploy CRs, run the w
 	$(MAKE) build-extractor-container build-chunkembed-container
 	kind load docker-image tmi-extractor:dev --name tmi-platform
 	kind load docker-image tmi-chunk-embed:dev --name tmi-platform
-	kubectl --context kind-tmi-platform -n tmi-platform create secret generic tmi-embedding \
-		--from-literal=api-key=$${TMI_EMBEDDING_API_KEY:-sk-e2e-placeholder} \
-		--dry-run=client -o yaml | kubectl --context kind-tmi-platform apply -f -
+	@keydir=$$(umask 077 && mktemp -d "$${TMPDIR:-/tmp}/tmi-embed.XXXXXX") && \
+		trap 'rm -rf "$$keydir"' EXIT && \
+		(umask 077 && printf '%s' "$${TMI_EMBEDDING_API_KEY:-sk-e2e-placeholder}" > "$$keydir/api-key") && \
+		kubectl --context kind-tmi-platform -n tmi-platform create secret generic tmi-embedding \
+			--from-file=api-key="$$keydir/api-key" \
+			--dry-run=client -o yaml | kubectl --context kind-tmi-platform apply -f -
 	kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/components/
 	@echo ">> port-forwarding NATS to localhost:4222 for the test"
 	kubectl --context kind-tmi-platform -n tmi-platform port-forward svc/nats 4222:4222 & \

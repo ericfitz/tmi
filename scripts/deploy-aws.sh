@@ -932,7 +932,7 @@ apply_platform_base() {
 # PHASE 4.5: Chunk-Embed API Key Secret
 # ============================================================================
 
-# Mirrors create_embedding_secret() in scripts/lib/deploy.py:478 (create-or-
+# Mirrors create_embedding_secret() in scripts/lib/deploy.py (create-or-
 # update via `kubectl create --dry-run=client -o yaml | kubectl apply -f -`,
 # key never echoed) but does NOT fall back to a placeholder value the way the
 # local-dev helper does: on AWS a placeholder key would deploy successfully
@@ -961,10 +961,20 @@ create_embedding_secret() {
     fi
 
     log_info "Creating/updating Secret/tmi-embedding (key never logged)..."
-    local rendered
-    rendered=$(kubectl create secret generic tmi-embedding -n "${NAMESPACE}" \
-        --from-literal="api-key=${TMI_EMBEDDING_API_KEY}" \
-        --dry-run=client -o yaml)
+    # The key goes through a umask-077 file and --from-file (printf is a bash
+    # builtin), so it never reaches kubectl's argv; same pattern as
+    # scripts/rotate-openai-keys.sh.
+    local keydir rendered
+    keydir=$(umask 077 && mktemp -d "${TMPDIR:-/tmp}/tmi-embed.XXXXXX")
+    (umask 077 && printf '%s' "${TMI_EMBEDDING_API_KEY}" > "${keydir}/api-key")
+    if ! rendered=$(kubectl create secret generic tmi-embedding -n "${NAMESPACE}" \
+        --from-file="api-key=${keydir}/api-key" \
+        --dry-run=client -o yaml); then
+        rm -rf "${keydir}"
+        log_error "Failed to render Secret/tmi-embedding"
+        return 1
+    fi
+    rm -rf "${keydir}"
     echo "${rendered}" | kubectl apply -f - >/dev/null
     log_success "Secret/tmi-embedding created/updated"
 }

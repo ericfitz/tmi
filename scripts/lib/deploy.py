@@ -728,14 +728,50 @@ def deliver_config(cluster_target: str = "docker-desktop") -> None:
     log_success(f"Config delivered as ConfigMap/{CONFIGMAP_NAME}")
 
 
-def create_embedding_secret() -> None:
-    key = os.environ.get("TMI_EMBEDDING_API_KEY", "sk-e2e-placeholder")
-    rendered = kubectl(
-        ["create", "secret", "generic", "tmi-embedding", "-n", NS,
-         f"--from-literal=api-key={key}", "--dry-run=client", "-o", "yaml"],
-        capture=True,
-    ).stdout
+def _apply_secret_from_values(name: str, values: dict[str, str]) -> None:
+    """Create or update Secret/<name> in NS with `values` (key -> value).
+
+    Each value is written to a 0600 file in a private temp dir and handed to
+    kubectl with --from-file, so no value ever reaches argv (visible in `ps`),
+    the environment, a log, or stdout. Rendered with --dry-run=client and
+    applied, so it works whether or not the Secret already exists."""
+    old_umask = os.umask(0o077)
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            args = ["create", "secret", "generic", name, "-n", NS]
+            for key, value in values.items():
+                f = Path(tmp) / key
+                f.write_text(value)
+                args.append(f"--from-file={key}={f}")
+            rendered = kubectl([*args, "--dry-run=client", "-o", "yaml"], capture=True).stdout
+    finally:
+        os.umask(old_umask)
     kubectl(["apply", "-f", "-"], input_text=rendered)
+
+
+EMBEDDING_PLACEHOLDER_KEY = "sk-e2e-placeholder"
+
+
+def create_embedding_secret() -> None:
+    """Deliver Secret/tmi-embedding (key api-key) for the tmi-chunk-embed worker.
+
+    - TMI_EMBEDDING_API_KEY set: create or update the Secret with it.
+    - Unset and the Secret exists: keep it unchanged. It may hold a real key
+      rotated by scripts/rotate-openai-keys.sh, which a redeploy must not
+      clobber (#1243). Mirrors create_embedding_secret() in deploy-aws.sh.
+    - Unset and the Secret is missing: create it with a placeholder so the
+      worker pod can start on a fresh (e.g. docker-desktop e2e) cluster.
+    """
+    key = os.environ.get("TMI_EMBEDDING_API_KEY", "")
+    if not key:
+        if kubectl(["-n", NS, "get", "secret", "tmi-embedding"],
+                   check=False, capture=True).returncode == 0:
+            log_info("TMI_EMBEDDING_API_KEY not set; keeping the existing Secret/tmi-embedding")
+            return
+        log_warn("TMI_EMBEDDING_API_KEY not set; creating Secret/tmi-embedding with a "
+                 "placeholder key (embedding calls will fail until a real key is set)")
+        key = EMBEDDING_PLACEHOLDER_KEY
+    _apply_secret_from_values("tmi-embedding", {"api-key": key})
 
 
 def create_oauth_providers_secret() -> None:
@@ -848,14 +884,8 @@ def create_oracle_db_secret() -> None:
     if not password:
         log_error("DB=oracle requires ORACLE_PASSWORD to be set (run: source scripts/oci-env.sh)")
         sys.exit(1)
-    rendered = kubectl(
-        ["create", "secret", "generic", "tmi-oracle-db", "-n", NS,
-         f"--from-literal=database-url={url}",
-         f"--from-literal=oracle-password={password}",
-         "--dry-run=client", "-o", "yaml"],
-        capture=True,
-    ).stdout
-    kubectl(["apply", "-f", "-"], input_text=rendered)
+    _apply_secret_from_values("tmi-oracle-db",
+                              {"database-url": url, "oracle-password": password})
     log_success("oracle DB connection delivered as Secret/tmi-oracle-db")
 
 
