@@ -39,9 +39,9 @@
       "oauth_provider": "tmi"
     },
     {
-      "id": "cats-transfer-target",
-      "email": "cats-transfer-target@tmi.local",
-      "display_name": "CATS Transfer Target (Throwaway User)",
+      "id": "cats-member-target",
+      "email": "cats-member-target@tmi.local",
+      "display_name": "CATS Member Target (Throwaway User)",
       "roles": {
         "is_admin": false
       },

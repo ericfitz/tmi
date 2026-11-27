@@ -82,7 +82,7 @@ func TestWriteYAMLReferenceSeedGapBindings(t *testing.T) {
 		addonRef(throwawayAddonName):        {Kind: kindAddon, ID: "ad-decoy"},
 		usabilityFeedbackRef(0):             {Kind: kindUsabilityFeedback, ID: "uf-1"},
 		userRef("cats-target"):              {Kind: kindUser, ID: "usr-target"},
-		userRef(transferTargetUser):         {Kind: kindUser, ID: "usr-transfer"},
+		userRef(memberTargetUser):           {Kind: kindUser, ID: "usr-member"},
 		groupRef(realGroupName):             {Kind: kindGroup, ID: "grp-real"},
 		groupRef(memberGroupName):           {Kind: kindGroup, ID: "grp-member"},
 		tmRef(realThreatModelName):          {Kind: kindThreatModel, ID: "tm-real"},
@@ -103,29 +103,24 @@ func TestWriteYAMLReferenceSeedGapBindings(t *testing.T) {
 			{"/addons/{id}", "id", "ad-decoy"},
 			{"/addons/{id}/invoke", "id", "ad-real"},
 			{"/usability_feedback/{id}", "id", "uf-1"},
-			// The source is cats-target (the nested /admin/users path), so the
-			// target must be a different account, and not the decoy user that
-			// DELETE /admin/users/{user_id} consumes first.
-			{"/admin/users/{user_id}/transfer", "target_user_id", "usr-transfer"},
 			// Not cats-target: it is already a member of the real group, so
 			// every add would be a 409.
-			{"all", "user_internal_uuid", "usr-transfer"},
+			{"all", "user_internal_uuid", "usr-member"},
 			{"all", "member_group_internal_uuid", "grp-member"},
-			{"/me/identities/link/start", "idp", "tmi"},
-			{"/me/identities/link/start", "client_callback", "http://localhost:8079/"},
 		}
 		for _, c := range checks {
 			if got := doc[c.section][c.key]; got != c.want {
 				t.Fatalf("%s.%s = %v, want %s", c.section, c.key, got, c.want)
 			}
 		}
-		// /me/transfer moves everything the fuzzing identity owns; it must stay
-		// self-targeted (a documented 400), so no binding may reach it.
-		if _, ok := doc["/me/transfer"]; ok {
-			t.Fatal("/me/transfer must not get a target_user_id binding")
-		}
-		if _, ok := doc["all"]["target_user_id"]; ok {
-			t.Fatal("target_user_id must not be global: it would reach /me/transfer")
+		// /me/transfer moves everything the fuzzing identity owns. CATS shares
+		// one base body per schema, so ANY target_user_id binding (global or on
+		// /admin/users/{user_id}/transfer) reaches it: run 20261127T222848Z
+		// gave the fixtures away. No section may carry the key.
+		for section, kv := range doc {
+			if _, ok := kv["target_user_id"]; ok {
+				t.Fatalf("%s binds target_user_id, which leaks into /me/transfer", section)
+			}
 		}
 	}
 }
@@ -136,7 +131,6 @@ func TestWriteYAMLReferenceSeedGapBindingsOmittedWhenUnseeded(t *testing.T) {
 	doc := renderRefData(t, RefMap{})
 	for _, section := range []string{
 		"/addons/{id}", "/addons/{id}/invoke", "/usability_feedback/{id}",
-		"/admin/users/{user_id}/transfer",
 	} {
 		if _, ok := doc[section]; ok {
 			t.Errorf("section %s emitted with nothing seeded", section)
@@ -176,7 +170,7 @@ func TestCatsSeedDefinesSeedGapFixtures(t *testing.T) {
 	}
 	for _, ref := range []string{
 		addonRef(realAddonName), addonRef(throwawayAddonName),
-		usabilityFeedbackRef(0), userRef(transferTargetUser), groupRef(memberGroupName),
+		usabilityFeedbackRef(0), userRef(memberTargetUser), groupRef(memberGroupName),
 	} {
 		if !have[ref] {
 			t.Errorf("seed lacks ref %q", ref)

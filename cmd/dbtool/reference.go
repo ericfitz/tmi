@@ -254,13 +254,12 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 		{"/addons/{id}/invoke", "id", findRefByName(refs, addonRef(realAddonName), "")},
 		// GET-only, so no decoy: just a real id instead of the threat model's.
 		{"/usability_feedback/{id}", "id", findRefByName(refs, usabilityFeedbackRef(0), "")},
-		// Not a decoy either: the transfer source is cats-target (the nested
-		// /admin/users value), so the target must be a third account. It must
-		// not be cats-decoy, which DELETE /admin/users/{user_id} consumes first.
-		// Deliberately per-path: a global target_user_id would also reach
-		// /me/transfer, which hands the fuzzing identity's fixtures away.
-		{"/admin/users/{user_id}/transfer", "target_user_id",
-			findRefByName(refs, userRef(transferTargetUser), "")},
+		// No target_user_id binding for POST /admin/users/{user_id}/transfer,
+		// not even per path: CATS builds one base body per schema, and
+		// /me/transfer shares TransferOwnershipRequest. In run 20261127T222848Z
+		// the per-path value reached /me/transfer, whose HappyPath handed every
+		// threat model the fuzzing identity owned to the target, so the rest of
+		// the campaign ran into 403s (#1235). Both transfers stay self-targeted.
 	}
 	// AddGroupMemberRequest body fields (#1235). user_internal_uuid was a
 	// CATS-random UUID ("User not found"). It names a user who is NOT already a
@@ -268,7 +267,7 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	// would turn every add into a 409. The group-subject case gets a group of
 	// its own that no anchor DELETE can take away. Omitted when not seeded.
 	globalExtras := ""
-	if id := findRefByName(refs, userRef(transferTargetUser), ""); id != "" && id != nilUUID {
+	if id := findRefByName(refs, userRef(memberTargetUser), ""); id != "" && id != nilUUID {
 		globalExtras += fmt.Sprintf("  user_internal_uuid: %s\n", id)
 	}
 	if id := findRefByName(refs, groupRef(memberGroupName), ""); id != "" && id != nilUUID {
@@ -437,12 +436,6 @@ all:
   actor_provider: %s
   created_after: "2020-01-01T00:00:00Z"
   created_before: "2035-01-01T00:00:00Z"
-# Query parameters are not taken from the all: section, so link/start got a
-# random idp ("LAMSLR") and a random callback (#1235). The callback must be on
-# the server's client_callback_allowlist; the OAuth stub's is.
-/me/identities/link/start:
-  idp: %s
-  client_callback: http://localhost:8079/
 # entry_id names three different audit families (system, admin threat-model,
 # and a threat model's own trail) — the one-name-many-resources problem #603
 # fixed for groups vs users, still present here. These ids are harvested after
@@ -467,7 +460,6 @@ all:
 		globalExtras,
 		actorEmail, provider, tmID,
 		actorEmail, provider,
-		provider,
 		decoySections,
 		auditSections,
 	)
@@ -678,10 +670,10 @@ const (
 	// Add-on fixture and its DELETE decoy (#1235).
 	realAddonName      = "CATS Test Addon"
 	throwawayAddonName = "CATS Throwaway Addon"
-	// Throwaway user that is in no group and owns nothing: it receives
-	// ownership in POST /admin/users/{user_id}/transfer and is the user added
-	// by POST /admin/groups/{group_id}/members (#1235).
-	transferTargetUser = "cats-transfer-target"
+	// Throwaway user that is in no group: the user added by
+	// POST /admin/groups/{group_id}/members (#1235). It must never be a
+	// transfer target (see the note in the decoys list).
+	memberTargetUser = "cats-member-target"
 	// Group-subject member for POST /admin/groups/{group_id}/members (#1235).
 	memberGroupName = "CATS Member Group"
 )
