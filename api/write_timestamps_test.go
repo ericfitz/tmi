@@ -121,7 +121,7 @@ func TestWriteTimestamps_Notes(t *testing.T) {
 		assert.Equal(t, "n2", storedName(t, db, &models.TeamNoteRecord{}, id))
 
 		backdate(t, db, &models.TeamNoteRecord{}, id, tsOld)
-		patched, err := store.Patch(ctx, id, []PatchOperation{{Op: "replace", Path: "/name", Value: "n3"}}, nil)
+		patched, err := store.Patch(ctx, id, string(team.ID), []PatchOperation{{Op: "replace", Path: "/name", Value: "n3"}}, nil)
 		require.NoError(t, err)
 		assertStoredTimes(t, db, &models.TeamNoteRecord{}, id, patched.CreatedAt, patched.ModifiedAt)
 		assert.True(t, patched.ModifiedAt.After(tsOld))
@@ -145,7 +145,7 @@ func TestWriteTimestamps_Notes(t *testing.T) {
 		assert.True(t, updated.ModifiedAt.After(tsOld))
 
 		backdate(t, db, &models.ProjectNoteRecord{}, id, tsOld)
-		patched, err := store.Patch(ctx, id, []PatchOperation{{Op: "replace", Path: "/name", Value: "n3"}}, nil)
+		patched, err := store.Patch(ctx, id, string(project.ID), []PatchOperation{{Op: "replace", Path: "/name", Value: "n3"}}, nil)
 		require.NoError(t, err)
 		assertStoredTimes(t, db, &models.ProjectNoteRecord{}, id, patched.CreatedAt, patched.ModifiedAt)
 		assert.True(t, patched.ModifiedAt.After(tsOld))

@@ -17,13 +17,13 @@ import (
 // TeamNoteStoreInterface defines the store interface for team notes
 type TeamNoteStoreInterface interface {
 	Create(ctx context.Context, note *TeamNote, teamID string) (*TeamNote, error)
-	Get(ctx context.Context, id string) (*TeamNote, error)
+	Get(ctx context.Context, id, teamID string) (*TeamNote, error)
 	Update(ctx context.Context, id string, note *TeamNote, teamID string) (*TeamNote, error)
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id, teamID string) error
 	// Patch applies operations to the stored note, then calls check (when
 	// non-nil) with the stored and patched notes before persisting; check may
 	// rewrite the patched note, and an error from it aborts the patch.
-	Patch(ctx context.Context, id string, operations []PatchOperation, check func(before, after *TeamNote) error) (*TeamNote, error)
+	Patch(ctx context.Context, id, teamID string, operations []PatchOperation, check func(before, after *TeamNote) error) (*TeamNote, error)
 	List(ctx context.Context, teamID string, offset, limit int, includeNonSharable bool) ([]TeamNoteListItem, int, error)
 	Count(ctx context.Context, teamID string, includeNonSharable bool) (int, error)
 }
@@ -151,12 +151,12 @@ func (s *GormTeamNoteStore) Create(ctx context.Context, note *TeamNote, teamID s
 }
 
 // Get retrieves a team note by ID
-func (s *GormTeamNoteStore) Get(ctx context.Context, id string) (*TeamNote, error) {
+func (s *GormTeamNoteStore) Get(ctx context.Context, id, teamID string) (*TeamNote, error) {
 	logger := slogging.Get()
 
 	var record models.TeamNoteRecord
 	if err := s.db.WithContext(ctx).
-		Where(ColumnMap(s.db.Name(), map[string]any{"id": id})).
+		Where(ColumnMap(s.db.Name(), map[string]any{"id": id, "team_id": teamID})).
 		First(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrTeamNoteNotFound
@@ -204,14 +204,16 @@ func (s *GormTeamNoteStore) Update(ctx context.Context, id string, note *TeamNot
 		// Updates with an explicit "ModifiedAt" (Go field name) rather than
 		// Save: Save lets autoUpdateTime overwrite ModifiedAt with a second
 		// instant, so the response would differ from the stored value (#1155).
-		res := tx.Model(&existing).Updates(map[string]any{
-			"Name":         existing.Name,
-			"Content":      existing.Content,
-			"Description":  existing.Description,
-			"TimmyEnabled": existing.TimmyEnabled,
-			"Sharable":     existing.Sharable,
-			"ModifiedAt":   existing.ModifiedAt,
-		})
+		res := tx.Model(&existing).
+			Where(ColumnMap(tx.Name(), map[string]any{"team_id": teamID})).
+			Updates(map[string]any{
+				"Name":         existing.Name,
+				"Content":      existing.Content,
+				"Description":  existing.Description,
+				"TimmyEnabled": existing.TimmyEnabled,
+				"Sharable":     existing.Sharable,
+				"ModifiedAt":   existing.ModifiedAt,
+			})
 		if err := res.Error; err != nil {
 			logger.Error("Failed to update team note: %v", err)
 			return dberrors.Classify(err)
@@ -229,12 +231,12 @@ func (s *GormTeamNoteStore) Update(ctx context.Context, id string, note *TeamNot
 }
 
 // Delete deletes a team note
-func (s *GormTeamNoteStore) Delete(ctx context.Context, id string) error {
+func (s *GormTeamNoteStore) Delete(ctx context.Context, id, teamID string) error {
 	logger := slogging.Get()
 
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.
-			Where(ColumnMap(tx.Name(), map[string]any{"id": id})).
+			Where(ColumnMap(tx.Name(), map[string]any{"id": id, "team_id": teamID})).
 			Delete(&models.TeamNoteRecord{})
 		if result.Error != nil {
 			logger.Error("Failed to delete team note: %v", result.Error)
@@ -249,11 +251,9 @@ func (s *GormTeamNoteStore) Delete(ctx context.Context, id string) error {
 
 // Patch applies JSON Patch operations to a team note, runs check on the
 // result, and persists it.
-func (s *GormTeamNoteStore) Patch(ctx context.Context, id string, operations []PatchOperation, check func(before, after *TeamNote) error) (*TeamNote, error) {
-	logger := slogging.Get()
-
+func (s *GormTeamNoteStore) Patch(ctx context.Context, id, teamID string, operations []PatchOperation, check func(before, after *TeamNote) error) (*TeamNote, error) {
 	// Get existing note
-	existing, err := s.Get(ctx, id)
+	existing, err := s.Get(ctx, id, teamID)
 	if err != nil {
 		return nil, err
 	}
@@ -275,16 +275,7 @@ func (s *GormTeamNoteStore) Patch(ctx context.Context, id string, operations []P
 		}
 	}
 
-	// Find the record to get the teamID
-	var record models.TeamNoteRecord
-	if err := s.db.WithContext(ctx).
-		Where(ColumnMap(s.db.Name(), map[string]any{"id": id})).
-		First(&record).Error; err != nil {
-		logger.Error("Failed to find team note for patch: %v", err)
-		return nil, dberrors.Classify(err)
-	}
-
-	return s.Update(ctx, id, &patched, string(record.TeamID))
+	return s.Update(ctx, id, &patched, teamID)
 }
 
 // List returns a paginated list of team notes for a team

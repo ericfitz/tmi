@@ -209,7 +209,7 @@ func (s *Server) GetProjectNote(c *gin.Context, projectId openapi_types.UUID, pr
 		return
 	}
 
-	note, storeErr := GlobalProjectNoteStore.Get(ctx, projectNoteId.String())
+	note, storeErr := GlobalProjectNoteStore.Get(ctx, projectNoteId.String(), projectId.String())
 	if storeErr != nil {
 		HandleRequestError(c, StoreErrorToRequestError(storeErr, "Project note not found", "Failed to retrieve project note"))
 		return
@@ -244,7 +244,7 @@ func (s *Server) UpdateProjectNote(c *gin.Context, projectId openapi_types.UUID,
 	}
 
 	// Get existing note to check sharable status
-	existing, storeErr := GlobalProjectNoteStore.Get(ctx, projectNoteId.String())
+	existing, storeErr := GlobalProjectNoteStore.Get(ctx, projectNoteId.String(), projectId.String())
 	if storeErr != nil {
 		HandleRequestError(c, StoreErrorToRequestError(storeErr, "Project note not found", "Failed to retrieve project note"))
 		return
@@ -327,7 +327,7 @@ func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, 
 	}
 
 	// Get existing note to check sharable status
-	existing, storeErr := GlobalProjectNoteStore.Get(ctx, projectNoteId.String())
+	existing, storeErr := GlobalProjectNoteStore.Get(ctx, projectNoteId.String(), projectId.String())
 	if storeErr != nil {
 		HandleRequestError(c, StoreErrorToRequestError(storeErr, "Project note not found", "Failed to retrieve project note"))
 		return
@@ -363,7 +363,7 @@ func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, 
 
 	// The store sanitizes the patched result it persists, not the operations:
 	// copy/move can smuggle a value between fields (#1013).
-	result, patchErr := GlobalProjectNoteStore.Patch(ctx, projectNoteId.String(), operations, checkPatchedProjectNote)
+	result, patchErr := GlobalProjectNoteStore.Patch(ctx, projectNoteId.String(), projectId.String(), operations, checkPatchedProjectNote)
 	if patchErr != nil {
 		logger.Error("Failed to patch project note: %v", patchErr)
 		HandleRequestError(c, StoreErrorToRequestError(patchErr, "Project note not found", "Failed to patch project note"))
@@ -390,7 +390,7 @@ func (s *Server) DeleteProjectNote(c *gin.Context, projectId openapi_types.UUID,
 	}
 
 	// Get existing note to check sharable status
-	existing, storeErr := GlobalProjectNoteStore.Get(ctx, projectNoteId.String())
+	existing, storeErr := GlobalProjectNoteStore.Get(ctx, projectNoteId.String(), projectId.String())
 	if storeErr != nil {
 		HandleRequestError(c, StoreErrorToRequestError(storeErr, "Project note not found", "Failed to retrieve project note"))
 		return
@@ -405,7 +405,7 @@ func (s *Server) DeleteProjectNote(c *gin.Context, projectId openapi_types.UUID,
 		return
 	}
 
-	if deleteErr := GlobalProjectNoteStore.Delete(ctx, projectNoteId.String()); deleteErr != nil {
+	if deleteErr := GlobalProjectNoteStore.Delete(ctx, projectNoteId.String(), projectId.String()); deleteErr != nil {
 		logger.Error("Failed to delete project note: %v", deleteErr)
 		HandleRequestError(c, StoreErrorToRequestError(deleteErr, "Project note not found", "Failed to delete project note"))
 		return
