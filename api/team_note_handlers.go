@@ -205,7 +205,7 @@ func (s *Server) GetTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNote
 		return
 	}
 
-	note, storeErr := GlobalTeamNoteStore.Get(ctx, teamNoteId.String())
+	note, storeErr := GlobalTeamNoteStore.Get(ctx, teamNoteId.String(), teamId.String())
 	if storeErr != nil {
 		HandleRequestError(c, StoreErrorToRequestError(storeErr, "Team note not found", "Failed to retrieve team note"))
 		return
@@ -240,7 +240,7 @@ func (s *Server) UpdateTeamNote(c *gin.Context, teamId openapi_types.UUID, teamN
 	}
 
 	// Get existing note to check sharable status
-	existing, storeErr := GlobalTeamNoteStore.Get(ctx, teamNoteId.String())
+	existing, storeErr := GlobalTeamNoteStore.Get(ctx, teamNoteId.String(), teamId.String())
 	if storeErr != nil {
 		HandleRequestError(c, StoreErrorToRequestError(storeErr, "Team note not found", "Failed to retrieve team note"))
 		return
@@ -323,7 +323,7 @@ func (s *Server) PatchTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNo
 	}
 
 	// Get existing note to check sharable status
-	existing, storeErr := GlobalTeamNoteStore.Get(ctx, teamNoteId.String())
+	existing, storeErr := GlobalTeamNoteStore.Get(ctx, teamNoteId.String(), teamId.String())
 	if storeErr != nil {
 		HandleRequestError(c, StoreErrorToRequestError(storeErr, "Team note not found", "Failed to retrieve team note"))
 		return
@@ -359,7 +359,7 @@ func (s *Server) PatchTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNo
 
 	// The store sanitizes the patched result it persists, not the operations:
 	// copy/move can smuggle a value between fields (#1013).
-	result, patchErr := GlobalTeamNoteStore.Patch(ctx, teamNoteId.String(), operations, checkPatchedTeamNote)
+	result, patchErr := GlobalTeamNoteStore.Patch(ctx, teamNoteId.String(), teamId.String(), operations, checkPatchedTeamNote)
 	if patchErr != nil {
 		logger.Error("Failed to patch team note: %v", patchErr)
 		HandleRequestError(c, StoreErrorToRequestError(patchErr, "Team note not found", "Failed to patch team note"))
@@ -386,7 +386,7 @@ func (s *Server) DeleteTeamNote(c *gin.Context, teamId openapi_types.UUID, teamN
 	}
 
 	// Get existing note to check sharable status
-	existing, storeErr := GlobalTeamNoteStore.Get(ctx, teamNoteId.String())
+	existing, storeErr := GlobalTeamNoteStore.Get(ctx, teamNoteId.String(), teamId.String())
 	if storeErr != nil {
 		HandleRequestError(c, StoreErrorToRequestError(storeErr, "Team note not found", "Failed to retrieve team note"))
 		return
@@ -401,7 +401,7 @@ func (s *Server) DeleteTeamNote(c *gin.Context, teamId openapi_types.UUID, teamN
 		return
 	}
 
-	if deleteErr := GlobalTeamNoteStore.Delete(ctx, teamNoteId.String()); deleteErr != nil {
+	if deleteErr := GlobalTeamNoteStore.Delete(ctx, teamNoteId.String(), teamId.String()); deleteErr != nil {
 		logger.Error("Failed to delete team note: %v", deleteErr)
 		HandleRequestError(c, StoreErrorToRequestError(deleteErr, "Team note not found", "Failed to delete team note"))
 		return

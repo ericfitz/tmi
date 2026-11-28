@@ -17,13 +17,13 @@ import (
 // ProjectNoteStoreInterface defines the store interface for project notes
 type ProjectNoteStoreInterface interface {
 	Create(ctx context.Context, note *ProjectNote, projectID string) (*ProjectNote, error)
-	Get(ctx context.Context, id string) (*ProjectNote, error)
+	Get(ctx context.Context, id, projectID string) (*ProjectNote, error)
 	Update(ctx context.Context, id string, note *ProjectNote, projectID string) (*ProjectNote, error)
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id, projectID string) error
 	// Patch applies operations to the stored note, then calls check (when
 	// non-nil) with the stored and patched notes before persisting; check may
 	// rewrite the patched note, and an error from it aborts the patch.
-	Patch(ctx context.Context, id string, operations []PatchOperation, check func(before, after *ProjectNote) error) (*ProjectNote, error)
+	Patch(ctx context.Context, id, projectID string, operations []PatchOperation, check func(before, after *ProjectNote) error) (*ProjectNote, error)
 	List(ctx context.Context, projectID string, offset, limit int, includeNonSharable bool) ([]ProjectNoteListItem, int, error)
 	Count(ctx context.Context, projectID string, includeNonSharable bool) (int, error)
 }
@@ -151,12 +151,12 @@ func (s *GormProjectNoteStore) Create(ctx context.Context, note *ProjectNote, pr
 }
 
 // Get retrieves a project note by ID
-func (s *GormProjectNoteStore) Get(ctx context.Context, id string) (*ProjectNote, error) {
+func (s *GormProjectNoteStore) Get(ctx context.Context, id, projectID string) (*ProjectNote, error) {
 	logger := slogging.Get()
 
 	var record models.ProjectNoteRecord
 	if err := s.db.WithContext(ctx).
-		Where(ColumnMap(s.db.Name(), map[string]any{"id": id})).
+		Where(ColumnMap(s.db.Name(), map[string]any{"id": id, "project_id": projectID})).
 		First(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrProjectNoteNotFound
@@ -204,14 +204,16 @@ func (s *GormProjectNoteStore) Update(ctx context.Context, id string, note *Proj
 		// Updates with an explicit "ModifiedAt" (Go field name) rather than
 		// Save: Save lets autoUpdateTime overwrite ModifiedAt with a second
 		// instant, so the response would differ from the stored value (#1155).
-		res := tx.Model(&existing).Updates(map[string]any{
-			"Name":         existing.Name,
-			"Content":      existing.Content,
-			"Description":  existing.Description,
-			"TimmyEnabled": existing.TimmyEnabled,
-			"Sharable":     existing.Sharable,
-			"ModifiedAt":   existing.ModifiedAt,
-		})
+		res := tx.Model(&existing).
+			Where(ColumnMap(tx.Name(), map[string]any{"project_id": projectID})).
+			Updates(map[string]any{
+				"Name":         existing.Name,
+				"Content":      existing.Content,
+				"Description":  existing.Description,
+				"TimmyEnabled": existing.TimmyEnabled,
+				"Sharable":     existing.Sharable,
+				"ModifiedAt":   existing.ModifiedAt,
+			})
 		if err := res.Error; err != nil {
 			logger.Error("Failed to update project note: %v", err)
 			return dberrors.Classify(err)
@@ -229,12 +231,12 @@ func (s *GormProjectNoteStore) Update(ctx context.Context, id string, note *Proj
 }
 
 // Delete deletes a project note
-func (s *GormProjectNoteStore) Delete(ctx context.Context, id string) error {
+func (s *GormProjectNoteStore) Delete(ctx context.Context, id, projectID string) error {
 	logger := slogging.Get()
 
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.
-			Where(ColumnMap(tx.Name(), map[string]any{"id": id})).
+			Where(ColumnMap(tx.Name(), map[string]any{"id": id, "project_id": projectID})).
 			Delete(&models.ProjectNoteRecord{})
 		if result.Error != nil {
 			logger.Error("Failed to delete project note: %v", result.Error)
@@ -249,11 +251,9 @@ func (s *GormProjectNoteStore) Delete(ctx context.Context, id string) error {
 
 // Patch applies JSON Patch operations to a project note, runs check on the
 // result, and persists it.
-func (s *GormProjectNoteStore) Patch(ctx context.Context, id string, operations []PatchOperation, check func(before, after *ProjectNote) error) (*ProjectNote, error) {
-	logger := slogging.Get()
-
+func (s *GormProjectNoteStore) Patch(ctx context.Context, id, projectID string, operations []PatchOperation, check func(before, after *ProjectNote) error) (*ProjectNote, error) {
 	// Get existing note
-	existing, err := s.Get(ctx, id)
+	existing, err := s.Get(ctx, id, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -275,16 +275,7 @@ func (s *GormProjectNoteStore) Patch(ctx context.Context, id string, operations 
 		}
 	}
 
-	// Find the record to get the projectID
-	var record models.ProjectNoteRecord
-	if err := s.db.WithContext(ctx).
-		Where(ColumnMap(s.db.Name(), map[string]any{"id": id})).
-		First(&record).Error; err != nil {
-		logger.Error("Failed to find project note for patch: %v", err)
-		return nil, dberrors.Classify(err)
-	}
-
-	return s.Update(ctx, id, &patched, string(record.ProjectID))
+	return s.Update(ctx, id, &patched, projectID)
 }
 
 // List returns a paginated list of project notes for a project

@@ -61,7 +61,7 @@ func (m *mockProjectNoteStore) Create(_ context.Context, note *ProjectNote, _ st
 	return note, nil
 }
 
-func (m *mockProjectNoteStore) Get(_ context.Context, id string) (*ProjectNote, error) {
+func (m *mockProjectNoteStore) Get(_ context.Context, id, _ string) (*ProjectNote, error) {
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
@@ -90,7 +90,7 @@ func (m *mockProjectNoteStore) Update(_ context.Context, id string, note *Projec
 	return note, nil
 }
 
-func (m *mockProjectNoteStore) Delete(_ context.Context, id string) error {
+func (m *mockProjectNoteStore) Delete(_ context.Context, id, _ string) error {
 	if m.deleteErr != nil {
 		return m.deleteErr
 	}
@@ -101,7 +101,7 @@ func (m *mockProjectNoteStore) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (m *mockProjectNoteStore) Patch(_ context.Context, id string, ops []PatchOperation, check func(before, after *ProjectNote) error) (*ProjectNote, error) {
+func (m *mockProjectNoteStore) Patch(_ context.Context, id, _ string, ops []PatchOperation, check func(before, after *ProjectNote) error) (*ProjectNote, error) {
 	m.patchedOps = ops
 	if m.patchErr != nil {
 		return nil, m.patchErr
