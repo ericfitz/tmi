@@ -742,9 +742,24 @@ func transformAdminWebhooksAndAddons(admin *SeedSpecAdmin) []SeedEntry {
 		if a.ThreatModel != "" {
 			data["threat_model_ref"] = tmRef(a.ThreatModel)
 		}
+		// The ref is what registers the created id: without it the seeder
+		// drops the result and refData falls back to the nil UUID (#1235).
 		seeds = append(seeds, SeedEntry{
 			Kind: kindAddon,
+			Ref:  addonRef(a.Name),
 			Data: data,
+		})
+	}
+
+	for i, f := range admin.UsabilityFeedback {
+		seeds = append(seeds, SeedEntry{
+			Kind: kindUsabilityFeedback,
+			Ref:  usabilityFeedbackRef(i),
+			Data: map[string]any{
+				"sentiment": f.Sentiment,
+				"surface":   f.Surface,
+				"client_id": f.ClientID,
+			},
 		})
 	}
 
@@ -928,6 +943,11 @@ func groupRef(name string) string { return "group:" + sanitizeName(name) }
 func surveyRef(name string) string { return "survey:" + sanitizeName(name) }
 
 func webhookRef(name string) string { return "webhook:" + sanitizeName(name) }
+
+func addonRef(name string) string { return "addon:" + sanitizeName(name) }
+
+// usabilityFeedbackRef is positional: feedback records have no name.
+func usabilityFeedbackRef(i int) string { return fmt.Sprintf("usability-feedback:%d", i) }
 
 func webhookDeliveryRef(webhookName string) string {
 	return "webhook-delivery:" + sanitizeName(webhookName)

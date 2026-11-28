@@ -159,6 +159,8 @@ func seedViaAPI(serverURL, token string, entry SeedEntry, refs RefMap, db *testd
 		return client.seedSurveyResponse(entry, refs)
 	case kindMetadata:
 		return client.seedMetadata(entry, refs)
+	case kindUsabilityFeedback:
+		return client.seedUsabilityFeedback(entry)
 	default:
 		return nil, fmt.Errorf("unsupported API seed kind: %s", entry.Kind)
 	}
@@ -1210,6 +1212,53 @@ func (c *apiClient) seedTopLevel(entry SeedEntry, path string) (*SeedResult, err
 		return nil, err
 	}
 	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
+}
+
+// seedUsabilityFeedback creates a usability feedback record, reusing one with
+// the same client_id and surface so re-seeding does not pile up duplicates.
+func (c *apiClient) seedUsabilityFeedback(entry SeedEntry) (*SeedResult, error) {
+	log := slogging.Get()
+	clientID, _ := entry.Data["client_id"].(string)
+	surface, _ := entry.Data["surface"].(string)
+	if clientID == "" || surface == "" {
+		return nil, fmt.Errorf("usability_feedback seed needs client_id and surface")
+	}
+	if existingID := c.findExistingUsabilityFeedback(clientID, surface); existingID != "" {
+		log.Info("  usability feedback already exists: %s (skipping)", existingID)
+		return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: existingID}, nil
+	}
+	id, err := c.createAPIObject(entry.Kind, "/usability_feedback", entry.Data)
+	if err != nil {
+		return nil, err
+	}
+	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
+}
+
+func (c *apiClient) findExistingUsabilityFeedback(clientID, surface string) string {
+	result, status, err := c.apiRequest("GET", "/usability_feedback?limit=100", nil)
+	if err != nil || status >= 300 {
+		return ""
+	}
+	items, ok := result["items"].([]any)
+	if !ok {
+		return ""
+	}
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if gotClient, _ := m["client_id"].(string); gotClient != clientID {
+			continue
+		}
+		if gotSurface, _ := m["surface"].(string); gotSurface != surface {
+			continue
+		}
+		if id, ok := extractID(m["id"]); ok {
+			return id
+		}
+	}
+	return ""
 }
 
 func (c *apiClient) seedMetadata(entry SeedEntry, refs RefMap) (*SeedResult, error) {

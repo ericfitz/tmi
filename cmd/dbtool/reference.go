@@ -134,7 +134,8 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	// subscription unfuzzed while the decoy absorbed both roles.
 	webhookID := findRefByName(refs, webhookRef(realWebhookName), "webhook")
 	deliveryID := findRefByKind(refs, "webhook_test_delivery")
-	addonID := findRefByKind(refs, "addon")
+	// By name: the decoy add-on (below) makes a kind lookup nondeterministic.
+	addonID := findRefByName(refs, addonRef(realAddonName), kindAddon)
 	credID := findRefByKind(refs, "client_credential")
 	surveyID := findRefByName(refs, surveyRef(realSurveyName), "survey")
 	// Index 0 explicitly: survey responses are seeded positionally and
@@ -246,7 +247,36 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 		// /test has no destructive operations, so it needs no protection.
 		{"/admin/webhooks/subscriptions/{webhook_id}/test", "webhook_id",
 			findRefByName(refs, webhookRef(testEndpointWebhookName), "")},
+		// The add-on paths use the generic {id}, which the global section binds
+		// to the threat-model id, so both need their own sections (#1235). The
+		// anchor's DELETE sorts before /invoke, so the anchor gets the decoy.
+		{"/addons/{id}", "id", findRefByName(refs, addonRef(throwawayAddonName), "")},
+		{"/addons/{id}/invoke", "id", findRefByName(refs, addonRef(realAddonName), "")},
+		// GET-only, so no decoy: just a real id instead of the threat model's.
+		{"/usability_feedback/{id}", "id", findRefByName(refs, usabilityFeedbackRef(0), "")},
+		// No target_user_id binding for POST /admin/users/{user_id}/transfer,
+		// not even per path: CATS builds one base body per schema, and
+		// /me/transfer shares TransferOwnershipRequest. In run 20261127T222848Z
+		// the per-path value reached /me/transfer, whose HappyPath handed every
+		// threat model the fuzzing identity owned to the target, so the rest of
+		// the campaign ran into 403s (#1235). Removing the binding was not
+		// enough: in run 20261127T234247Z CATS still sent a real user id (the
+		// /admin/users/{user_id} decoy), so /me/transfer is in cats.skip_paths
+		// and is fuzzed on its own. Never bind target_user_id here.
 	}
+	// AddGroupMemberRequest body fields (#1235). user_internal_uuid was a
+	// CATS-random UUID ("User not found"). It names a user who is NOT already a
+	// member: cats-target is a seeded member of the real group, so binding it
+	// would turn every add into a 409. The group-subject case gets a group of
+	// its own that no anchor DELETE can take away. Omitted when not seeded.
+	globalExtras := ""
+	if id := findRefByName(refs, userRef(memberTargetUser), ""); id != "" && id != nilUUID {
+		globalExtras += fmt.Sprintf("  user_internal_uuid: %s\n", id)
+	}
+	if id := findRefByName(refs, groupRef(memberGroupName), ""); id != "" && id != nilUUID {
+		globalExtras += fmt.Sprintf("  member_group_internal_uuid: %s\n", id)
+	}
+
 	decoySections := ""
 	for _, d := range decoys {
 		// A decoy that was not seeded must not emit a section: an empty or nil
@@ -391,7 +421,7 @@ all:
   # Not currently a real path parameter name in the spec (see member_uuid),
   # kept for compatibility; also switched to the throwaway target user.
   user_uuid: %s
-# Admin audit list endpoints (#494): supply valid values for the query params CATS
+%s# Admin audit list endpoints (#494): supply valid values for the query params CATS
 # otherwise randomizes, so HappyPath reaches the server cleanly (200) and the
 # field-mutation fuzzers exercise their target field instead of every request
 # dying on a malformed param. 'cursor' (an opaque keyset token) and 'around'
@@ -430,6 +460,7 @@ all:
 		provider, user,
 		provider, provider,
 		targetUUID, targetUUID,
+		globalExtras,
 		actorEmail, provider, tmID,
 		actorEmail, provider,
 		decoySections,
@@ -454,6 +485,7 @@ all:
 			groupID: adminGroupID, userID: targetUUID,
 			surveyID: surveyID, surveyResponseID: responseID,
 			triageNoteID: triageNoteID, webhookID: webhookID, deliveryID: deliveryID,
+			addonID: addonID,
 		},
 	)
 }
@@ -465,6 +497,7 @@ type fixtureIDs struct {
 	groupID, userID                                                 string
 	surveyID, surveyResponseID, triageNoteID                        string
 	webhookID, deliveryID                                           string
+	addonID                                                         string
 }
 
 type referenceFixture struct {
@@ -511,6 +544,7 @@ func writeFixtureManifest(path string, ids fixtureIDs) error {
 		"/admin/webhooks/subscriptions/{webhook_id}":     true,
 
 		"/admin/surveys/{survey_id}": true,
+		"/addons/{id}":               true,
 
 		"/threat_models/{threat_model_id}/diagrams/{diagram_id}":        true,
 		"/threat_models/{threat_model_id}/threats/{threat_id}":          true,
@@ -554,12 +588,12 @@ func writeFixtureManifest(path string, ids fixtureIDs) error {
 			"/admin/webhooks/subscriptions/{webhook_id}", false},
 		{"delivery_id", ids.deliveryID, "/admin/webhooks/deliveries/" + ids.deliveryID,
 			"/admin/webhooks/deliveries/{delivery_id}", false},
+		{"addon_id", ids.addonID, "/addons/" + ids.addonID, "/addons/{id}", false},
 	}
 
 	// #nosec G101 -- these are refData key names and prose reasons, not credentials
 	unverifiable := map[string]string{
 		"credential_id": "spec has no GET for /me/client_credentials/{credential_id} (delete-only)",
-		"addon_id":      "no spec path uses {addon_id}",
 		"key":           "metadata key is not an addressable resource",
 		"entry_id":      "audit entries are harvested after seeding, not seeded, and are not deletable fixtures",
 	}
@@ -635,6 +669,16 @@ const (
 	// response decoy away.
 	realSurveyName      = "CATS Test Survey"
 	throwawaySurveyName = "CATS Throwaway Survey"
+
+	// Add-on fixture and its DELETE decoy (#1235).
+	realAddonName      = "CATS Test Addon"
+	throwawayAddonName = "CATS Throwaway Addon"
+	// Throwaway user that is in no group: the user added by
+	// POST /admin/groups/{group_id}/members (#1235). It must never be a
+	// transfer target (see the note in the decoys list).
+	memberTargetUser = "cats-member-target"
+	// Group-subject member for POST /admin/groups/{group_id}/members (#1235).
+	memberGroupName = "CATS Member Group"
 )
 
 // findRefByName returns a seeded id by its exact seed ref, falling back to the

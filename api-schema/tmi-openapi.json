@@ -19766,7 +19766,9 @@
         "x-tmi-authz": {
           "ownership": "writer",
           "subject_authority": "invoker"
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the decoy every later GET/PATCH/PUT on this path depends on. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issues #651, #1115 and #1235."
       }
     },
     "/threat_models/{threat_model_id}/threats/{threat_id}/metadata": {
@@ -22530,7 +22532,9 @@
         "x-tmi-authz": {
           "ownership": "writer",
           "subject_authority": "invoker"
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the decoy every later GET/PATCH/PUT on this path depends on. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issues #651, #1115 and #1235."
       },
       "patch": {
         "summary": "Partially update document",
@@ -25118,7 +25122,9 @@
         "x-tmi-authz": {
           "ownership": "writer",
           "subject_authority": "invoker"
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the decoy every later GET/PATCH/PUT on this path depends on. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issues #651, #1115 and #1235."
       },
       "patch": {
         "summary": "Partially update repository",
@@ -29345,7 +29351,9 @@
         "x-tmi-authz": {
           "ownership": "owner",
           "subject_authority": "invoker"
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the decoy every later GET/PATCH/PUT on this path depends on. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issues #651, #1115 and #1235."
       }
     },
     "/threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate": {
@@ -32064,7 +32072,9 @@
         "x-tmi-authz": {
           "ownership": "writer",
           "subject_authority": "invoker"
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the decoy every later GET/PATCH/PUT on this path depends on. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issues #651, #1115 and #1235."
       },
       "patch": {
         "summary": "Partially update note",
@@ -34741,7 +34751,9 @@
         "x-tmi-authz": {
           "ownership": "writer",
           "subject_authority": "invoker"
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the decoy every later GET/PATCH/PUT on this path depends on. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issues #651, #1115 and #1235."
       },
       "patch": {
         "summary": "Partially update asset",
@@ -37546,7 +37558,9 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy add-on. refData binds one id per path, so a DELETE that succeeds here removes the add-on every later GET/PATCH on this path depends on. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issues #651 and #1235."
       },
       "patch": {
         "summary": "Partially update add-on",
@@ -46202,7 +46216,9 @@
             "admin"
           ]
         },
-        "x-tmi-authz-step-up": "optional"
+        "x-tmi-authz-step-up": "optional",
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the decoy every later GET/PATCH/PUT on this path depends on. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issues #651, #1115 and #1235."
       }
     },
     "/intake/surveys": {
@@ -65146,7 +65162,9 @@
         },
         "x-tmi-authz": {
           "ownership": "none"
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the decoy every later GET/PATCH/PUT on this path depends on. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issues #651, #1115 and #1235."
       }
     },
     "/webhook-deliveries/{delivery_id}": {

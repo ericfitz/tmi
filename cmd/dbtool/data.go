@@ -243,6 +243,9 @@ const (
 	kindSurvey           = "survey"
 	kindSurveyResponse   = "survey_response"
 	kindMetadata         = "metadata"
+	// kindUsabilityFeedback is a POST /usability_feedback record, seeded so
+	// GET /usability_feedback/{id} has a real id to read (#1235).
+	kindUsabilityFeedback = "usability_feedback"
 
 	strategyDB  = "db"
 	strategyAPI = "api"
@@ -258,7 +261,7 @@ func classifyStrategy(kind string) string {
 		kindThreat, kindAsset, kindDocument, kindNote, kindRepository,
 		kindTeamNote, kindProjectNote, kindFeedback, kindTriageNote,
 		kindWebhook, kindWebhookTestDeliv, kindAddon, kindClientCredential,
-		kindSurvey, kindSurveyResponse, kindMetadata:
+		kindSurvey, kindSurveyResponse, kindMetadata, kindUsabilityFeedback:
 		return strategyAPI
 	default:
 		return ""
