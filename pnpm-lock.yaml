@@ -26,11 +26,11 @@ importers:
   .:
     devDependencies:
       '@redocly/cli':
-        specifier: ^2.75.0
-        version: 2.75.0
+        specifier: ^2.84.0
+        version: 2.84.0
       '@stoplight/spectral-cli':
-        specifier: ^6.17.0
-        version: 6.17.0
+        specifier: ^6.17.1
+        version: 6.17.1
 
 packages:
 
@@ -67,8 +67,8 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@redocly/cli@2.75.0':
-    resolution: {integrity: sha512-jShlmyHydk8i8bGvvkLDhfKOwAnACG5s1Okwv+S323OoFUajOLOy1uOfNIiEAIZZIaLreoatkvXYcdavc0u9RQ==}
+  '@redocly/cli@2.84.0':
+    resolution: {integrity: sha512-0RmjaLv9QrydTLMEKXvQTasLy4uFQRbrAIwjgRhOB1uiI3O3H7AbEmSIyvHh3r7ARx/bm9+uD154jmh+HfBG0Q==}
     engines: {node: '>=22.12.0 || >=20.19.0 <21.0.0', npm: '>=10'}
     hasBin: true
 
@@ -113,8 +113,8 @@ packages:
     resolution: {integrity: sha512-lyIc6JUlUA8Ve5ELywPC8I2Sdnh1zc1zmbYgVarhXIp9YeAB0ReeqmGEOWNtlHkbP2DAA1AL65Wfn2ncjK/jtQ==}
     engines: {node: '>=8'}
 
-  '@stoplight/spectral-cli@6.17.0':
-    resolution: {integrity: sha512-9OTHNYqfF99hjHsh5aCjNHRZgocJBaHa6uaQTBUOsgAA19jaLaT8xB6/SBGC+GA7Wpzu4t9MMIOXPLj0ZbL5UA==}
+  '@stoplight/spectral-cli@6.17.1':
+    resolution: {integrity: sha512-/eeJ8z4nh7TbYfO0qwJC+y/Z6fHisMs3obbsUa9YW52skfUcAo0O9gLctIcQ6DBs04Rk94ErPDlI/7vOO0TbRw==}
     engines: {node: ^22.0 || >= 24.0}
     hasBin: true
 
@@ -227,6 +227,11 @@ packages:
 
   ajv-formats@2.1.1:
     resolution: {integrity: sha512-Wx0Kx52hxE7C18hkMEggYlEifqWZtYaRgouJor+WMdPnQyEK13vgEWyVNup7SoeeoLMsr4kf5h6dOW11I15MUA==}
+    peerDependencies:
+      ajv: ^8.0.0
+    peerDependenciesMeta:
+      ajv:
+        optional: true
 
   ajv@8.20.0:
     resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
@@ -1010,7 +1015,7 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@redocly/cli@2.75.0': {}
+  '@redocly/cli@2.84.0': {}
 
   '@rollup/plugin-commonjs@22.0.2(rollup@2.80.0)':
     dependencies:
@@ -1071,7 +1076,7 @@ snapshots:
 
   '@stoplight/path@1.3.2': {}
 
-  '@stoplight/spectral-cli@6.17.0':
+  '@stoplight/spectral-cli@6.17.1':
     dependencies:
       '@scarf/scarf': 1.4.0
       '@stoplight/json': 3.21.7
