@@ -75,8 +75,8 @@ func clearRateLimitKeys(ctx context.Context, client *redis.Client) {
 	}
 	for _, pattern := range patterns {
 		iter := client.Scan(ctx, 0, pattern, 100).Iterator()
-		for iter.Next(ctx) {
-			client.Del(ctx, iter.Val())
+		for key := range iter.Vals(ctx) {
+			client.Del(ctx, key)
 		}
 	}
 }

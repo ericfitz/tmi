@@ -353,8 +353,8 @@ func (ci *CacheInvalidator) invalidatePaginatedLists(ctx context.Context, entity
 	iter := client.Scan(ctx, 0, pattern, 0).Iterator()
 
 	var keysToDelete []string
-	for iter.Next(ctx) {
-		keysToDelete = append(keysToDelete, iter.Val())
+	for key := range iter.Vals(ctx) {
+		keysToDelete = append(keysToDelete, key)
 	}
 
 	if err := iter.Err(); err != nil {
