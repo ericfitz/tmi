@@ -259,7 +259,10 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 		// /me/transfer shares TransferOwnershipRequest. In run 20261127T222848Z
 		// the per-path value reached /me/transfer, whose HappyPath handed every
 		// threat model the fuzzing identity owned to the target, so the rest of
-		// the campaign ran into 403s (#1235). Both transfers stay self-targeted.
+		// the campaign ran into 403s (#1235). Removing the binding was not
+		// enough: in run 20261127T234247Z CATS still sent a real user id (the
+		// /admin/users/{user_id} decoy), so /me/transfer is in cats.skip_paths
+		// and is fuzzed on its own. Never bind target_user_id here.
 	}
 	// AddGroupMemberRequest body fields (#1235). user_internal_uuid was a
 	// CATS-random UUID ("User not found"). It names a user who is NOT already a

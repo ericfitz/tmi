@@ -116,7 +116,8 @@ func TestWriteYAMLReferenceSeedGapBindings(t *testing.T) {
 		// /me/transfer moves everything the fuzzing identity owns. CATS shares
 		// one base body per schema, so ANY target_user_id binding (global or on
 		// /admin/users/{user_id}/transfer) reaches it: run 20261127T222848Z
-		// gave the fixtures away. No section may carry the key.
+		// gave the fixtures away. No section may carry the key. (Not sufficient
+		// on its own: /me/transfer is also in cats.skip_paths, see reference.go.)
 		for section, kv := range doc {
 			if _, ok := kv["target_user_id"]; ok {
 				t.Fatalf("%s binds target_user_id, which leaks into /me/transfer", section)
